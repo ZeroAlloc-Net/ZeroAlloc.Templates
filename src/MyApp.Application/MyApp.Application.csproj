@@ -14,7 +14,9 @@
       <IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
     </PackageReference>
     <PackageReference Include="ZeroAlloc.Mediator.Validation" />
-    <PackageReference Include="ZeroAlloc.Mapping" />
+    <PackageReference Include="ZeroAlloc.Mapping">
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
     <PackageReference Include="ZeroAlloc.Validation" />
     <PackageReference Include="ZeroAlloc.Results" />
     <PackageReference Include="ZeroAlloc.Inject" />
