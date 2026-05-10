@@ -4,6 +4,7 @@ using Xunit;
 public class TemplateScaffoldsAndBuildsTests
 {
     [Fact]
+    [Trait("Category", "Slow")]
     public async Task Template_installs_scaffolds_builds_and_tests_pass()
     {
         var repoRoot = FindRepoRoot();
