@@ -12,6 +12,13 @@ public sealed class CreateOrderHandler(IOrderRepository repo, IShippingQuoteClie
 {
     public async ValueTask<Result<OrderId, ApplicationError>> Handle(CreateOrderCommand request, CancellationToken ct)
     {
+        var validation = CreateOrderValidator.Validate(request);
+        if (validation.IsFailure)
+        {
+            return Result<OrderId, ApplicationError>.Failure(
+                new ApplicationError("validation.failed", $"{validation.Error.Field}: {validation.Error.Message}"));
+        }
+
         var quote = await shipping.GetQuoteAsync(request.ShippingZip, ct).ConfigureAwait(false);
         if (quote.IsFailure)
         {
