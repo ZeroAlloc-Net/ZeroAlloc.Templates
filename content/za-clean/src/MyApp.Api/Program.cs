@@ -50,9 +50,12 @@ builder.Services
         };
     });
 
+// RequireClaim("scope", "orders.read", "orders.write") accepts a token that has
+// EITHER value — so a writer can also read. OrdersWrite is strict: only the
+// "orders.write" scope passes. A token without the scope claim returns 403.
 builder.Services.AddAuthorizationBuilder()
-    .AddPolicy("OrdersRead", p => p.RequireAuthenticatedUser())
-    .AddPolicy("OrdersWrite", p => p.RequireAuthenticatedUser());
+    .AddPolicy("OrdersRead",  p => p.RequireAuthenticatedUser().RequireClaim("scope", "orders.read", "orders.write"))
+    .AddPolicy("OrdersWrite", p => p.RequireAuthenticatedUser().RequireClaim("scope", "orders.write"));
 
 // ---------------------------------------------------------------------------
 // OpenTelemetry — traces + metrics with console exporter (dev default). Use
