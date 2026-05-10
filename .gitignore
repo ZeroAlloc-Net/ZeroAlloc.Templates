@@ -1,0 +1,24 @@
+## .NET
+bin/
+obj/
+*.user
+*.suo
+*.cache
+*.vs/
+.vs/
+
+## NuGet
+*.nupkg
+*.snupkg
+
+## IDE
+.idea/
+*.sln.DotSettings.user
+
+# BenchmarkDotNet output
+BenchmarkDotNet.Artifacts/
+benchmarks/**/generated/
+
+# Template scaffolding output
+test-output/
+benchmarks/**/BenchmarkDotNet.Artifacts/
