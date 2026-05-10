@@ -22,3 +22,6 @@ benchmarks/**/generated/
 # Template scaffolding output
 test-output/
 benchmarks/**/BenchmarkDotNet.Artifacts/
+
+# Template packaging output
+nupkg/
