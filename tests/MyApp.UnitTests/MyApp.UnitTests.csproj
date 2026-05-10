@@ -8,5 +8,6 @@
     <PackageReference Include="xunit" />
     <PackageReference Include="xunit.runner.visualstudio" />
     <ProjectReference Include="../../src/MyApp.Domain/MyApp.Domain.csproj" />
+    <ProjectReference Include="../../src/MyApp.Application/MyApp.Application.csproj" />
   </ItemGroup>
 </Project>

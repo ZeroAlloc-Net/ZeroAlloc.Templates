@@ -1,5 +1,6 @@
 <Solution>
   <Folder Name="/src/">
+    <Project Path="src/MyApp.Application/MyApp.Application.csproj" />
     <Project Path="src/MyApp.Domain/MyApp.Domain.csproj" />
   </Folder>
   <Folder Name="/tests/">
