@@ -13,11 +13,11 @@
   </PropertyGroup>
   <ItemGroup Condition="'$(IsPackable)' != 'false' and '$(MSBuildProjectName)' != 'ZeroAlloc.Templates'">
     <!-- Per-project analyzers; the template package itself is content-only. -->
-    <PackageReference Include="Meziantou.Analyzer" Version="3.0.24">
+    <PackageReference Include="Meziantou.Analyzer">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
     </PackageReference>
-    <PackageReference Include="Roslynator.Analyzers" Version="4.15.0">
+    <PackageReference Include="Roslynator.Analyzers">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
     </PackageReference>
