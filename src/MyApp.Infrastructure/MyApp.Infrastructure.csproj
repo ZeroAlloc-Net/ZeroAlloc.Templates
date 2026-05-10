@@ -11,7 +11,19 @@
     </PackageReference>
     <PackageReference Include="ZeroAlloc.Resilience" />
     <PackageReference Include="ZeroAlloc.Rest" />
+    <PackageReference Include="ZeroAlloc.Rest.Generator">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="ZeroAlloc.Rest.Resilience" />
     <PackageReference Include="ZeroAlloc.Inject" />
+    <PackageReference Include="ZeroAlloc.Inject.Generator">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
+    </PackageReference>
     <ProjectReference Include="../MyApp.Application/MyApp.Application.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="MyApp.Api" />
   </ItemGroup>
 </Project>
