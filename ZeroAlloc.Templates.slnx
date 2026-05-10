@@ -10,4 +10,8 @@
     <Project Path="tests/MyApp.ArchitectureTests/MyApp.ArchitectureTests.csproj" />
     <Project Path="tests/MyApp.IntegrationTests/MyApp.IntegrationTests.csproj" />
   </Folder>
+  <Folder Name="/benchmarks/">
+    <Project Path="benchmarks/MyApp.Benchmarks/MyApp.Benchmarks.csproj" />
+    <Project Path="benchmarks/MyApp.LoadTest/MyApp.LoadTest.csproj" />
+  </Folder>
 </Solution>
