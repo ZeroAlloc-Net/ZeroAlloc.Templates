@@ -23,3 +23,8 @@ csharp_new_line_before_finally = true
 csharp_indent_case_contents = true
 csharp_indent_switch_labels = true
 dotnet_sort_system_directives_first = true
+
+# EF Core generates migration files with timestamps in their names; the contained
+# type name (e.g. InitialCreate) intentionally does not match the file name.
+[**/Persistence/Migrations/*.cs]
+dotnet_diagnostic.MA0048.severity = none

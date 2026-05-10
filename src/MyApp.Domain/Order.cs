@@ -14,6 +14,14 @@ public sealed class Order
         Total = Money.TryCreate(0m, "EUR").Value;
     }
 
+    // EF Core materialisation constructor. The framework rehydrates [CustomerId]
+    // and [Total] through the configured property/owned-type mappings; the field
+    // initialisers above keep [_lines] non-null and EF assigns OrderStatus via
+    // its value-converter.
+    private Order()
+    {
+    }
+
     public OrderId Id { get; private set; }
 
     public CustomerId CustomerId { get; }
