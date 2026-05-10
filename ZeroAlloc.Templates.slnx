@@ -1,17 +1,8 @@
 <Solution>
-  <Folder Name="/src/">
-    <Project Path="src/MyApp.Api/MyApp.Api.csproj" />
-    <Project Path="src/MyApp.Application/MyApp.Application.csproj" />
-    <Project Path="src/MyApp.Domain/MyApp.Domain.csproj" />
-    <Project Path="src/MyApp.Infrastructure/MyApp.Infrastructure.csproj" />
+  <Folder Name="/template/">
+    <Project Path="ZeroAlloc.Templates.csproj" />
   </Folder>
   <Folder Name="/tests/">
-    <Project Path="tests/MyApp.UnitTests/MyApp.UnitTests.csproj" />
-    <Project Path="tests/MyApp.ArchitectureTests/MyApp.ArchitectureTests.csproj" />
-    <Project Path="tests/MyApp.IntegrationTests/MyApp.IntegrationTests.csproj" />
-  </Folder>
-  <Folder Name="/benchmarks/">
-    <Project Path="benchmarks/MyApp.Benchmarks/MyApp.Benchmarks.csproj" />
-    <Project Path="benchmarks/MyApp.LoadTest/MyApp.LoadTest.csproj" />
+    <Project Path="tests/ZeroAlloc.Templates.SmokeTests/ZeroAlloc.Templates.SmokeTests.csproj" />
   </Folder>
 </Solution>
