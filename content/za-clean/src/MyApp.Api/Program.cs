@@ -23,6 +23,17 @@ var shippingBaseUrl = builder.Configuration["Shipping:BaseUrl"]
 
 builder.Services.AddMyAppInfrastructure(connectionString, shippingBaseUrl);
 
+// Load-test / dev convenience: swap the ZA.Rest typed shipping client for an
+// in-memory stub when Shipping:UseStub=true. Override via the
+// Shipping__UseStub=true env var for one-shot runs (e.g. NBomber).
+// Defaults to false — production deployments are untouched.
+if (builder.Configuration.GetValue<bool>("Shipping:UseStub"))
+{
+    var descriptor = builder.Services.Single(d => d.ServiceType == typeof(MyApp.Application.IShippingQuoteClient));
+    builder.Services.Remove(descriptor);
+    builder.Services.AddScoped<MyApp.Application.IShippingQuoteClient, MyApp.Api.External.InMemoryShippingClient>();
+}
+
 // ---------------------------------------------------------------------------
 // Application composition (IMediator dispatcher + handler registrations).
 // ---------------------------------------------------------------------------

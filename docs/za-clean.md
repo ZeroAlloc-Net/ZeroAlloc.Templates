@@ -140,7 +140,21 @@ BenchmarkDotNet v0.14.0, Windows 11 (10.0.26200.8246)
 
 The 156.75 KB is dominated by ASP.NET Core's request pipeline (model binding, JSON deserialization, response shaping) and EF Core's tracking buffer — not the ZA framework cost. The handler-level allocation (mapping + Mediator dispatch + Result construction) is in the low hundreds of bytes; the rest is HTTP plumbing every endpoint pays. Use this as a regression baseline, not a capacity-planning number.
 
-**NBomber numbers not yet captured.** The scaffold's `IShippingQuoteHttpClient` targets a placeholder URL (`https://shipping.example/`); NBomber's seed step hits DNS failures end-to-end. A real load test requires either pointing `Shipping:BaseUrl` at a working endpoint or wiring a stub-shipping config flag (tracked as a v0.2.0 follow-up). The BDN numbers above already bypass this by stubbing `IShippingQuoteClient` inside `WebApplicationFactory`.
+#### NBomber — read-RPS scenario (real Kestrel)
+
+`GET /orders/{id}` at 500 concurrent VUs for 30 seconds, after seeding 1000 orders. API run with `Shipping__UseStub=true` so the seed step bypasses the placeholder shipping endpoint (the config flag landed in v0.2.1 — see Customising below).
+
+| Metric | Value |
+|---|---:|
+| OK / fail | **14,207 / 370** |
+| RPS (ok) | **473.57** |
+| Mean latency | 1009 ms |
+| p50 / p75 / p95 / p99 | 887 / 1203 / 2138 / 2634 ms |
+| Failure mode | operation timeout (370 / 14,577 = 2.5%) |
+
+These reflect an unoptimised SQLite-backed scaffold under heavy concurrency. The 1 s mean / 2 s p95 latency is dominated by SQLite's single-file lock combined with EF Core's tracking-context allocation per request — fixable with PostgreSQL, `AsNoTracking()` on reads, response caching, and tighter connection pooling.
+
+The scenario's purpose isn't to publish a benchmark; it's to give adopters a working harness pointed at a representative endpoint so the first thing they do on a new branch is run it and see how their changes moved the needle.
 
 ### Reproduction
 
@@ -148,8 +162,9 @@ The 156.75 KB is dominated by ASP.NET Core's request pipeline (model binding, JS
 # Allocation per request (BDN, in-process)
 dotnet run -c Release --project benchmarks/MyApp.Benchmarks -- --filter "*WritePipelineBench*"
 
-# RPS under load (NBomber, real Kestrel)
-dotnet run --project src/MyApp.Api &
+# RPS under load (NBomber, real Kestrel). Stub the shipping client so the
+# seed step doesn't DNS-fail against the placeholder shipping URL.
+Shipping__UseStub=true dotnet run --project src/MyApp.Api &
 dotnet run -c Release --project benchmarks/MyApp.LoadTest
 ```
 

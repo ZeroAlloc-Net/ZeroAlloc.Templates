@@ -36,11 +36,14 @@ benchmarks/
 
 Measured on a 2022 i9-12900HK / Windows 11 / .NET 10.0.7. Reproduction recipe below.
 
-| Scenario | Mean | Allocated | What it measures |
-|---|---:|---:|---|
-| `POST /orders` end-to-end | **2.037 ms** | **156.75 KB** | HTTP → JWT validate → ZA.Mediator dispatch → validation → handler → stubbed shipping → EF Core write → 201 response |
+| Scenario | Mean | p95 | p99 | RPS | Allocated | What it measures |
+|---|---:|---:|---:|---:|---:|---|
+| `POST /orders` (BDN, in-process) | **2.037 ms** | — | — | — | **156.75 KB** | HTTP → JWT → Mediator → validation → handler → stubbed shipping → EF Core write → 201. Run with no Kestrel via `WebApplicationFactory`. |
+| `GET /orders/{id}` (NBomber, real Kestrel) | 1009 ms | 2138 ms | 2634 ms | **473** | — | 500 concurrent VUs for 30s. 14,207 OK / 370 timeouts. SQLite read-bound. |
 
-The 156.75 KB is dominated by ASP.NET Core's request pipeline (model binding, JSON deserialization, response shaping) and EF Core's tracking buffer — not the ZA framework cost. The handler-level allocation (mapping + Mediator dispatch + Result construction) is in the low hundreds of bytes; the rest is HTTP plumbing every endpoint pays.
+The BDN's 156.75 KB is dominated by ASP.NET Core's request pipeline (model binding, JSON deserialization, response shaping) and EF Core's tracking buffer — not the ZA framework cost. The handler-level allocation is in the low hundreds of bytes; the rest is HTTP plumbing every endpoint pays.
+
+NBomber's latency under 500-VU load reflects SQLite's single-file lock + EF Core's tracking-context allocation per request. PostgreSQL + EF `AsNoTracking()` on reads + response caching would dramatically improve both throughput and p99.
 
 **Reproduce:**
 
@@ -48,12 +51,13 @@ The 156.75 KB is dominated by ASP.NET Core's request pipeline (model binding, JS
 # Per-request cost (in-process via WebApplicationFactory, no Kestrel socket)
 dotnet run -c Release --project benchmarks/MyApp.Benchmarks -- --filter "*WritePipelineBench*"
 
-# Sustained RPS (real Kestrel, requires running API)
-dotnet run --project src/MyApp.Api                              # terminal 1
-dotnet run -c Release --project benchmarks/MyApp.LoadTest       # terminal 2
+# Sustained RPS (real Kestrel; stub out the shipping client so the load test
+# doesn't DNS-fail against the placeholder shipping URL)
+Shipping__UseStub=true dotnet run --project src/MyApp.Api          # terminal 1
+dotnet run -c Release --project benchmarks/MyApp.LoadTest          # terminal 2
 ```
 
-> **NBomber load-test caveat**: the scaffold's shipping client (`IShippingQuoteHttpClient`) targets a placeholder URL (`https://shipping.example/`). Out of the box, NBomber's `POST /orders` seed step will fail with DNS errors. To get realistic RPS numbers, either point `Shipping:BaseUrl` at a real (or local mock) endpoint, or swap `IShippingQuoteClient` for an in-memory stub via a configuration flag. The BDN benchmark above already does this stubbing via `WebApplicationFactory` and reports honest framework-cost numbers.
+> **`Shipping__UseStub` flag**: the scaffold's shipping client (`IShippingQuoteHttpClient`) targets a placeholder URL (`https://shipping.example/`), so production-shape orders depend on a real endpoint. For load tests, set `Shipping__UseStub=true` (env var) or `Shipping:UseStub: true` (appsettings) — `Program.cs` swaps the real client for an in-memory stub returning a constant `Money(5, "EUR")`. Defaults to `false`; production deployments untouched.
 
 Full methodology + comparison with reflection-based mappers: see [ZeroAlloc.Templates docs/za-clean.md](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/blob/main/docs/za-clean.md#benchmarks).
 
