@@ -40,10 +40,16 @@ internal static class ReadHotPathScenario
 
                 if (resp.IsSuccessStatusCode)
                 {
-                    var location = resp.Headers.Location;
-                    if (location is not null && int.TryParse(location.Segments[^1], out var id))
+                    // Created returns a relative Location like "/orders/123"; Uri.Segments
+                    // only works on absolute URIs, so parse the last path segment manually.
+                    var loc = resp.Headers.Location?.OriginalString;
+                    if (loc is not null)
                     {
-                        seededIds.Add(id);
+                        var lastSlash = loc.LastIndexOf('/');
+                        if (lastSlash >= 0 && int.TryParse(loc.AsSpan(lastSlash + 1), out var id))
+                        {
+                            seededIds.Add(id);
+                        }
                     }
                 }
             }

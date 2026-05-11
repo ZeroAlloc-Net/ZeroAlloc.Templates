@@ -15,12 +15,14 @@
     <ContentTargetFolders>content</ContentTargetFolders>
     <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
     <NoWarn>$(NoWarn);NU5128</NoWarn>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
     <EnableSourceControlManagerQueries>false</EnableSourceControlManagerQueries>
     <EnableSourceLink>false</EnableSourceLink>
     <DeterministicSourcePaths>false</DeterministicSourcePaths>
   </PropertyGroup>
   <ItemGroup>
     <Content Include="content/**/*" Exclude="content/**/bin/**;content/**/obj/**;content/**/*.user" />
+    <None Include="README.md" Pack="true" PackagePath="\" />
     <Compile Remove="**\*.cs" />
   </ItemGroup>
 </Project>
