@@ -118,7 +118,9 @@ jobs:
         run: |
           cd /tmp/aot-smoke/SmokeApp
           START=$(date +%s%N)
-          Shipping__UseStub=true ./aot-out/SmokeApp.Api > /tmp/aot-server.log 2>&1 &
+          Shipping__UseStub=true \
+            Jwt__DevSigningKey=DEV-ONLY-KEY-DO-NOT-USE-IN-PRODUCTION-AT-LEAST-32-CHARS-LONG \
+            ./aot-out/SmokeApp.Api > /tmp/aot-server.log 2>&1 &
           PID=$!
           # Wait up to 30s for the API to be ready
           for i in $(seq 1 600); do
