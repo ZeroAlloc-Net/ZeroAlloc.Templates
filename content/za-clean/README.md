@@ -1,6 +1,33 @@
 # MyApp
 
-Clean Architecture Web API scaffolded from `dotnet new za-clean`. Source-generated, zero-allocation through the framework hot path, AOT-safe. Built on the [ZeroAlloc.\*](https://github.com/ZeroAlloc-Net) ecosystem.
+Clean Architecture Web API. **Publishes as a 35.8 MB Native AOT single-file binary; cold-starts in ~1.0 s** (vs ~2.2 s under JIT — ~2.2× faster). Source-generated, zero-allocation through the framework hot path. Built on the [ZeroAlloc.\*](https://github.com/ZeroAlloc-Net) ecosystem.
+
+| | Value |
+|---|---:|
+| **AOT binary size** | 35.8 MB single-file, self-contained (win-x64) |
+| **AOT cold start** | ~1.0 s (process → `/healthz` 200, best of 3) |
+| **JIT cold start** (comparison) | ~2.2 s (same scenario) |
+| **Framework primitives end-to-end** | ~148 ns / 200 B (= mapping cost alone; chain adds 0 B) |
+| **Mediator dispatch alone** | ~32 ns / 0 B |
+| **Validator (hand-rolled, regex zip)** | ~33 ns / 0 B |
+| **ValueObject `TryCreate`** | ~9 ns / 0 B |
+| **End-to-end pipeline** (with ASP.NET + EF) | 156 KB / 2 ms — mostly platform overhead, not ZA |
+
+Measured on a 2022 i9-12900HK / Windows 11 / .NET 10.0.7. The decisive datapoint: `EndToEndPrimitives` matches `Mapping_RequestToCommand` byte-for-byte — the validator + Mediator dispatch through the chain allocate **zero bytes**. The 200 B is the `CreateOrderCommand` record + nested `OrderItem[]` array, a caller cost every framework pays.
+
+**Reproduce:**
+
+```bash
+# Framework primitives (zero-alloc, ns/op — what ZA is)
+dotnet run -c Release --project benchmarks/MyApp.Benchmarks.Primitives -- --filter "*"
+
+# Full pipeline (ASP.NET + EF — what the platform costs)
+dotnet run -c Release --project benchmarks/MyApp.Benchmarks -- --filter "*WritePipelineBench*"
+
+# AOT publish + cold-start
+dotnet publish src/MyApp.Api -c Release -r win-x64 -o ./aot-out
+time ./aot-out/MyApp.Api  # measure to /healthz
+```
 
 ## Quickstart
 
@@ -28,29 +55,24 @@ tests/
 └── MyApp.IntegrationTests/  WebApplicationFactory — happy-path + auth roundtrips
 
 benchmarks/
-├── MyApp.Benchmarks/        BenchmarkDotNet — per-request cost through full pipeline
-└── MyApp.LoadTest/          NBomber — RPS under sustained concurrency
+├── MyApp.Benchmarks.Primitives/ BenchmarkDotNet — ZA primitives in isolation (0 B framework cost)
+├── MyApp.Benchmarks/            BenchmarkDotNet — full ASP.NET + EF pipeline cost
+└── MyApp.LoadTest/              NBomber — RPS under sustained concurrency
 ```
 
-## Performance
+## Load testing under sustained concurrency
 
-Measured on a 2022 i9-12900HK / Windows 11 / .NET 10.0.7. Reproduction recipe below.
+The NBomber load test scenario (read RPS, 500 VUs for 30s against real Kestrel):
 
-| Scenario | Mean | p95 | p99 | RPS | Allocated | What it measures |
-|---|---:|---:|---:|---:|---:|---|
-| `POST /orders` (BDN, in-process) | **2.037 ms** | — | — | — | **156.75 KB** | HTTP → JWT → Mediator → validation → handler → stubbed shipping → EF Core write → 201. Run with no Kestrel via `WebApplicationFactory`. |
-| `GET /orders/{id}` (NBomber, real Kestrel) | 1009 ms | 2138 ms | 2634 ms | **473** | — | 500 concurrent VUs for 30s. 14,207 OK / 370 timeouts. SQLite read-bound. |
+| Mean | p95 | p99 | RPS | Notes |
+|---:|---:|---:|---:|---|
+| 1009 ms | 2138 ms | 2634 ms | **473** | 14,207 OK / 370 timeouts. SQLite read-bound. |
 
-The BDN's 156.75 KB is dominated by ASP.NET Core's request pipeline (model binding, JSON deserialization, response shaping) and EF Core's tracking buffer — not the ZA framework cost. The handler-level allocation is in the low hundreds of bytes; the rest is HTTP plumbing every endpoint pays.
-
-NBomber's latency under 500-VU load reflects SQLite's single-file lock + EF Core's tracking-context allocation per request. PostgreSQL + EF `AsNoTracking()` on reads + response caching would dramatically improve both throughput and p99.
+Latency under 500-VU load reflects SQLite's single-file lock + EF Core's tracking-context allocation per request. PostgreSQL + EF `AsNoTracking()` on reads + response caching dramatically improve both throughput and p99 — the harness is shipped so adopters measure on *their* data layer choice.
 
 **Reproduce:**
 
 ```bash
-# Per-request cost (in-process via WebApplicationFactory, no Kestrel socket)
-dotnet run -c Release --project benchmarks/MyApp.Benchmarks -- --filter "*WritePipelineBench*"
-
 # Sustained RPS (real Kestrel; stub out the shipping client so the load test
 # doesn't DNS-fail against the placeholder shipping URL)
 Shipping__UseStub=true dotnet run --project src/MyApp.Api          # terminal 1
@@ -59,7 +81,7 @@ dotnet run -c Release --project benchmarks/MyApp.LoadTest          # terminal 2
 
 > **`Shipping__UseStub` flag**: the scaffold's shipping client (`IShippingQuoteHttpClient`) targets a placeholder URL (`https://shipping.example/`), so production-shape orders depend on a real endpoint. For load tests, set `Shipping__UseStub=true` (env var) or `Shipping:UseStub: true` (appsettings) — `Program.cs` swaps the real client for an in-memory stub returning a constant `Money(5, "EUR")`. Defaults to `false`; production deployments untouched.
 
-Full methodology + comparison with reflection-based mappers: see [ZeroAlloc.Templates docs/za-clean.md](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/blob/main/docs/za-clean.md#benchmarks).
+Full methodology + per-package comparisons (ZA.Mapping vs Mapperly/AutoMapper, etc.): see [docs/za-clean.md](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/blob/main/docs/za-clean.md#benchmarks).
 
 ## Extending
 

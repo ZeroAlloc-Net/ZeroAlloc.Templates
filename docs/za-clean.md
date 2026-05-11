@@ -115,17 +115,55 @@ Extending the set is a copy-paste-rename. Common additions: ban `System.Reflecti
 
 ## Benchmarks
 
-Two harnesses, two questions.
+Three harnesses, three questions.
 
-**`MyApp.Benchmarks` (BenchmarkDotNet, in-process)** — `WritePipelineBench` hosts the API via `WebApplicationFactory<Program>` and measures `POST /orders` end-to-end through middleware, model binding, mediator dispatch, validation, EF Core SaveChanges, and the outbound shipping call (stubbed). It reports allocation per request and median latency. In-process means you're measuring the *pipeline*, not the network — so the numbers are useful for spotting regressions, not for capacity planning.
+**`MyApp.Benchmarks.Primitives` (BenchmarkDotNet, in-isolation)** — `PrimitivesBench` exercises each ZA layer standalone: mapping, mediator dispatch, validator, value-object construction, and an end-to-end chain. No ASP.NET, no EF, no HTTP. These are the numbers that deliver on the "zero-allocation through the framework hot path" claim. Expect ns/op and 0 B/op for the framework primitives themselves.
+
+**`MyApp.Benchmarks` (BenchmarkDotNet, in-process)** — `WritePipelineBench` hosts the API via `WebApplicationFactory<Program>` and measures `POST /orders` end-to-end through middleware, model binding, mediator dispatch, validation, EF Core SaveChanges, and the outbound shipping call (stubbed). It reports allocation per request and median latency. In-process means you're measuring the *pipeline*, not the network — useful for spotting regressions, not capacity planning.
 
 **`MyApp.LoadTest` (NBomber, real Kestrel)** — drives sustained concurrency against a real Kestrel process. Two terminals: one runs the Api, the other runs the load test. NBomber reports p50/p95/p99 latency and RPS. This is where you size your service.
+
+### AOT publish
+
+| | Value |
+|---|---:|
+| AOT binary size (win-x64, self-contained, single file) | 35.8 MB |
+| AOT cold start (process → `/healthz` 200, best of 3) | ~1.0 s |
+| JIT cold start (same scenario, best of 3) | ~2.2 s |
+| AOT speedup | ~2.2× faster cold start |
+
+Captured on .NET 10.0.7 / 2022 i9-12900HK / Windows 11. The template's `MyApp.Api.csproj` defaults to `<PublishAot>true</PublishAot>`. EF Core requires work-arounds for NativeAOT — see "Known limitations under NativeAOT" below for the specifics the template applies. JSON serialization uses `JsonContext` source-gen. `InvariantGlobalization=true` keeps the binary lean; adopters needing culture-sensitive parsing should set it to `false` and document the ICU dependency.
+
+Reproduce:
+
+```bash
+dotnet publish src/MyApp.Api -c Release -r win-x64 -o ./aot-out
+./aot-out/MyApp.Api  # serves on :5000
+```
 
 A caveat on the storage layer: the template ships SQLite-in-WAL because it's frictionless to scaffold. Read-heavy benchmarks are honest — WAL handles concurrent readers well. **Write-heavy benchmarks need PostgreSQL** for production-grade numbers; SQLite serialises writers and will under-report what your real stack can do. (The Mapperly LINQ-fallback comparison from ZA.Mapping's benchmark suite isn't relevant here — the template's BDN measures *its own* pipeline, not a vs-comparison.)
 
 ### Results
 
 Measured on a 2022 i9-12900HK / Windows 11 / .NET 10.0.7. Single run; reproduce on your own hardware for capacity planning.
+
+#### Primitives — ZA framework cost in isolation
+
+Measured with `MyApp.Benchmarks.Primitives` — no ASP.NET, no EF, just the ZA packages. These are the numbers that deliver on the "zero-allocation through the framework hot path" claim.
+
+| Method | Mean | Allocated |
+|--------------------------- |--------:|----------:|
+| `Mapping_RequestToCommand` | 154 ns  | 200 B (destination record + nested OrderItem[]) |
+| `Mediator_DispatchOnly`    | 32 ns   | 0 B       |
+| `Validator_HandRolled`     | 33 ns   | 0 B       |
+| `ValueObject_TryCreate`    | 9 ns    | 0 B       |
+| `EndToEndPrimitives`       | 148 ns  | 200 B (= mapping alone — chain adds 0 B) |
+
+The decisive datapoint: `EndToEndPrimitives` matches `Mapping_RequestToCommand` byte-for-byte. The validator + mediator dispatch through the chain allocate **zero bytes**. The 200 B is the `CreateOrderCommand` record + nested `OrderItem[]` array — caller cost every framework pays, not ZA overhead.
+
+Compare with the full-pipeline `WritePipeline` row below: that 156 KB is ASP.NET model binding + JSON + EF tracking, not ZA framework cost. Use the primitives table for "does the framework allocate", the pipeline table for "does the endpoint allocate".
+
+#### Full pipeline (ASP.NET + EF Core in the mix)
 
 ```
 BenchmarkDotNet v0.14.0, Windows 11 (10.0.26200.8246)
