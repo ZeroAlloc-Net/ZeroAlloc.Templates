@@ -39,7 +39,7 @@
     <PackageVersion Include="xunit.runner.visualstudio" Version="2.8.2" />
     <PackageVersion Include="NetArchTest.Rules" Version="1.3.2" />
     <!-- Benchmarks / load. -->
-    <PackageVersion Include="BenchmarkDotNet" Version="0.14.0" />
+    <PackageVersion Include="BenchmarkDotNet" Version="0.15.8" />
     <PackageVersion Include="NBomber" Version="6.4.0" />
     <PackageVersion Include="NBomber.Http" Version="6.2.0" />
     <!-- Analyzers (injected by Directory.Build.props for non-template projects). -->
