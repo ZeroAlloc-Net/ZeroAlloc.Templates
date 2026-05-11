@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using MyApp.Infrastructure.External;
 using MyApp.Infrastructure.Persistence;
+using MyApp.Infrastructure.Persistence.CompiledModel;
 using ZeroAlloc.Rest.Resilience;
 using ZeroAlloc.Rest.SystemTextJson;
 
@@ -27,6 +28,11 @@ public static class InfrastructureServiceCollectionExtensions
         {
             opt.UseSqlite(sqliteConnectionString, sqlite =>
                 sqlite.MigrationsAssembly(typeof(AppDbContext).Assembly.GetName().Name));
+            // Compiled model required for AOT publish; bypasses the reflection-based
+            // design-time model pipeline. Regenerate via
+            // `dotnet ef dbcontext optimize --output-dir Persistence/CompiledModel`
+            // after any entity/mapping change.
+            opt.UseModel(AppDbContextModel.Instance);
             // Owned-type snapshot diff produces a spurious "pending changes" warning on EF 9
             // against the existing InitialCreate migration. Tolerated for the template; a real
             // app should regenerate the migration when the snapshot legitimately drifts.

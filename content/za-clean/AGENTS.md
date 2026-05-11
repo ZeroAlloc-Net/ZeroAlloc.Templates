@@ -101,7 +101,23 @@ These bit us during template construction; they'll bite you too if you don't kno
 | `OrderId` / `CustomerId` use `[ValueObject]` from ZA.ValueObjects (equality only, no factory) | Hand-write `TryCreate` if validation is needed |
 | EF Core 9's `OwnedNavigationBuilder` doesn't expose `ComplexProperty` | Use a `ValueConverter` round-trip inside `OwnsMany` |
 
-## 5. How to verify
+## 5. AOT-specific gotchas (as of EF Core 10.0.7)
+
+EF Core's NativeAOT support is incomplete in production-ready form. This template
+works around the gaps:
+
+| Issue | Workaround in template |
+|---|---|
+| `Database.MigrateAsync` / `EnsureCreatedAsync` use reflection-based design-time model building | Schema applied via embedded `schema.sql` script (regenerate with `dotnet ef migrations script` after entity changes) |
+| EF 10's `--nativeaot` compiled-model emits incorrect `UnsafeAccessorKind.Field` for `readonly struct` ComplexProperty types | `Order.Total` mapped via `HasConversion` (TEXT column `"<amount>\|<currency>"`) instead of `ComplexProperty` |
+| LINQ-to-SQL translation requires `--precompile-queries`, blocked by source-gen interactions in our stack | `OrderRepository.GetByIdAsync` written in raw SQL via `db.Database.GetDbConnection().CreateCommand()`; `Order.Materialize` factory exposes hand-hydration to the repository |
+| Reflection-based handler scanning (e.g., ZA.Mediator's `RegisterHandlersFromAssembly`) gets trimmed under AOT | `ApplicationServiceCollectionExtensions` registers handlers manually (`services.AddScoped<IRequestHandler<TReq, TResp>, ConcreteHandler>()` per handler) |
+| Anonymous types lack source-gen JsonTypeInfo, fail at serialization under AOT | All response shapes are concrete records covered by `JsonContext` |
+
+When EF Core's NativeAOT support matures (compiled-model fix + precompile-queries
+fix), revisit these workarounds. Track upstream issues in dotnet/efcore.
+
+## 6. How to verify
 
 ```bash
 # Build the whole solution

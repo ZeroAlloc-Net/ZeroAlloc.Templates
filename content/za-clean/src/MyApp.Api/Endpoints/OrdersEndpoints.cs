@@ -16,7 +16,7 @@ public static class OrdersEndpoints
             var command = OrderRequestToCommand.Map(req);
             var result = await mediator.Send(command, ct).ConfigureAwait(false);
             return result.IsSuccess
-                ? Results.Created($"/orders/{result.Value.Value}", new { Id = result.Value.Value })
+                ? Results.Created($"/orders/{result.Value.Value}", new CreatedOrderResponse(result.Value.Value))
                 : Results.Problem(result.Error.Message, statusCode: StatusCodes.Status400BadRequest);
         }).RequireAuthorization("OrdersWrite");
 

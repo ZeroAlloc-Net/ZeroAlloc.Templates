@@ -21,8 +21,11 @@
     <PackageVersion Include="ZeroAlloc.Inject.Generator" Version="1.4.1" />
     <PackageVersion Include="ZeroAlloc.Rest.Generator" Version="1.1.0" />
     <!-- Microsoft / ASP.NET Core (latest stable for net9). -->
-    <PackageVersion Include="Microsoft.EntityFrameworkCore.Sqlite" Version="9.0.15" />
-    <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="9.0.15" />
+    <!-- EF Core 10 ships the AOT-friendly compiled-model runtime path. EF 9
+         still calls Expression.Compile from RuntimeEntityType which breaks
+         AOT at first DbContext use. -->
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.7" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.7" />
     <PackageVersion Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="9.0.15" />
     <PackageVersion Include="Microsoft.AspNetCore.Mvc.Testing" Version="9.0.15" />
     <PackageVersion Include="System.IdentityModel.Tokens.Jwt" Version="8.2.0" />

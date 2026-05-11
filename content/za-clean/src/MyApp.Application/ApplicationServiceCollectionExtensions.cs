@@ -1,5 +1,10 @@
 using Microsoft.Extensions.DependencyInjection;
+using MyApp.Application.CreateOrder;
+using MyApp.Application.GetOrderById;
+using MyApp.Domain;
+using MyApp.Domain.ValueObjects;
 using ZeroAlloc.Mediator;
+using ZeroAlloc.Results;
 
 namespace MyApp.Application;
 
@@ -17,8 +22,14 @@ public static class ApplicationServiceCollectionExtensions
 {
     public static IServiceCollection AddMyAppApplication(this IServiceCollection services)
     {
-        services.AddMediator()
-            .RegisterHandlersFromAssembly(typeof(ApplicationServiceCollectionExtensions).Assembly);
+        // Manual handler registration. ZA.Mediator's RegisterHandlersFromAssembly
+        // uses reflection-based assembly scanning, which is incompatible with
+        // NativeAOT (RequiresDynamicCode/RequiresUnreferencedCode). Each handler
+        // is wired explicitly here so the DI container resolves the closed
+        // generic IRequestHandler<TReq,TResp> directly — no reflection.
+        services.AddMediator();
+        services.AddScoped<IRequestHandler<CreateOrderCommand, Result<OrderId, ApplicationError>>, CreateOrderHandler>();
+        services.AddScoped<IRequestHandler<GetOrderByIdQuery, Result<Order, ApplicationError>>, GetOrderByIdHandler>();
         services.AddMyAppApplicationServices();
         return services;
     }
