@@ -17,8 +17,8 @@ Three terminals' worth of setup from "nothing installed" to "I can see it work".
 
 ```bash
 dotnet new install ZeroAlloc.Templates
-dotnet new za-clean -n Acme.Orders
-cd Acme.Orders && dotnet run --project src/Acme.Orders.Api
+dotnet new za-clean -o MyApp
+cd MyApp && dotnet run --project src/MyApp.Api
 ```
 
 The Api boots, applies its EF Core SQLite migrations, seeds a sample order in `Development`, and listens on the kestrel default. In another shell:
@@ -62,7 +62,7 @@ HTTP POST /orders
 
 **Domain** holds `Order`, `OrderLine`, `OrderStatus`, and the `Money` / `Sku` value objects. It has zero references to anything outside itself — no EF, no ASP.NET, no ZA packages other than ZA.Results for `Result<T, DomainError>`. Invariants live in smart constructors.
 
-**Application** holds the CQRS slice: `CreateOrderCommand`/`Handler`, `GetOrderByIdQuery`/`Handler`, the `IOrderRepository` and `IShippingQuoteClient` abstractions, and `ApplicationError`. Handlers implement `IRequestHandler<TRequest, TResponse>` from ZA.Mediator and return `ValueTask<Result<T, ApplicationError>>`. Validation lives on the command records via ZA.Validation attributes.
+**Application** holds the CQRS slice: `CreateOrderCommand`/`Handler`, `GetOrderByIdQuery`/`Handler`, the `IOrderRepository` and `IShippingQuoteClient` abstractions, and `ApplicationError`. Handlers implement `IRequestHandler<TRequest, TResponse>` from ZA.Mediator and return `ValueTask<Result<T, ApplicationError>>`. A hand-rolled `CreateOrderValidator` runs at the top of `CreateOrderHandler.Handle` and short-circuits to a `validation.failed` `ApplicationError` on the first invalid field — intentional: one error per response keeps the template's API simple, and ZA.Validation's batched form will land here when its generator nupkg ships.
 
 **Infrastructure** holds `AppDbContext`, `EfOrderRepository`, EF Core migrations, and `ShippingQuoteHttpClient` — a `[ZeroAllocRestClient]` interface that ZA.Rest + ZA.Resilience compose into a typed HTTP client with retry/timeout policies. `InfrastructureServiceCollectionExtensions.AddMyAppInfrastructure(...)` wires it all up.
 

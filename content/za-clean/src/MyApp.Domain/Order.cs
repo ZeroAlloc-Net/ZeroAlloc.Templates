@@ -22,6 +22,8 @@ public sealed class Order
     {
     }
 
+    // Setter is private because EF assigns Id on INSERT via its value-converter;
+    // domain code must not mutate it after creation.
     public OrderId Id { get; private set; }
 
     public CustomerId CustomerId { get; }

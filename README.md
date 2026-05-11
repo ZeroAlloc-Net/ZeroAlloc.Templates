@@ -30,7 +30,10 @@ Build + test:
 dotnet build content/za-clean/MyApp.slnx
 dotnet test content/za-clean/MyApp.slnx
 dotnet pack ZeroAlloc.Templates.csproj -o ./nupkg
+# Full smoke test (install + scaffold + build + test, ~25 s):
 dotnet test tests/ZeroAlloc.Templates.SmokeTests
+# Skip the slow smoke test during inner-loop dev:
+dotnet test --filter "Category!=Slow"
 ```
 
 ## License

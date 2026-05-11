@@ -18,6 +18,7 @@ jobs:
           fetch-depth: 0
 
       - name: Verify root vs content/za-clean config files match
+        shell: bash
         run: |
           for file in Directory.Build.props Directory.Packages.props global.json; do
             if ! diff -q "$file" "content/za-clean/$file" > /dev/null; then
