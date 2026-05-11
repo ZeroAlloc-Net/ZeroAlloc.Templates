@@ -12,6 +12,7 @@
   </Folder>
   <Folder Name="/benchmarks/">
     <Project Path="benchmarks/MyApp.Benchmarks/MyApp.Benchmarks.csproj" />
+    <Project Path="benchmarks/MyApp.Benchmarks.Primitives/MyApp.Benchmarks.Primitives.csproj" />
     <Project Path="benchmarks/MyApp.LoadTest/MyApp.LoadTest.csproj" />
   </Folder>
 </Solution>
