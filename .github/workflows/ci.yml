@@ -40,7 +40,7 @@ jobs:
         run: dotnet build content/za-clean/MyApp.slnx --no-restore --configuration Release
 
       - name: Test (content)
-        run: dotnet test content/za-clean/MyApp.slnx --no-build --configuration Release --logger "GitHubActions;summary.includePassedTests=false"
+        run: dotnet test content/za-clean/MyApp.slnx --no-build --configuration Release
 
       - name: Pack template
         run: dotnet pack ZeroAlloc.Templates.csproj -c Release -o ./nupkg
@@ -53,7 +53,7 @@ jobs:
         # temp directory, then builds + tests the scaffolded solution. This is
         # the gate that catches "we changed a ZA package and the template no
         # longer scaffolds."
-        run: dotnet test tests/ZeroAlloc.Templates.SmokeTests --configuration Release --logger "GitHubActions"
+        run: dotnet test tests/ZeroAlloc.Templates.SmokeTests --configuration Release
 
       - name: Upload nupkg artifact
         if: github.ref == 'refs/heads/main'
