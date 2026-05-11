@@ -3,6 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using MyApp.Infrastructure.External;
 using MyApp.Infrastructure.Persistence;
 using ZeroAlloc.Rest.Resilience;
+using ZeroAlloc.Rest.SystemTextJson;
 
 namespace MyApp.Infrastructure;
 
@@ -47,7 +48,13 @@ public static class InfrastructureServiceCollectionExtensions
                 inner,
                 sp.GetRequiredService<ZeroAlloc.Resilience.RetryPolicy>(),
                 sp.GetRequiredService<ZeroAlloc.Resilience.TimeoutPolicy>()),
-            opts => opts.BaseAddress = new Uri(shippingBaseUrl));
+            opts =>
+            {
+                opts.BaseAddress = new Uri(shippingBaseUrl);
+                // IRestSerializer must be registered; otherwise ShippingQuoteHttpClientClient
+                // can't be activated by AddRestResilience's factory at request time.
+                opts.UseSerializer<SystemTextJsonSerializer>();
+            });
 
         // Register the resilience policies as singletons; AddRestResilience doesn't
         // register them (only the per-interface AddXxxResilience<TImpl>() generator

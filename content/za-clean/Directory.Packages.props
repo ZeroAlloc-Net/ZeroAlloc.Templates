@@ -14,6 +14,7 @@
     <PackageVersion Include="ZeroAlloc.Telemetry" Version="1.2.0" />
     <PackageVersion Include="ZeroAlloc.Resilience" Version="1.2.0" />
     <PackageVersion Include="ZeroAlloc.Rest" Version="1.1.1" />
+    <PackageVersion Include="ZeroAlloc.Rest.SystemTextJson" Version="1.1.1" />
     <PackageVersion Include="ZeroAlloc.Rest.Resilience" Version="1.1.1" />
     <PackageVersion Include="ZeroAlloc.Mediator.Validation" Version="4.1.1" />
     <PackageVersion Include="ZeroAlloc.Mediator.Generator" Version="4.1.1" />

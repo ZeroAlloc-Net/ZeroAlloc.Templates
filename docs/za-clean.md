@@ -123,7 +123,26 @@ Two harnesses, two questions.
 
 A caveat on the storage layer: the template ships SQLite-in-WAL because it's frictionless to scaffold. Read-heavy benchmarks are honest — WAL handles concurrent readers well. **Write-heavy benchmarks need PostgreSQL** for production-grade numbers; SQLite serialises writers and will under-report what your real stack can do. (The Mapperly LINQ-fallback comparison from ZA.Mapping's benchmark suite isn't relevant here — the template's BDN measures *its own* pipeline, not a vs-comparison.)
 
-Reproduction:
+### Results
+
+Measured on a 2022 i9-12900HK / Windows 11 / .NET 10.0.7. Single run; reproduce on your own hardware for capacity planning.
+
+```
+BenchmarkDotNet v0.14.0, Windows 11 (10.0.26200.8246)
+.NET SDK 10.0.203
+  [Host]     : .NET 10.0.7 (10.0.726.21808), X64 RyuJIT AVX2
+  DefaultJob : .NET 10.0.7 (10.0.726.21808), X64 RyuJIT AVX2
+```
+
+| Method        | Mean     | Error     | StdDev    | Allocated |
+|-------------- |---------:|----------:|----------:|----------:|
+| WritePipeline | 2.037 ms | 0.1501 ms | 0.4427 ms | 156.75 KB |
+
+The 156.75 KB is dominated by ASP.NET Core's request pipeline (model binding, JSON deserialization, response shaping) and EF Core's tracking buffer — not the ZA framework cost. The handler-level allocation (mapping + Mediator dispatch + Result construction) is in the low hundreds of bytes; the rest is HTTP plumbing every endpoint pays. Use this as a regression baseline, not a capacity-planning number.
+
+**NBomber numbers not yet captured.** The scaffold's `IShippingQuoteHttpClient` targets a placeholder URL (`https://shipping.example/`); NBomber's seed step hits DNS failures end-to-end. A real load test requires either pointing `Shipping:BaseUrl` at a working endpoint or wiring a stub-shipping config flag (tracked as a v0.2.0 follow-up). The BDN numbers above already bypass this by stubbing `IShippingQuoteClient` inside `WebApplicationFactory`.
+
+### Reproduction
 
 ```bash
 # Allocation per request (BDN, in-process)

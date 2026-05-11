@@ -1,0 +1,26 @@
+2026-05-11 09:02:22.231 +02:00 [INF] [ThreadId:2] NBomber 6.4.0 started a new session: 2026-05-11_07-02-21_81f05bb9
+2026-05-11 09:02:22.615 +02:00 [INF] [ThreadId:2] NBomber started as single node
+2026-05-11 09:02:22.629 +02:00 [INF] [ThreadId:2] License validation....
+2026-05-11 09:02:22.631 +02:00 [WRN] [ThreadId:2] THIS VERSION IS FREE ONLY FOR PERSONAL USE. You can't use it for an organization.
+2026-05-11 09:02:22.749 +02:00 [INF] [ThreadId:2] Reports folder: C:\Projects\Prive\ZeroAlloc\ZeroAlloc.Templates\content\za-clean\benchmarks\MyApp.LoadTest\bin\Release\net10.0\reports\2026-05-11_07-02-21_81f05bb9
+2026-05-11 09:02:22.751 +02:00 [INF] [ThreadId:2] Plugins: no plugins were loaded
+2026-05-11 09:02:22.752 +02:00 [INF] [ThreadId:2] Reporting sinks: no reporting sinks were loaded
+2026-05-11 09:02:22.752 +02:00 [INF] [ThreadId:2] Starting init...
+2026-05-11 09:02:22.778 +02:00 [INF] [ThreadId:2] Target scenarios: read_order_by_id
+2026-05-11 09:02:22.782 +02:00 [INF] [ThreadId:2] Start init scenario: read_order_by_id
+2026-05-11 09:12:35.094 +02:00 [INF] [ThreadId:17] Stopping scenarios...
+2026-05-11 09:12:35.192 +02:00 [ERR] [ThreadId:17] Init scenario error: 'System.Net.Http.HttpRequestException: An error occurred while sending the request.
+ ---> System.IO.IOException: Unable to read data from the transport connection: De externe host heeft een verbinding verbroken..
+ ---> System.Net.Sockets.SocketException (10054): De externe host heeft een verbinding verbroken.
+   --- End of inner exception stack trace ---
+   at System.Net.Sockets.Socket.AwaitableSocketAsyncEventArgs.ThrowException(SocketError error, CancellationToken cancellationToken)
+   at System.Net.Sockets.Socket.AwaitableSocketAsyncEventArgs.System.Threading.Tasks.Sources.IValueTaskSource<System.Int32>.GetResult(Int16 token)
+   at System.Net.Http.HttpConnection.SendAsync(HttpRequestMessage request, Boolean async, CancellationToken cancellationToken)
+   --- End of inner exception stack trace ---
+   at System.Net.Http.HttpConnection.SendAsync(HttpRequestMessage request, Boolean async, CancellationToken cancellationToken)
+   at System.Net.Http.HttpConnectionPool.SendWithVersionDetectionAndRetryAsync(HttpRequestMessage request, Boolean async, Boolean doRequestAuth, CancellationToken cancellationToken)
+   at System.Net.Http.RedirectHandler.SendAsync(HttpRequestMessage request, Boolean async, CancellationToken cancellationToken)
+   at System.Net.Http.HttpClient.<SendAsync>g__Core|83_0(HttpRequestMessage request, HttpCompletionOption completionOption, CancellationTokenSource cts, Boolean disposeCts, CancellationTokenSource pendingRequestsCts, CancellationToken originalCancellationToken)
+   at MyApp.LoadTest.ReadHotPathScenario.<>c__DisplayClass0_0.<<Build>b__1>d.MoveNext() in C:\Projects\Prive\ZeroAlloc\ZeroAlloc.Templates\content\za-clean\benchmarks\MyApp.LoadTest\ReadHotPathScenario.cs:line 34
+--- End of stack trace from previous location ---
+   at NBomber.DomainServices.TestHost.TestHostScenario.initEnabledScenarios@20.MoveNext()'
