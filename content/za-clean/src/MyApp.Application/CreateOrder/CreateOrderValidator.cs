@@ -19,26 +19,26 @@ public static partial class CreateOrderValidator
     private static partial Regex ZipPattern();
 #pragma warning restore MA0009
 
-    public static Result<Unit, ValidationError> Validate(CreateOrderCommand cmd)
+    public static UnitResult<ValidationError> Validate(CreateOrderCommand cmd)
     {
         if (cmd.CustomerId <= 0)
-            return Result<Unit, ValidationError>.Failure(new("CustomerId", "CustomerId must be positive"));
+            return UnitResult<ValidationError>.Failure(new("CustomerId", "CustomerId must be positive"));
 
         if (cmd.Items.Count == 0)
-            return Result<Unit, ValidationError>.Failure(new("Items", "At least one item is required"));
+            return UnitResult<ValidationError>.Failure(new("Items", "At least one item is required"));
 
         for (var i = 0; i < cmd.Items.Count; i++)
         {
             var item = cmd.Items[i];
             if (item.Quantity <= 0)
-                return Result<Unit, ValidationError>.Failure(new($"Items[{i}].Quantity", "Quantity must be positive"));
+                return UnitResult<ValidationError>.Failure(new($"Items[{i}].Quantity", "Quantity must be positive"));
             if (item.UnitPriceEur < 0)
-                return Result<Unit, ValidationError>.Failure(new($"Items[{i}].UnitPriceEur", "UnitPrice must be non-negative"));
+                return UnitResult<ValidationError>.Failure(new($"Items[{i}].UnitPriceEur", "UnitPrice must be non-negative"));
         }
 
         if (string.IsNullOrEmpty(cmd.ShippingZip) || !ZipPattern().IsMatch(cmd.ShippingZip))
-            return Result<Unit, ValidationError>.Failure(new("ShippingZip", "ShippingZip must match ^[0-9]{4}[A-Z]{2}$"));
+            return UnitResult<ValidationError>.Failure(new("ShippingZip", "ShippingZip must match ^[0-9]{4}[A-Z]{2}$"));
 
-        return Result<Unit, ValidationError>.Success(Unit.Value);
+        return UnitResult<ValidationError>.Success();
     }
 }
