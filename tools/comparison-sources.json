@@ -1,0 +1,33 @@
+{
+  "sources": [
+    {
+      "name": "ZA.Mapping",
+      "sentinel": "MAPPING",
+      "status": "live",
+      "url": "https://raw.githubusercontent.com/ZeroAlloc-Net/ZeroAlloc.Mapping/main/docs/performance.md",
+      "extract_start": "<!-- BENCH:START -->",
+      "extract_end": "<!-- BENCH:END -->"
+    },
+    {
+      "name": "ZA.Mediator",
+      "sentinel": "MEDIATOR",
+      "status": "deferred",
+      "tracking_url": "https://github.com/ZeroAlloc-Net/ZeroAlloc.Mediator/issues",
+      "note": "Comparison harness vs MediatR landing in ZA.Mediator v4.2.x. Pattern: ZA.Mediator/benchmarks/ matching ZA.Mapping's shape."
+    },
+    {
+      "name": "ZA.Validation",
+      "sentinel": "VALIDATION",
+      "status": "blocked-upstream",
+      "tracking_url": "https://github.com/ZeroAlloc-Net/ZeroAlloc.Validation/issues",
+      "note": "Blocked on ZA.Validation generator-nupkg fix. [Validate] is currently decorative — the template ships a hand-rolled validator until the generator nupkg ships its analyzer."
+    },
+    {
+      "name": "ZA.Inject",
+      "sentinel": "INJECT",
+      "status": "deferred",
+      "tracking_url": "https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/issues",
+      "note": "Comparison harness vs Jab / MS-DI source-gen registration / autofac (reflection-based) coming in ZA.Inject v1.5.x."
+    }
+  ]
+}
