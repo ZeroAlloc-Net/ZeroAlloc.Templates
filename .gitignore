@@ -22,3 +22,16 @@ benchmarks/**/generated/
 # Template scaffolding output
 test-output/
 benchmarks/**/BenchmarkDotNet.Artifacts/
+
+# Template packaging output
+nupkg/
+
+# Runtime artifacts from benchmarks / API runs
+reports/
+*.db
+*.db-shm
+*.db-wal
+content/**/reports/
+content/**/*.db
+content/**/*.db-shm
+content/**/*.db-wal

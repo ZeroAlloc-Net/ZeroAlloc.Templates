@@ -1,0 +1,69 @@
+name: Release Please
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    outputs:
+      release_created: ${{ steps.release.outputs.release_created }}
+      tag_name: ${{ steps.release.outputs.tag_name }}
+      version: ${{ steps.release.outputs.version }}
+    steps:
+      - name: Release Please
+        uses: googleapis/release-please-action@v5
+        id: release
+        with:
+          # Manifest mode: read release-please-config.json + .release-please-manifest.json
+          # from the repo root. Matches the convention used across ZeroAlloc-Net repos.
+          # The csproj <Version> is overridden at pack time via -p:PackageVersion=,
+          # so release-please doesn't need to edit the csproj.
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+          token: ${{ secrets.RELEASE_PLEASE_TOKEN }}
+
+  publish:
+    needs: release-please
+    if: ${{ needs.release-please.outputs.release_created }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Restore (content)
+        run: dotnet restore content/za-clean/MyApp.slnx
+
+      - name: Build (content)
+        run: dotnet build content/za-clean/MyApp.slnx --no-restore --configuration Release
+
+      - name: Test (content)
+        run: dotnet test content/za-clean/MyApp.slnx --no-build --configuration Release
+
+      - name: Pack template
+        run: dotnet pack ZeroAlloc.Templates.csproj -c Release -p:PackageVersion=${{ needs.release-please.outputs.version }} -o ./nupkg
+
+      - name: Restore (smoke test)
+        run: dotnet restore tests/ZeroAlloc.Templates.SmokeTests/ZeroAlloc.Templates.SmokeTests.csproj
+
+      - name: Test (smoke)
+        run: dotnet test tests/ZeroAlloc.Templates.SmokeTests --configuration Release
+
+      - name: Push to NuGet
+        # Requires repo secret NUGET_API_KEY (nuget.org push-only API key for
+        # the ZeroAlloc.Templates package). --skip-duplicate makes re-runs safe.
+        run: dotnet nuget push ./nupkg/*.nupkg --api-key ${{ secrets.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate
+
+      - name: Upload to GitHub Release
+        run: gh release upload ${{ needs.release-please.outputs.tag_name }} ./nupkg/*.nupkg
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
