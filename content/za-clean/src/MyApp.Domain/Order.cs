@@ -42,4 +42,32 @@ public sealed class Order
         _lines.Add(new OrderLine(sku, quantity, price));
         Total = Money.TryCreate(Total.Amount + (price.Amount * quantity), Total.Currency).Value;
     }
+
+    /// <summary>
+    /// Re-hydration factory for infrastructure code that materialises an Order
+    /// from raw storage (e.g. the raw-SQL read path in
+    /// <c>OrderRepository.GetByIdAsync</c>). Bypasses domain invariants
+    /// (totals are not recomputed from lines) because the caller is replaying
+    /// already-validated persisted state, not running new business logic.
+    /// Keep this out of the application layer's command/query handlers — use
+    /// <see cref="Create"/> + <see cref="AddLine"/> for new orders.
+    /// </summary>
+    public static Order Materialize(
+        OrderId id,
+        CustomerId customerId,
+        OrderStatus status,
+        Money total,
+        IEnumerable<OrderLine> lines)
+    {
+        var order = new Order(id, customerId)
+        {
+            Status = status,
+            Total = total,
+        };
+        foreach (var line in lines)
+        {
+            order._lines.Add(line);
+        }
+        return order;
+    }
 }
