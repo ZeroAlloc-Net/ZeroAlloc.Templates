@@ -17,8 +17,7 @@ namespace MyApp.Infrastructure.Persistence.Migrations
                     Id = table.Column<int>(type: "INTEGER", nullable: false),
                     CustomerId = table.Column<int>(type: "INTEGER", nullable: false),
                     Status = table.Column<string>(type: "TEXT", maxLength: 32, nullable: false),
-                    TotalAmount = table.Column<decimal>(type: "TEXT", nullable: false),
-                    TotalCurrency = table.Column<string>(type: "TEXT", maxLength: 3, nullable: false)
+                    Total = table.Column<string>(type: "TEXT", nullable: false)
                 },
                 constraints: table =>
                 {
