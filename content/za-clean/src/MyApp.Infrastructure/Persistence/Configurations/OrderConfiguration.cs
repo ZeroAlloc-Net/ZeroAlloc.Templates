@@ -12,38 +12,20 @@ public sealed class OrderConfiguration : IEntityTypeConfiguration<Order>
     // TryCreate factory. EF Core 9's OwnedNavigationBuilder does not expose
     // ComplexProperty inside an OwnsMany configuration, so we serialise Money
     // round-trips through a value-converter as "<amount>|<currency>" inside
-    // OrderLine and use ComplexProperty for the top-level Order.Total.
+    // OrderLine. Under EF Core 10's --nativeaot generator the same problem
+    // surfaces for the top-level Order.Total (UnsafeAccessor by-value-struct
+    // codegen fails verification at runtime), so we route Order.Total through
+    // the converter too. The parse/format logic lives in MoneyConverter so the
+    // raw-SQL read path (OrderRepository.GetByIdAsync) can use the identical
+    // rules.
     private static readonly ValueConverter<Money, string> s_moneyConverter = new(
-        m => m.Amount.ToString(System.Globalization.CultureInfo.InvariantCulture) + "|" + m.Currency,
-        s => FromString(s));
+        m => MoneyConverter.ToStorage(m),
+        s => MoneyConverter.FromStorage(s));
 
-    // Must be at least internal — the EF Core compiled model generator emits
-    // code that calls this from a sibling namespace.
-    internal static Money FromString(string s)
-    {
-        // EF Core probes the converter with the property's sentinel value (the
-        // default string, i.e. empty) during model initialization to compute
-        // a sentinel for the converted CLR type. Return a zero Money for that
-        // case rather than throwing.
-        if (string.IsNullOrEmpty(s))
-        {
-            return Money.TryCreate(0m, "USD").Value;
-        }
-        var pipe = s.IndexOf('|');
-        if (pipe < 0)
-        {
-            return Money.TryCreate(0m, "USD").Value;
-        }
-        var amountSpan = s.AsSpan(0, pipe);
-        var currency = s[(pipe + 1)..];
-        if (amountSpan.IsEmpty || string.IsNullOrEmpty(currency)
-            || !decimal.TryParse(amountSpan, System.Globalization.NumberStyles.Number, System.Globalization.CultureInfo.InvariantCulture, out var amount)
-            || amount < 0)
-        {
-            return Money.TryCreate(0m, "USD").Value;
-        }
-        return Money.TryCreate(amount, currency).Value;
-    }
+    // Kept (at least internal) because the EF Core compiled-model generator
+    // emits code that calls this from a sibling namespace. Delegates to the
+    // shared MoneyConverter so the parse rules stay in one place.
+    internal static Money FromString(string s) => MoneyConverter.FromStorage(s);
 
     public void Configure(EntityTypeBuilder<Order> builder)
     {

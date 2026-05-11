@@ -168,6 +168,21 @@ Shipping__UseStub=true dotnet run --project src/MyApp.Api &
 dotnet run -c Release --project benchmarks/MyApp.LoadTest
 ```
 
+### Known limitations under NativeAOT (as of EF Core 10.0.7)
+
+The template publishes successfully under `<PublishAot>true</PublishAot>`, but EF Core's NativeAOT story is still maturing. We work around three gaps:
+
+1. **No `MigrateAsync` / `EnsureCreatedAsync`.** Both require design-time model building (reflection-based). The template embeds the migration output as `schema.sql` and applies it on startup. Regenerate the script after any entity change:
+   ```bash
+   dotnet ef migrations script -i -o src/MyApp.Api/schema.sql --project src/MyApp.Infrastructure --startup-project src/MyApp.Api
+   ```
+
+2. **No LINQ-to-SQL for reads.** EF Core 10's compiled-model handles writes (`db.Orders.AddAsync`) but reads need `--precompile-queries`, which currently fails because Roslyn's AOT pass can't see source-generator output. The template's `OrderRepository.GetByIdAsync` uses raw SQL via `db.Database.GetDbConnection().CreateCommand()` and hand-materialises the aggregate through `Order.Materialize(...)`. Money columns round-trip through the shared `MoneyConverter` helper so the raw-SQL read path uses the same `"<amount>|<currency>"` parse rules as the EF `ValueConverter`. Pattern is shown in [`OrderRepository.cs`](../content/za-clean/src/MyApp.Infrastructure/Persistence/OrderRepository.cs) — clone the same shape for new read endpoints.
+
+3. **No `ComplexProperty` on `readonly struct` value-objects.** EF Core 10's `--nativeaot` generator emits incorrect `[UnsafeAccessor(UnsafeAccessorKind.Field)]` with by-value `this`, fails runtime verification. The template routes value-object columns through `HasConversion(_moneyConverter)` instead — Money column is a single `TEXT` storing `"<amount>|<currency>"`.
+
+When EF Core ships fixes upstream (precompile-queries source-gen visibility, ComplexProperty by-value-struct codegen), these workarounds become unnecessary. Until then: **raw SQL for reads, embedded schema script for migrations, ValueConverter for value-objects in entity roots**.
+
 ## Customising
 
 Three extensions you'll likely make first.
