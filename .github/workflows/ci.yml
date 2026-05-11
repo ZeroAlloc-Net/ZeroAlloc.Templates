@@ -42,6 +42,15 @@ jobs:
       - name: Test (content)
         run: dotnet test content/za-clean/MyApp.slnx --no-build --configuration Release
 
+      - name: Primitives benchmark dry-run
+        # Catches "primitives bench wiring broke" before merge. Doesn't run
+        # full BDN iterations (those are minutes); --job dry validates the
+        # harness boots and the [Benchmark] methods invoke without throwing.
+        run: |
+          dotnet run -c Release \
+            --project content/za-clean/benchmarks/MyApp.Benchmarks.Primitives \
+            --no-build -- --filter "*" --job dry
+
       - name: Pack template
         run: dotnet pack ZeroAlloc.Templates.csproj -c Release -o ./nupkg
 
