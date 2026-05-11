@@ -151,13 +151,13 @@ Measured on a 2022 i9-12900HK / Windows 11 / .NET 10.0.7. Single run; reproduce 
 
 Measured with `MyApp.Benchmarks.Primitives` — no ASP.NET, no EF, just the ZA packages. These are the numbers that deliver on the "zero-allocation through the framework hot path" claim.
 
-| Method | Mean | Allocated |
-|--------------------------- |--------:|----------:|
-| `Mapping_RequestToCommand` | 154 ns  | 200 B (destination record + nested OrderItem[]) |
-| `Mediator_DispatchOnly`    | 32 ns   | 0 B       |
-| `Validator_HandRolled`     | 33 ns   | 0 B       |
-| `ValueObject_TryCreate`    | 9 ns    | 0 B       |
-| `EndToEndPrimitives`       | 148 ns  | 200 B (= mapping alone — chain adds 0 B) |
+| Method                    | Mean      | Error     | StdDev    | Allocated |
+|-------------------------- |----------:|----------:|----------:|----------:|
+| `Mapping_RequestToCommand`| 100.47 ns | 10.636 ns | 30.174 ns | 200 B (destination record + nested OrderItem[]) |
+| `Mediator_DispatchOnly`   |  37.38 ns |  1.994 ns |  5.879 ns | 0 B       |
+| `Validator_HandRolled`    |  40.35 ns |  3.332 ns |  9.824 ns | 0 B       |
+| `ValueObject_TryCreate`   |  12.52 ns |  0.823 ns |  2.428 ns | 0 B       |
+| `EndToEndPrimitives`      | 165.24 ns | 15.591 ns | 44.483 ns | 200 B (= mapping alone — chain adds 0 B) |
 
 The decisive datapoint: `EndToEndPrimitives` matches `Mapping_RequestToCommand` byte-for-byte. The validator + mediator dispatch through the chain allocate **zero bytes**. The 200 B is the `CreateOrderCommand` record + nested `OrderItem[]` array — caller cost every framework pays, not ZA overhead.
 

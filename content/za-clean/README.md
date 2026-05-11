@@ -7,10 +7,10 @@ Clean Architecture Web API. **Publishes as a 35.8 MB Native AOT single-file bina
 | **AOT binary size** | 35.8 MB single-file, self-contained (win-x64) |
 | **AOT cold start** | ~1.0 s (process → `/healthz` 200, best of 3) |
 | **JIT cold start** (comparison) | ~2.2 s (same scenario) |
-| **Framework primitives end-to-end** | ~148 ns / 200 B (= mapping cost alone; chain adds 0 B) |
-| **Mediator dispatch alone** | ~32 ns / 0 B |
-| **Validator (hand-rolled, regex zip)** | ~33 ns / 0 B |
-| **ValueObject `TryCreate`** | ~9 ns / 0 B |
+| **Framework primitives end-to-end** | ~165 ns / 200 B (= mapping cost alone; chain adds 0 B) |
+| **Mediator dispatch alone** | ~37 ns / 0 B |
+| **Validator (hand-rolled, regex zip)** | ~40 ns / 0 B |
+| **ValueObject `TryCreate`** | ~13 ns / 0 B |
 | **End-to-end pipeline** (with ASP.NET + EF) | 156 KB / 2 ms — mostly platform overhead, not ZA |
 
 Measured on a 2022 i9-12900HK / Windows 11 / .NET 10.0.7. The decisive datapoint: `EndToEndPrimitives` matches `Mapping_RequestToCommand` byte-for-byte — the validator + Mediator dispatch through the chain allocate **zero bytes**. The 200 B is the `CreateOrderCommand` record + nested `OrderItem[]` array, a caller cost every framework pays.
