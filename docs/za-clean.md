@@ -367,7 +367,37 @@ _**Status: blocked upstream.** Blocked on ZA.Validation generator-nupkg fix. [Va
 
 #### Inject
 <!-- INJECT:START -->
-_**Status: deferred.** Comparison harness vs Jab / MS-DI source-gen registration / autofac (reflection-based) coming in ZA.Inject v1.5.x. Tracking: https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/issues._
+_Imported from ZA.Inject — last refreshed 2026-05-12._
+
+_Last refreshed: 2026-05-12_
+
+| Method | Mean | Allocated |
+|---|---:|---:|
+| MS DI — `BuildServiceProvider()` | 138 ns | 528 B |
+| ZA.Inject Container — `BuildZeroAllocInjectServiceProvider()` | 10,998 ns | 11,192 B |
+| ZA.Inject Standalone — `new …StandaloneServiceProvider()` | **4 ns** | **32 B** |
+| Jab — `new JabContainer()` | 8 ns | 40 B |
+
+## Resolution Benchmarks
+
+| Scenario | MS DI | ZA Container | ZA Standalone | Jab | Allocated |
+|---|---:|---:|---:|---:|---:|
+| Transient (no deps) | 19.9 ns | **15.9 ns** | 19.6 ns | 20.6 ns | 24 B |
+| Transient (1 dep) | 30.9 ns | 27.3 ns | **24.1 ns** | 47.5 ns | 48 B |
+| Transient (1 property dep) | 43.7 ns | 26.9 ns | **21.9 ns** | N/A¹ | 48 B |
+| Transient (2 deps) | **39.4 ns** | 58.3 ns | 53.1 ns | 101.1 ns | 104 B |
+| Singleton | 6.3 ns | 6.9 ns | **5.4 ns** | 5.5 ns | 0 B |
+| Decorated transient | 44.5 ns | **21.1 ns** | 22.3 ns | 28.8 ns² | 48 B |
+| `IEnumerable<T>` (3 impls) | **67.8 ns** | 74.8 ns | 81.8 ns | 150.9 ns | 168 B |
+| Open generic (closed type) | 13.5 ns | (delegates to MS DI) | **7.7 ns** | N/A³ | 24 B |
+| Create scope | 60 ns / 128 B | 123 ns / 216 B | 56 ns / 88 B | **8 ns / 40 B** | — |
+| Resolve scoped (full lifecycle) | 8,225 ns / 304 B | 4,808 ns / 120 B | 3,393 ns / 120 B | **3,025 ns / 120 B** | — |
+
+_¹ Jab is constructor-only — no property injection._
+_² Jab decorator wired via factory (no first-class decorator attribute)._
+_³ Jab 0.10.x requires closed types at the `[ServiceProvider]` attribute level._
+
+ZA.Inject is **competitive across every scenario** and the clear winner where the generator's domain knowledge matters most: property injection (2× MS DI), decorators (2.1× MS DI), open generics (1.8× MS DI). Jab leads on scope creation (its scope is the lightest of the four, by an order of magnitude), with ZA Standalone close behind on the full scoped-resolution lifecycle.
 <!-- INJECT:END -->
 
 ### Reproduction

@@ -26,9 +26,10 @@
     {
       "name": "ZA.Inject",
       "sentinel": "INJECT",
-      "status": "deferred",
-      "tracking_url": "https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/issues",
-      "note": "Comparison harness vs Jab / MS-DI source-gen registration / autofac (reflection-based) coming in ZA.Inject v1.5.x."
+      "status": "live",
+      "url": "https://raw.githubusercontent.com/ZeroAlloc-Net/ZeroAlloc.Inject/main/docs/performance.md",
+      "extract_start": "<!-- BENCH:START -->",
+      "extract_end": "<!-- BENCH:END -->"
     }
   ]
 }
