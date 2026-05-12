@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.1](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/compare/ZeroAlloc.Templates-v0.3.0...ZeroAlloc.Templates-v0.3.1) (2026-05-12)
+
+
+### Bug Fixes
+
+* **template:** ship package icon so nuget.org doesn't show the generic die ([#31](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/issues/31)) ([fa7cdc4](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/commit/fa7cdc478865d8130518f0bb911e27c3ca0fc7b9))
+
 ## [0.3.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/compare/ZeroAlloc.Templates-v0.2.0...ZeroAlloc.Templates-v0.3.0) (2026-05-12)
 
 
