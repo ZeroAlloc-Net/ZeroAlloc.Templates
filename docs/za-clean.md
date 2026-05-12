@@ -200,7 +200,7 @@ Per-primitive comparisons against the ecosystem alternatives. These blocks are r
 
 #### Mapping
 <!-- MAPPING:START -->
-_Imported from ZA.Mapping — last refreshed 2026-05-11._
+_Imported from ZA.Mapping — last refreshed 2026-05-12._
 
 _Last refreshed: 2026-05-10_
 
@@ -345,7 +345,19 @@ BenchmarkDotNet v0.15.8, Windows 11 (10.0.26200.8246/25H2/2025Update/HudsonValle
 
 #### Mediator
 <!-- MEDIATOR:START -->
-_**Status: deferred.** Comparison harness vs MediatR landing in ZA.Mediator v4.2.x. Pattern: ZA.Mediator/benchmarks/ matching ZA.Mapping's shape. Tracking: https://github.com/ZeroAlloc-Net/ZeroAlloc.Mediator/issues._
+_Imported from ZA.Mediator — last refreshed 2026-05-12._
+
+| Method | ZeroAlloc.Mediator | MediatR | Ratio | ZA Alloc | MediatR Alloc |
+|---|---:|---:|---:|---:|---:|
+| Send | 0.5 ns | 78.3 ns | **~160×** | 0 B | 224 B |
+| Publish (1 handler) | 6.1 ns | 243.8 ns | **~40×** | 0 B | 792 B |
+| Publish (multi handler) | 6.6 ns | 332.4 ns | **~51×** | 0 B | 1032 B |
+| Send + Pipeline | 2.8 ns | 101.8 ns | **~46×** | 0 B | 152 B |
+| Send (static) | 0.7 ns | — | — | 0 B | — |
+| Send (via IMediator DI) | 5.8 ns | 86.3 ns | **~15×** | 0 B | 224 B |
+| Stream (5 items) | 202.8 ns | 654.4 ns | **~3×** | 104 B | 528 B |
+
+ZeroAlloc.Mediator is **40–160× faster** than MediatR across all measured paths, with zero heap allocations on every non-streaming path.
 <!-- MEDIATOR:END -->
 
 #### Validation
