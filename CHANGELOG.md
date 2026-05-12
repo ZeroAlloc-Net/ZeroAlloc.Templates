@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.3.2](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/compare/ZeroAlloc.Templates-v0.3.1...ZeroAlloc.Templates-v0.3.2) (2026-05-12)
+
+
+### Documentation
+
+* **comparisons:** wire ZA.Inject live numbers (vs Jab + MS DI) into INJECT sentinel ([#37](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/issues/37)) ([b32fc34](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/commit/b32fc34f400286bcf2e6d3b449f39d279e2b923f))
+* **comparisons:** wire ZA.Mediator live numbers into MEDIATOR sentinel ([#33](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/issues/33)) ([a180a4a](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/commit/a180a4a96f644f9d0f658d72d317520a241e4164))
+
 ## [0.3.1](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/compare/ZeroAlloc.Templates-v0.3.0...ZeroAlloc.Templates-v0.3.1) (2026-05-12)
 
 
