@@ -1,5 +1,30 @@
 # Changelog
 
+## [0.3.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/compare/ZeroAlloc.Templates-v0.2.0...ZeroAlloc.Templates-v0.3.0) (2026-05-12)
+
+
+### Features
+
+* **api:** AOT-publish-ready (compiled model + JsonContext) ([a00fd7f](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/commit/a00fd7fa53ae6b66bdee9bf7281483faf8efe09f))
+* **bench:** import-comparisons.ps1 + sentinels for per-package numbers ([5256d50](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/commit/5256d50fa69dfe95f643f6b1600beb3f936d8e74))
+* **bench:** primitives-only benchmark harness ([104ea07](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/commit/104ea079f2a5e6309631d13e3c7c3fb6071f9af8))
+* **template:** NuGet package readme + Shipping:UseStub flag + NBomber numbers ([88c78ff](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/commit/88c78ff06a389abd60a1e2f50b7691cddced8b1b))
+* **template:** NuGet package readme + Shipping:UseStub flag + real NBomber numbers ([b9a5d7b](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/commit/b9a5d7b4b71afd8e86b06d25a0dd3dfc8483c7bb))
+* v0.3.0 — AOT publish + primitives benchmark + comparison plumbing ([d3efc53](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/commit/d3efc5387cb317535c0267d12a5756cc6def8fa4))
+
+
+### Bug Fixes
+
+* drop redundant ZA.Rest.Generator package reference (unblocks Renovate) ([e6e7ced](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/commit/e6e7ced8a9af98cb902a79c24abceecef7e6f182))
+* **infrastructure:** drop redundant ZA.Rest.Generator package reference ([2421e9c](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/commit/2421e9ce86f5ffd1e41da397c6f0001c8f7f5408))
+* **infrastructure:** GET /orders/{id} via raw SQL + document EF Core AOT limitations ([a8e4e6b](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/commit/a8e4e6be963dbc505f85e42fd1a5226a99296c4c))
+
+
+### Documentation
+
+* **template:** refresh primitives numbers from BDN full run ([3b45e28](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/commit/3b45e2825bcc94c56234abf421fd5b0edc217fbf))
+* **template:** v0.3.0 AOT-led headline + Primitives subsection ([883c135](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/commit/883c1352c6a1381b2145294cf4982c74a812cb8b))
+
 ## [0.2.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/compare/ZeroAlloc.Templates-v0.1.0...ZeroAlloc.Templates-v0.2.0) (2026-05-11)
 
 
