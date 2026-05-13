@@ -19,9 +19,10 @@
     {
       "name": "ZA.Validation",
       "sentinel": "VALIDATION",
-      "status": "blocked-upstream",
-      "tracking_url": "https://github.com/ZeroAlloc-Net/ZeroAlloc.Validation/issues",
-      "note": "Blocked on ZA.Validation generator-nupkg fix. [Validate] is currently decorative — the template ships a hand-rolled validator until the generator nupkg ships its analyzer."
+      "status": "live",
+      "url": "https://raw.githubusercontent.com/ZeroAlloc-Net/ZeroAlloc.Validation/main/docs/performance.md",
+      "extract_start": "<!-- BENCH:START -->",
+      "extract_end": "<!-- BENCH:END -->"
     },
     {
       "name": "ZA.Inject",
@@ -44,6 +45,14 @@
       "sentinel": "VALUEOBJECTS",
       "status": "live",
       "url": "https://raw.githubusercontent.com/ZeroAlloc-Net/ZeroAlloc.ValueObjects/main/docs/performance.md",
+      "extract_start": "<!-- BENCH:START -->",
+      "extract_end": "<!-- BENCH:END -->"
+    },
+    {
+      "name": "ZA.Specification",
+      "sentinel": "SPECIFICATION",
+      "status": "live",
+      "url": "https://raw.githubusercontent.com/ZeroAlloc-Net/ZeroAlloc.Specification/main/docs/performance.md",
       "extract_start": "<!-- BENCH:START -->",
       "extract_end": "<!-- BENCH:END -->"
     }
