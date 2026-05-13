@@ -491,7 +491,9 @@ _Last refreshed: 2026-05-13_
 | Guard allowed | 2,718 ns / 4,160 B | **15 ns / 24 B** | **178× faster, 173× less alloc** |
 | Guard blocked | 699 ns / 792 B | **0.3 ns / 0 B** | **2,200× faster, 0 B alloc** |
 
-The 24 B allocations in ZA's "valid" rows are from the per-iteration `new OrderMachine()` reset, not from `TryFire`. Stateless allocates because every `Fire` walks a `Dictionary<TTrigger, StateRepresentation>` and constructs trigger/transition info objects. ZA emits a `switch` expression over `(State, Trigger)` at compile time — the dispatch is a single jump table lookup with no allocation.
+The 24 B in ZA's "valid" rows is from the per-iteration `new OrderMachine()` reset, not from `TryFire`. The Stateless row's 7,272 B is two things combined: each `Fire` walks a `Dictionary<TTrigger, StateRepresentation>` and constructs trigger/transition info objects, **and** the per-iteration `BuildStatelessOrder()` reset rebuilds the configuration (`new StateMachine<,>(initial)` plus three `Configure().Permit()` calls — each one allocating dictionary entries).
+
+This is the apples-to-apples comparison for cyclic state machines — a per-request handler in a web app, or a fresh circuit-breaker per stream. Both libraries pay a "reset" cost in this workload. ZA's reset is one struct/class allocation because configuration is resolved at compile time; Stateless's includes the full fluent-configuration rebuild because configuration is runtime. The dispatch portion alone (excluding the rebuild) is roughly an order of magnitude smaller on the Stateless side but still measurably slower than ZA's `switch`-expression `TryFire`.
 <!-- STATEMACHINE:END -->
 
 #### Resilience
@@ -514,6 +516,63 @@ The retry-with-failures row is dominated by `Task.Delay(BackoffMs)` (2× 1 ms = 
 
 **Note on all-policies stacked comparison**: deferred. The two libraries' rate-limiter policies have different surface (Polly.RateLimiting is a separate package, ZA's RateLimit is part of the main package), so an apples-to-apples 4-policy comparison requires a custom harness. The Retry + CB pairings above are the most-cited isolated scenarios; see the self-benchmark table for ZA's all-policies stack.
 <!-- RESILIENCE:END -->
+
+#### Rest
+<!-- REST:START -->
+_Imported from ZA.Rest — last refreshed 2026-05-13._
+
+_Last refreshed: 2026-05-13_
+
+.NET 10.0.7, i9-12900HK, BenchmarkDotNet v0.15.8.
+
+| Method | Mean | Ratio | Allocated | vs Refit |
+|---|---:|---:|---:|---:|
+| RawHttpClient_Get | 2.09 μs | 1.00 | 1.38 KB | — |
+| **ZeroAlloc_Get** | **3.52 μs** | **1.68** | **1.88 KB** | **3.6× faster** |
+| Refit_Get | 12.70 μs | 6.07 | 2.88 KB | — |
+| RawHttpClient_Post | 3.12 μs | 1.49 | 1.70 KB | — |
+| **ZeroAlloc_Post** | **6.70 μs** | **3.20** | **2.64 KB** | **1.7× faster** |
+| Refit_Post | 11.62 μs | 5.56 | 3.46 KB | — |
+| RawHttpClient_QueryParam | 2.16 μs | 1.03 | 1.45 KB | — |
+| **ZeroAlloc_QueryParam** | **4.28 μs** | **2.04** | **1.99 KB** | **3.6× faster** |
+| Refit_QueryParam | 15.51 μs | 7.41 | 3.55 KB | — |
+| RawHttpClient_Delete | 1.10 μs | 0.53 | 1.11 KB | — |
+| **ZeroAlloc_Delete** | **1.92 μs** | **0.92** | **1.61 KB** | **2.4× faster** |
+| Refit_Delete | 4.62 μs | 2.21 | 2.45 KB | — |
+| RawHttpClient_Result | 2.04 μs | 0.98 | 1.32 KB | — |
+| **ZeroAlloc_Result** | **4.07 μs** | **1.95** | **1.92 KB** | Refit lacks `Result<T>` |
+
+ZeroAlloc.Rest is **1.7–3.6× faster than Refit** across every shape of call (GET / POST / GET-with-query / DELETE) with **1.3–1.5× less allocation**. Refit pays for reflection-based attribute scanning and expression-tree invocation on every call (6–8× over the raw `HttpClient` baseline); ZA's generated client is 1.7–3.2× over raw — closer to the floor.
+<!-- REST:END -->
+
+#### Serialisation
+<!-- SERIALISATION:START -->
+_Imported from ZA.Serialisation — last refreshed 2026-05-13._
+
+_Last refreshed: 2026-05-13_
+
+### Deserialize — wrapper is thin
+
+| Library | Raw | ZA wrapper | Overhead |
+|---|---:|---:|---:|
+| MemoryPack | 47.6 ns / 64 B | 55.2 ns / 64 B | **+16%, 0 B** |
+| MessagePack | 123.9 ns / 64 B | 182.7 ns / 96 B | **+47%, +32 B** |
+| System.Text.Json | 303.3 ns / 64 B | 374.5 ns / 64 B | **+23%, 0 B** |
+
+The deserialize wrapper is a thin pass-through: same allocation (0–32 B extra), 16–47% extra time for the interface dispatch. The MessagePack extra 32 B is the `ReadOnlySpan<byte>` → array boxing for the underlying API call.
+
+### Serialize — IBufferWriter pattern adds measurable cost
+
+| Library | Raw | ZA wrapper | Overhead |
+|---|---:|---:|---:|
+| MemoryPack | 74.6 ns / 48 B | 159.7 ns / 312 B | **+114%, +264 B** |
+| MessagePack | 128.1 ns / 32 B | 215.2 ns / 312 B | **+68%, +280 B** |
+| System.Text.Json | 225.7 ns / 48 B | 287.7 ns / 448 B | **+27%, +400 B** |
+
+The serialize wrapper costs more because `ISerializer<T>.Serialize` takes an `IBufferWriter<byte>` (the buffer abstraction). The 264–400 B is the `ArrayBufferWriter<byte>` instance + its internal buffer, allocated fresh per call by the benchmark.
+
+This is the cost of the abstraction. **The wrapper is fastest when the caller pools the buffer writer** — the IBufferWriter pattern is designed for that scenario. The benchmark measures worst case (fresh writer per call); a real application that pools writers across N calls amortises the 264 B to ~0 per call.
+<!-- SERIALISATION:END -->
 
 ### Reproduction
 
