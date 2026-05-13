@@ -55,6 +55,22 @@
       "url": "https://raw.githubusercontent.com/ZeroAlloc-Net/ZeroAlloc.Specification/main/docs/performance.md",
       "extract_start": "<!-- BENCH:START -->",
       "extract_end": "<!-- BENCH:END -->"
+    },
+    {
+      "name": "ZA.StateMachine",
+      "sentinel": "STATEMACHINE",
+      "status": "live",
+      "url": "https://raw.githubusercontent.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/main/docs/performance.md",
+      "extract_start": "<!-- BENCH:START -->",
+      "extract_end": "<!-- BENCH:END -->"
+    },
+    {
+      "name": "ZA.Resilience",
+      "sentinel": "RESILIENCE",
+      "status": "live",
+      "url": "https://raw.githubusercontent.com/ZeroAlloc-Net/ZeroAlloc.Resilience/main/docs/performance.md",
+      "extract_start": "<!-- BENCH:START -->",
+      "extract_end": "<!-- BENCH:END -->"
     }
   ]
 }
