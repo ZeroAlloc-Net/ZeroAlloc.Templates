@@ -103,6 +103,14 @@
       "url": "https://raw.githubusercontent.com/ZeroAlloc-Net/ZeroAlloc.Telemetry/main/docs/performance.md",
       "extract_start": "<!-- BENCH:START -->",
       "extract_end": "<!-- BENCH:END -->"
+    },
+    {
+      "name": "ZA.Notify",
+      "sentinel": "NOTIFY",
+      "status": "live",
+      "url": "https://raw.githubusercontent.com/ZeroAlloc-Net/ZeroAlloc.Notify/main/docs/performance.md",
+      "extract_start": "<!-- BENCH:START -->",
+      "extract_end": "<!-- BENCH:END -->"
     }
   ]
 }
