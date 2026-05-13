@@ -71,6 +71,22 @@
       "url": "https://raw.githubusercontent.com/ZeroAlloc-Net/ZeroAlloc.Resilience/main/docs/performance.md",
       "extract_start": "<!-- BENCH:START -->",
       "extract_end": "<!-- BENCH:END -->"
+    },
+    {
+      "name": "ZA.Rest",
+      "sentinel": "REST",
+      "status": "live",
+      "url": "https://raw.githubusercontent.com/ZeroAlloc-Net/ZeroAlloc.Rest/main/docs/benchmarks.md",
+      "extract_start": "<!-- BENCH:START -->",
+      "extract_end": "<!-- BENCH:END -->"
+    },
+    {
+      "name": "ZA.Serialisation",
+      "sentinel": "SERIALISATION",
+      "status": "live",
+      "url": "https://raw.githubusercontent.com/ZeroAlloc-Net/ZeroAlloc.Serialisation/main/docs/performance.md",
+      "extract_start": "<!-- BENCH:START -->",
+      "extract_end": "<!-- BENCH:END -->"
     }
   ]
 }
