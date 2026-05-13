@@ -5,6 +5,20 @@ using Xunit;
 
 namespace MyApp.IntegrationTests;
 
+// Authorization is enforced at TWO layers (defense in depth):
+//
+//   1. Endpoint level — `.RequireAuthorization("OrdersRead" / "OrdersWrite")` on
+//      the minimal-API endpoints in OrdersEndpoints.cs. ASP.NET returns 401/403
+//      before any handler runs.
+//
+//   2. Mediator level — [Authorize("OrdersRead")] / [Authorize("OrdersWrite")]
+//      on the IRequest<T> records. ZA.Mediator.Authorization's pipeline behavior
+//      consults the registered policy plus the ambient ISecurityContext (bridged
+//      from HttpContext.User via HttpSecurityContextAccessor). Even if a future
+//      endpoint forgets RequireAuthorization, the handler refuses to dispatch.
+//
+// These tests assert the endpoint-layer behavior end-to-end. The mediator-layer
+// behavior is unit-tested upstream in ZA.Mediator.Authorization.
 public sealed class AuthorizationTests : IClassFixture<MyAppFactory>
 {
     private readonly MyAppFactory _factory;

@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using MyApp.Api;
+using MyApp.Api.Authorization;
 using MyApp.Api.Endpoints;
 using MyApp.Application;
 using MyApp.Infrastructure;
@@ -36,8 +37,15 @@ if (builder.Configuration.GetValue<bool>("Shipping:UseStub"))
 
 // ---------------------------------------------------------------------------
 // Application composition (IMediator dispatcher + handler registrations).
+// AddMyAppApplication takes an AuthorizationOptions callback that ZA.Mediator
+// .Authorization uses to resolve the per-request ISecurityContext. The
+// HttpSecurityContextAccessor below bridges HttpContext.User (ClaimsPrincipal
+// populated by JwtBearer) into ZA.Authorization's ISecurityContext shape,
+// so handler-level [Authorize] policies see the same identity as endpoint-
+// level RequireAuthorization checks.
 // ---------------------------------------------------------------------------
-builder.Services.AddMyAppApplication();
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddMyAppApplication(opt => opt.UseAccessor<HttpSecurityContextAccessor>());
 
 // ---------------------------------------------------------------------------
 // JWT bearer authentication. The DEV signing key MUST be replaced before any

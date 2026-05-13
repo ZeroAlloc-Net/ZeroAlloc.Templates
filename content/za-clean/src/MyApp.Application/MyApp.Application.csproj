@@ -14,6 +14,12 @@
       <IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
     </PackageReference>
     <PackageReference Include="ZeroAlloc.Mediator.Validation" />
+    <PackageReference Include="ZeroAlloc.Authorization" />
+    <PackageReference Include="ZeroAlloc.Mediator.Authorization" />
+    <PackageReference Include="ZeroAlloc.Mediator.Authorization.Generator">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
+    </PackageReference>
     <PackageReference Include="ZeroAlloc.Mapping">
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
