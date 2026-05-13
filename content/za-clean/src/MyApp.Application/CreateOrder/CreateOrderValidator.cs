@@ -1,44 +1,33 @@
-using System.Text.RegularExpressions;
 using ZeroAlloc.Results;
 
 namespace MyApp.Application.CreateOrder;
 
 /// <summary>
-/// Hand-rolled validator for <see cref="CreateOrderCommand"/>.
+/// First-failure validator for <see cref="CreateOrderCommand"/>.
 /// <para>
-/// Replaces the ZA.Validation source-generated validator while the published
-/// nupkg ships without its analyzer. Migrate to attribute-based validation
-/// when upstream fix lands.
+/// Delegates to the source-generated <see cref="CreateOrderCommandValidator"/>
+/// (emitted by ZA.Validation from the <c>[Validate]</c> attribute on the
+/// command record). The "at least one item" rule is enforced here because
+/// ZA.Validation's <c>[NotEmpty]</c> emits a <c>string.IsNullOrEmpty</c>
+/// check and does not yet support <c>IReadOnlyList&lt;T&gt;.Count == 0</c>
+/// as a collection-empty rule.
 /// </para>
 /// </summary>
-public static partial class CreateOrderValidator
+public static class CreateOrderValidator
 {
-    // Anchored, fixed-length, no backtracking — safe from ReDoS.
-#pragma warning disable MA0009 // ReDoS — false positive: pattern is anchored and fixed-length.
-    [GeneratedRegex("^[0-9]{4}[A-Z]{2}$", RegexOptions.CultureInvariant)]
-    private static partial Regex ZipPattern();
-#pragma warning restore MA0009
+    private static readonly OrderItemValidator s_itemValidator = new();
+    private static readonly CreateOrderCommandValidator s_validator = new(s_itemValidator);
 
     public static UnitResult<ValidationError> Validate(CreateOrderCommand cmd)
     {
-        if (cmd.CustomerId <= 0)
-            return UnitResult<ValidationError>.Failure(new("CustomerId", "CustomerId must be positive"));
-
         if (cmd.Items.Count == 0)
             return UnitResult<ValidationError>.Failure(new("Items", "At least one item is required"));
 
-        for (var i = 0; i < cmd.Items.Count; i++)
-        {
-            var item = cmd.Items[i];
-            if (item.Quantity <= 0)
-                return UnitResult<ValidationError>.Failure(new($"Items[{i}].Quantity", "Quantity must be positive"));
-            if (item.UnitPriceEur < 0)
-                return UnitResult<ValidationError>.Failure(new($"Items[{i}].UnitPriceEur", "UnitPrice must be non-negative"));
-        }
+        var result = s_validator.Validate(cmd);
+        if (result.IsValid)
+            return UnitResult<ValidationError>.Success();
 
-        if (string.IsNullOrEmpty(cmd.ShippingZip) || !ZipPattern().IsMatch(cmd.ShippingZip))
-            return UnitResult<ValidationError>.Failure(new("ShippingZip", "ShippingZip must match ^[0-9]{4}[A-Z]{2}$"));
-
-        return UnitResult<ValidationError>.Success();
+        ref readonly var f = ref result.Failures[0];
+        return UnitResult<ValidationError>.Failure(new ValidationError(f.PropertyName, f.ErrorMessage));
     }
 }

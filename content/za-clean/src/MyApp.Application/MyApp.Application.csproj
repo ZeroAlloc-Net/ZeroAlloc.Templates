@@ -17,8 +17,11 @@
     <PackageReference Include="ZeroAlloc.Mapping">
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
-    <!-- ZeroAlloc.Validation removed until its source generator nupkg ships with analyzers.
-         Re-add when upstream fix lands; switch CreateOrderValidator to `[Validate]` attributes. -->
+    <PackageReference Include="ZeroAlloc.Validation" />
+    <PackageReference Include="ZeroAlloc.Validation.Generator">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
+    </PackageReference>
     <PackageReference Include="ZeroAlloc.Results" />
     <PackageReference Include="ZeroAlloc.Inject" />
     <PackageReference Include="ZeroAlloc.Inject.Generator">
