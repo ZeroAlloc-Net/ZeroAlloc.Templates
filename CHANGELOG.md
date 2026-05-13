@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.4.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/compare/ZeroAlloc.Templates-v0.3.6...ZeroAlloc.Templates-v0.4.0) (2026-05-13)
+
+
+### Features
+
+* **template:** drop NotEmpty collection workaround now that ZA.Validation 1.3.0 supports it ([#74](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/issues/74)) ([f523218](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/commit/f52321856edda811f5cc6af01f22bdb64954b965))
+* **template:** enforce [Authorize] on mediator handlers via ZA.Mediator.Authorization ([#76](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/issues/76)) ([d403e3a](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/commit/d403e3a4ffe63fdce8973aec4093bcce997c59f2))
+* **template:** use [Validate] attributes instead of hand-rolled validator ([#70](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/issues/70)) ([1aa4ce8](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/commit/1aa4ce8c0ddb6766a0a29e15dddfcf0997ae4a77))
+
 ## [0.3.6](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/compare/ZeroAlloc.Templates-v0.3.5...ZeroAlloc.Templates-v0.3.6) (2026-05-13)
 
 
