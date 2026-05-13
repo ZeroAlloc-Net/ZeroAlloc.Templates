@@ -574,6 +574,48 @@ The serialize wrapper costs more because `ISerializer<T>.Serialize` takes an `IB
 This is the cost of the abstraction. **The wrapper is fastest when the caller pools the buffer writer** — the IBufferWriter pattern is designed for that scenario. The benchmark measures worst case (fresh writer per call); a real application that pools writers across N calls amortises the 264 B to ~0 per call.
 <!-- SERIALISATION:END -->
 
+#### Cache
+<!-- CACHE:START -->
+_Imported from ZA.Cache — last refreshed 2026-05-13._
+
+_Last refreshed: 2026-05-13_
+
+L1 (in-process) cache-hit comparison. .NET 10.0.7, i9-12900HK, BenchmarkDotNet v0.15.8. ZA.Cache wraps `IMemoryCache`, so the relevant comparisons are: hand-rolled `GetOrCreateAsync` (the pattern ZA replaces) and [FusionCache](https://github.com/ZiggyCreatures/FusionCache) 2.0 (the de-facto third-party L1+L2 caching library).
+
+| Library | Time | Allocated |
+|---|---:|---:|
+| Raw `IMemoryCache.GetOrCreateAsync` | 208 ns | 176 B |
+| **ZA.Cache proxy** | **434 ns** | **160 B** |
+| FusionCache | 989 ns | 112 B |
+
+**ZA.Cache is 2.3× faster than FusionCache** with comparable allocation. The trade vs raw `IMemoryCache` is the ~2× cost of the typed `[Cache]` attribute abstraction (compile-time key building + async wrapper) — in exchange you don't write the cache-lookup boilerplate at every call site, and the key derivation is generated rather than hand-typed.
+
+**FusionCache** is heavier because it carries L2-cache, stampede protection, and adaptive-caching infrastructure even when only L1 is configured. For pure L1, ZA is the lighter choice; FusionCache's value is the L2 + advanced features that ZA does not implement.
+
+**Caveat on the raw row**: ZA's 2× premium over raw `IMemoryCache.GetOrCreateAsync` reflects the proxy dispatch + generated key composition. The raw row's 176 B allocation is the `(string, int)` tuple boxing the test uses for the key; ZA's 160 B is the generated `customer-42` string interpolation. Allocation parity is by design — both store roughly the same key shape.
+<!-- CACHE:END -->
+
+#### Telemetry
+<!-- TELEMETRY:START -->
+_Imported from ZA.Telemetry — last refreshed 2026-05-13._
+
+_Last refreshed: 2026-05-13_
+
+The realistic alternative to ZA.Telemetry's generator is hand-written `ActivitySource` + `Meter` wrapping — wrapping every instrumented method with `using var activity = source.StartActivity(...); counter.Add(1); histogram.Record(...)`. This benchmark compares the two in the no-listeners profile (the common production case after sampling).
+
+.NET 10.0.7, i9-12900HK, BenchmarkDotNet v0.15.4.
+
+| Method | Time | Allocated |
+|---|---:|---:|
+| Direct call (no instrumentation) | 87 ns | 72 B |
+| Hand-written `ActivitySource` + `Counter` + `Histogram` | 201 ns | 72 B |
+| **ZA.Telemetry generated proxy** | **201 ns** | **72 B** |
+
+ZA.Telemetry's generator produces code **at parity with hand-written instrumentation** (within measurement noise; 0.04% delta). The 72 B in all three rows is the `Task<int>` allocation from the async/await pattern, not from instrumentation. Both wrappers add ~115 ns over the direct call in the no-listeners path — the `Activity.StartActivity` null-check, the `Counter.Add`, and the `Histogram.Record` — all unavoidable if you want the spans + metrics available when a sampler does subscribe.
+
+**The takeaway**: ZA.Telemetry's value isn't faster instrumentation than hand-writing it — it's eliminating the boilerplate so every instrumented method gets the same try/finally + counter + histogram pattern, with zero risk of forgetting to dispose an Activity or skipping a metric.
+<!-- TELEMETRY:END -->
+
 ### Reproduction
 
 ```bash
