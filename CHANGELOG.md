@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.3.4](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/compare/ZeroAlloc.Templates-v0.3.3...ZeroAlloc.Templates-v0.3.4) (2026-05-13)
+
+
+### Documentation
+
+* **comparisons:** add STATEMACHINE + RESILIENCE live sources ([#57](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/issues/57)) ([f1bf462](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/commit/f1bf4626dcb5c7fbe5067047df269e55aa087b8e))
+* **comparisons:** flip VALIDATION live + add SPECIFICATION source ([#53](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/issues/53)) ([8b61e1f](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/commit/8b61e1ffe0b5e0343a34c90fca5310325d98acc9))
+
 ## [0.3.3](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/compare/ZeroAlloc.Templates-v0.3.2...ZeroAlloc.Templates-v0.3.3) (2026-05-13)
 
 
