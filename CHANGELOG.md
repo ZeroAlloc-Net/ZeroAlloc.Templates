@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.5](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/compare/ZeroAlloc.Templates-v0.3.4...ZeroAlloc.Templates-v0.3.5) (2026-05-13)
+
+
+### Documentation
+
+* **comparisons:** add REST + SERIALISATION live sources ([#60](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/issues/60)) ([904575f](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/commit/904575fc8ae96b87320009786d770b521d93fa22))
+
 ## [0.3.4](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/compare/ZeroAlloc.Templates-v0.3.3...ZeroAlloc.Templates-v0.3.4) (2026-05-13)
 
 
