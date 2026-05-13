@@ -362,7 +362,17 @@ ZeroAlloc.Mediator is **40–160× faster** than MediatR across all measured pat
 
 #### Validation
 <!-- VALIDATION:START -->
-_**Status: blocked upstream.** Blocked on ZA.Validation generator-nupkg fix. [Validate] is currently decorative — the template ships a hand-rolled validator until the generator nupkg ships its analyzer. Tracking: https://github.com/ZeroAlloc-Net/ZeroAlloc.Validation/issues._
+_Imported from ZA.Validation — last refreshed 2026-05-13._
+
+_Last refreshed: 2026-05-13_
+
+| Scenario | ZA valid | FluentValidation valid | Speedup | ZA alloc (valid) | FV alloc (valid) |
+|---|---:|---:|---:|---:|---:|
+| Flat | 6.7 ns | 327 ns | **~49×** | **0 B** | 664 B |
+| Nested | 10.1 ns | 619 ns | **~61×** | **0 B** | 1,488 B |
+| Collection (3 items) | 14.3 ns | 2,043 ns | **~143×** | **0 B** | 3,456 B |
+
+ZeroAlloc.Validation is **49–143× faster** than FluentValidation on the valid path with **zero heap allocation**. On the invalid path it's 31–56× faster and allocates 10–18× less. The gap widens as the model shape grows — FluentValidation's per-call `List<ValidationFailure>` and cached expression-tree delegates pay a larger fixed cost as more rules fire.
 <!-- VALIDATION:END -->
 
 #### Inject
@@ -446,6 +456,25 @@ Both libraries are 0 B on equality and construction. ZA wins the hot-path operat
 
 ZA's `ToString` allocation is a known cost; it can be eliminated by overriding `ToString()` manually with a direct `value.ToString(CultureInfo.InvariantCulture)`.
 <!-- VALUEOBJECTS:END -->
+
+#### Specification
+<!-- SPECIFICATION:START -->
+_Imported from ZA.Specification — last refreshed 2026-05-13._
+
+_Last refreshed: 2026-05-13_
+
+Ardalis.Specification is the most-used specification library in .NET — class-based, designed for EF Core query composition. ZA.Specification's struct-based design pays off across every operation that exercises both libraries' core surface.
+
+| Operation | Ardalis.Specification | ZA.Specification | Speedup |
+|---|---:|---:|---:|
+| Construct composed spec | 1,719 ns / 1,248 B | **40 ns / 24 B** | **43× faster, 52× less alloc** |
+| Compose two specs | 3,959 ns / 2,648 B | **22 ns / 24 B** | **180× faster, 110× less alloc** |
+| Evaluate over 100 items (in-memory) | 170,862 ns / 4,688 B | **150 ns / 0 B** | **1,136× faster, ∞× less alloc** |
+
+The in-memory-evaluation gap is dramatic because Ardalis is designed for **IQueryable composition** — `WhereExpression.Filter.Compile()` is hundreds of microseconds per call. For EF Core / database queries where the SQL provider dominates the cost, this overhead is invisible. For in-memory filtering (which many users do), it dominates.
+
+ZA.Specification's `IsSatisfiedBy` is a direct virtual call on a struct value — the JIT inlines it, the composition tree resolves to a sequence of `&&` operators in straight-line code. Zero allocation per evaluation regardless of composition depth.
+<!-- SPECIFICATION:END -->
 
 ### Reproduction
 
