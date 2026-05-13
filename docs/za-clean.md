@@ -200,7 +200,7 @@ Per-primitive comparisons against the ecosystem alternatives. These blocks are r
 
 #### Mapping
 <!-- MAPPING:START -->
-_Imported from ZA.Mapping — last refreshed 2026-05-12._
+_Imported from ZA.Mapping — last refreshed 2026-05-13._
 
 _Last refreshed: 2026-05-10_
 
@@ -345,7 +345,7 @@ BenchmarkDotNet v0.15.8, Windows 11 (10.0.26200.8246/25H2/2025Update/HudsonValle
 
 #### Mediator
 <!-- MEDIATOR:START -->
-_Imported from ZA.Mediator — last refreshed 2026-05-12._
+_Imported from ZA.Mediator — last refreshed 2026-05-13._
 
 | Method | ZeroAlloc.Mediator | MediatR | Ratio | ZA Alloc | MediatR Alloc |
 |---|---:|---:|---:|---:|---:|
@@ -367,7 +367,7 @@ _**Status: blocked upstream.** Blocked on ZA.Validation generator-nupkg fix. [Va
 
 #### Inject
 <!-- INJECT:START -->
-_Imported from ZA.Inject — last refreshed 2026-05-12._
+_Imported from ZA.Inject — last refreshed 2026-05-13._
 
 _Last refreshed: 2026-05-12_
 
@@ -399,6 +399,53 @@ _³ Jab 0.10.x requires closed types at the `[ServiceProvider]` attribute level.
 
 ZA.Inject is **competitive across every scenario** and the clear winner where the generator's domain knowledge matters most: property injection (2× MS DI), decorators (2.1× MS DI), open generics (1.8× MS DI). Jab leads on scope creation (its scope is the lightest of the four, by an order of magnitude), with ZA Standalone close behind on the full scoped-resolution lifecycle.
 <!-- INJECT:END -->
+
+#### Results
+<!-- RESULTS:START -->
+_Imported from ZA.Results — last refreshed 2026-05-13._
+
+_Last refreshed: 2026-05-13_
+
+| Scenario | ZeroAlloc.Results | OneOf | ErrorOr | FluentResults |
+|---|---:|---:|---:|---:|
+| Success construct | 0.4 ns / 0 B | 0.5 ns / 0 B | 0.0 ns / 0 B | 87 ns / **112 B** |
+| Failure construct | 0.3 ns / 0 B | 0.9 ns / 0 B | 63 ns / **184 B** | 87 ns / **272 B** |
+| Success consume | 0.3 ns / 0 B | 0.1 ns / 0 B | 0.2 ns / 0 B | 75 ns / **96 B** |
+| Failure consume | 0.4 ns / 0 B | 0.9 ns / 0 B | 2.6 ns / 0 B | 214 ns / **240 B** |
+| Hot loop (100 iter, mixed) | **183 ns / 0 B** | 202 ns / 0 B | 7,693 ns / 6,256 B | 39,450 ns / 25,968 B |
+
+ZeroAlloc.Results is the **only library with 0 B allocation on every path** — including failure construction, which is where ErrorOr (184 B) and FluentResults (272 B) pay the most. OneOf is the closest competitor (also struct-based, also 0 B on hot paths) but is ~10% slower on the realistic mixed workload.
+
+**The realistic-workload headline (100 iterations with 1-in-3 failures):**
+
+- ZeroAlloc.Results: **183 ns / 0 B**
+- OneOf: 202 ns / 0 B (1.1× slower)
+- ErrorOr: 7,693 ns / 6,256 B (**42× slower, +∞× more alloc**)
+- FluentResults: 39,450 ns / 25,968 B (**216× slower, +∞× more alloc**)
+
+ErrorOr and FluentResults allocate per-failure because their error types (`Error` struct with description string interning + `IError` interface implementations) are non-trivial. For a CRUD app handling occasional validation errors the cost is invisible; for a hot pipeline processing tens of thousands of items where any non-trivial fraction fail, it dominates.
+<!-- RESULTS:END -->
+
+#### ValueObjects
+<!-- VALUEOBJECTS:START -->
+_Imported from ZA.ValueObjects — last refreshed 2026-05-13._
+
+_Last refreshed: 2026-05-13_
+
+| Operation | Vogen | ZA.ValueObjects | Winner |
+|---|---:|---:|---|
+| `From(value)` | 4.12 ns | **0.30 ns** | **ZA 14× faster** |
+| `Equals` (equal) | 0.54 ns | **0.08 ns** | **ZA 7× faster** |
+| `Equals` (not equal) | 0.67 ns | **0.20 ns** | **ZA 3× faster** |
+| `GetHashCode` | **0.05 ns** | 1.50 ns | Vogen 30× faster |
+| `ToString` | **4.45 ns** | 41.75 ns / **72 B** | Vogen 9× faster; ZA allocates |
+
+Both libraries are 0 B on equality and construction. ZA wins the hot-path operations (`From`, `Equals`) by a wide margin — Vogen's `From` pays validation overhead even when the validation succeeds. Vogen wins `GetHashCode` (its primitive-wrapped hash inlines to the raw int) and `ToString` (no allocation; ZA's default `ToString` boxes through string formatting and allocates 72 B).
+
+**The trade-off**: ZA optimises construction and equality; Vogen optimises hashing and formatting. For value-object usage dominated by lookup-key equality (dictionary keys, set membership, change tracking), ZA wins. For value-object usage dominated by logging and display, Vogen wins.
+
+ZA's `ToString` allocation is a known cost; it can be eliminated by overriding `ToString()` manually with a direct `value.ToString(CultureInfo.InvariantCulture)`.
+<!-- VALUEOBJECTS:END -->
 
 ### Reproduction
 

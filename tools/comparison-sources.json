@@ -30,6 +30,22 @@
       "url": "https://raw.githubusercontent.com/ZeroAlloc-Net/ZeroAlloc.Inject/main/docs/performance.md",
       "extract_start": "<!-- BENCH:START -->",
       "extract_end": "<!-- BENCH:END -->"
+    },
+    {
+      "name": "ZA.Results",
+      "sentinel": "RESULTS",
+      "status": "live",
+      "url": "https://raw.githubusercontent.com/ZeroAlloc-Net/ZeroAlloc.Results/main/docs/performance.md",
+      "extract_start": "<!-- BENCH:START -->",
+      "extract_end": "<!-- BENCH:END -->"
+    },
+    {
+      "name": "ZA.ValueObjects",
+      "sentinel": "VALUEOBJECTS",
+      "status": "live",
+      "url": "https://raw.githubusercontent.com/ZeroAlloc-Net/ZeroAlloc.ValueObjects/main/docs/performance.md",
+      "extract_start": "<!-- BENCH:START -->",
+      "extract_end": "<!-- BENCH:END -->"
     }
   ]
 }
