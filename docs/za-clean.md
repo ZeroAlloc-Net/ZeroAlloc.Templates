@@ -476,6 +476,45 @@ The in-memory-evaluation gap is dramatic because Ardalis is designed for **IQuer
 ZA.Specification's `IsSatisfiedBy` is a direct virtual call on a struct value — the JIT inlines it, the composition tree resolves to a sequence of `&&` operators in straight-line code. Zero allocation per evaluation regardless of composition depth.
 <!-- SPECIFICATION:END -->
 
+#### StateMachine
+<!-- STATEMACHINE:START -->
+_Imported from ZA.StateMachine — last refreshed 2026-05-13._
+
+_Last refreshed: 2026-05-13_
+
+[Stateless](https://github.com/dotnet-state-machine/stateless) is the de-facto state-machine library in .NET — class-based, fluent configuration, runtime trigger dispatch. ZA's source-generated switch dispatch dominates every comparable scenario.
+
+| Operation | Stateless | ZA.StateMachine | Speedup |
+|---|---:|---:|---:|
+| Fire valid (3-step cycle) | 4,495 ns / 7,272 B | **36 ns / 24 B** | **124× faster, 303× less alloc** |
+| Fire invalid | 27 ns / 24 B | **1.6 ns / 0 B** | **17× faster, 0 B alloc** |
+| Guard allowed | 2,718 ns / 4,160 B | **15 ns / 24 B** | **178× faster, 173× less alloc** |
+| Guard blocked | 699 ns / 792 B | **0.3 ns / 0 B** | **2,200× faster, 0 B alloc** |
+
+The 24 B allocations in ZA's "valid" rows are from the per-iteration `new OrderMachine()` reset, not from `TryFire`. Stateless allocates because every `Fire` walks a `Dictionary<TTrigger, StateRepresentation>` and constructs trigger/transition info objects. ZA emits a `switch` expression over `(State, Trigger)` at compile time — the dispatch is a single jump table lookup with no allocation.
+<!-- STATEMACHINE:END -->
+
+#### Resilience
+<!-- RESILIENCE:START -->
+_Imported from ZA.Resilience — last refreshed 2026-05-13._
+
+_Last refreshed: 2026-05-13_
+
+[Polly](https://github.com/App-vNext/Polly) v8 (`ResiliencePipeline`) is the de-facto resilience library in .NET. ZA.Resilience's source-generated proxy beats it on both throughput and allocation for the policies both libraries support apples-to-apples.
+
+| Operation | Polly v8 | ZA.Resilience | Speedup |
+|---|---:|---:|---:|
+| Retry, happy path | 600 ns / 64 B | **23 ns / 0 B** | **26× faster, 0 B alloc** |
+| CircuitBreaker, closed | 776 ns / 64 B | **17 ns / 0 B** | **45× faster, 0 B alloc** |
+| Retry with 2/3 failures | 22.86 ms / 3,134 B | 27.89 ms / 948 B | 22% slower wall-clock, **3.3× less alloc** |
+
+The happy-path gap is driven by Polly's `ResiliencePipeline.ExecuteAsync` walking the strategy chain via delegate dispatch and allocating a `ResilienceContext` per call (64 B). ZA emits one direct method per interface — the retry/CB checks are inline `if` statements and `Volatile.Read` calls. No context object, no closure, no delegate.
+
+The retry-with-failures row is dominated by `Task.Delay(BackoffMs)` (2× 1 ms = 2 ms minimum); the residual 22% wall-clock gap is ZA's `for`-loop retry scheduling — measurable, but mostly invisible against I/O latency in real workloads. Allocation is **3.3× lower** at 948 B vs 3,134 B.
+
+**Note on all-policies stacked comparison**: deferred. The two libraries' rate-limiter policies have different surface (Polly.RateLimiting is a separate package, ZA's RateLimit is part of the main package), so an apples-to-apples 4-policy comparison requires a custom harness. The Retry + CB pairings above are the most-cited isolated scenarios; see the self-benchmark table for ZA's all-policies stack.
+<!-- RESILIENCE:END -->
+
 ### Reproduction
 
 ```bash
