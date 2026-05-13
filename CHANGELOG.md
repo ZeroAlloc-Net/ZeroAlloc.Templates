@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.3](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/compare/ZeroAlloc.Templates-v0.3.2...ZeroAlloc.Templates-v0.3.3) (2026-05-13)
+
+
+### Documentation
+
+* **comparisons:** wire ZA.Results + ZA.ValueObjects live numbers ([#49](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/issues/49)) ([3013062](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/commit/301306204f4e47487ada3d86b048654f28873f5c))
+
 ## [0.3.2](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/compare/ZeroAlloc.Templates-v0.3.1...ZeroAlloc.Templates-v0.3.2) (2026-05-12)
 
 
