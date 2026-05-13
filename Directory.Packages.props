@@ -13,7 +13,7 @@
     <PackageVersion Include="ZeroAlloc.Authorization" Version="1.2.2" />
     <PackageVersion Include="ZeroAlloc.Telemetry" Version="1.2.1" />
     <PackageVersion Include="ZeroAlloc.Resilience" Version="1.2.2" />
-    <PackageVersion Include="ZeroAlloc.Rest" Version="1.1.1" />
+    <PackageVersion Include="ZeroAlloc.Rest" Version="1.1.2" />
     <PackageVersion Include="ZeroAlloc.Rest.SystemTextJson" Version="1.1.1" />
     <PackageVersion Include="ZeroAlloc.Rest.Resilience" Version="1.1.1" />
     <PackageVersion Include="ZeroAlloc.Mediator.Validation" Version="4.1.1" />
