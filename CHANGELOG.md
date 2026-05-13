@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.3.6](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/compare/ZeroAlloc.Templates-v0.3.5...ZeroAlloc.Templates-v0.3.6) (2026-05-13)
+
+
+### Documentation
+
+* **comparisons:** add CACHE + TELEMETRY live sources — first tier-2 pair ([#66](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/issues/66)) ([f0cb6c1](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/commit/f0cb6c1f6eb7cb379a37a0e023ce90061a0d82ba))
+* **comparisons:** add NOTIFY live source ([#68](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/issues/68)) ([46e631c](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/commit/46e631cb9cefc03ad2ce9cf6551a10f53ebf1a09))
+
 ## [0.3.5](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/compare/ZeroAlloc.Templates-v0.3.4...ZeroAlloc.Templates-v0.3.5) (2026-05-13)
 
 
