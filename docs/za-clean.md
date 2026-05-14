@@ -200,7 +200,7 @@ Per-primitive comparisons against the ecosystem alternatives. These blocks are r
 
 #### Mapping
 <!-- MAPPING:START -->
-_Imported from ZA.Mapping — last refreshed 2026-05-13._
+_Imported from ZA.Mapping — last refreshed 2026-05-14._
 
 _Last refreshed: 2026-05-10_
 
@@ -345,7 +345,7 @@ BenchmarkDotNet v0.15.8, Windows 11 (10.0.26200.8246/25H2/2025Update/HudsonValle
 
 #### Mediator
 <!-- MEDIATOR:START -->
-_Imported from ZA.Mediator — last refreshed 2026-05-13._
+_Imported from ZA.Mediator — last refreshed 2026-05-14._
 
 | Method | ZeroAlloc.Mediator | MediatR | Ratio | ZA Alloc | MediatR Alloc |
 |---|---:|---:|---:|---:|---:|
@@ -362,7 +362,7 @@ ZeroAlloc.Mediator is **40–160× faster** than MediatR across all measured pat
 
 #### Validation
 <!-- VALIDATION:START -->
-_Imported from ZA.Validation — last refreshed 2026-05-13._
+_Imported from ZA.Validation — last refreshed 2026-05-14._
 
 _Last refreshed: 2026-05-13_
 
@@ -377,7 +377,7 @@ ZeroAlloc.Validation is **49–143× faster** than FluentValidation on the valid
 
 #### Inject
 <!-- INJECT:START -->
-_Imported from ZA.Inject — last refreshed 2026-05-13._
+_Imported from ZA.Inject — last refreshed 2026-05-14._
 
 _Last refreshed: 2026-05-12_
 
@@ -412,7 +412,7 @@ ZA.Inject is **competitive across every scenario** and the clear winner where th
 
 #### Results
 <!-- RESULTS:START -->
-_Imported from ZA.Results — last refreshed 2026-05-13._
+_Imported from ZA.Results — last refreshed 2026-05-14._
 
 _Last refreshed: 2026-05-13_
 
@@ -438,7 +438,7 @@ ErrorOr and FluentResults allocate per-failure because their error types (`Error
 
 #### ValueObjects
 <!-- VALUEOBJECTS:START -->
-_Imported from ZA.ValueObjects — last refreshed 2026-05-13._
+_Imported from ZA.ValueObjects — last refreshed 2026-05-14._
 
 _Last refreshed: 2026-05-13_
 
@@ -459,7 +459,7 @@ ZA's `ToString` allocation is a known cost; it can be eliminated by overriding `
 
 #### Specification
 <!-- SPECIFICATION:START -->
-_Imported from ZA.Specification — last refreshed 2026-05-13._
+_Imported from ZA.Specification — last refreshed 2026-05-14._
 
 _Last refreshed: 2026-05-13_
 
@@ -478,7 +478,7 @@ ZA.Specification's `IsSatisfiedBy` is a direct virtual call on a struct value �
 
 #### StateMachine
 <!-- STATEMACHINE:START -->
-_Imported from ZA.StateMachine — last refreshed 2026-05-13._
+_Imported from ZA.StateMachine — last refreshed 2026-05-14._
 
 _Last refreshed: 2026-05-13_
 
@@ -498,7 +498,7 @@ This is the apples-to-apples comparison for cyclic state machines — a per-requ
 
 #### Resilience
 <!-- RESILIENCE:START -->
-_Imported from ZA.Resilience — last refreshed 2026-05-13._
+_Imported from ZA.Resilience — last refreshed 2026-05-14._
 
 _Last refreshed: 2026-05-13_
 
@@ -519,7 +519,7 @@ The retry-with-failures row is dominated by `Task.Delay(BackoffMs)` (2× 1 ms = 
 
 #### Rest
 <!-- REST:START -->
-_Imported from ZA.Rest — last refreshed 2026-05-13._
+_Imported from ZA.Rest — last refreshed 2026-05-14._
 
 _Last refreshed: 2026-05-13_
 
@@ -547,7 +547,7 @@ ZeroAlloc.Rest is **1.7–3.6× faster than Refit** across every shape of call (
 
 #### Serialisation
 <!-- SERIALISATION:START -->
-_Imported from ZA.Serialisation — last refreshed 2026-05-13._
+_Imported from ZA.Serialisation — last refreshed 2026-05-14._
 
 _Last refreshed: 2026-05-13_
 
@@ -576,7 +576,7 @@ This is the cost of the abstraction. **The wrapper is fastest when the caller po
 
 #### Cache
 <!-- CACHE:START -->
-_Imported from ZA.Cache — last refreshed 2026-05-13._
+_Imported from ZA.Cache — last refreshed 2026-05-14._
 
 _Last refreshed: 2026-05-13_
 
@@ -597,7 +597,7 @@ L1 (in-process) cache-hit comparison. .NET 10.0.7, i9-12900HK, BenchmarkDotNet v
 
 #### Telemetry
 <!-- TELEMETRY:START -->
-_Imported from ZA.Telemetry — last refreshed 2026-05-13._
+_Imported from ZA.Telemetry — last refreshed 2026-05-14._
 
 _Last refreshed: 2026-05-13_
 
@@ -618,7 +618,7 @@ ZA.Telemetry's generator produces code **at parity with hand-written instrumenta
 
 #### Notify
 <!-- NOTIFY:START -->
-_Imported from ZA.Notify — last refreshed 2026-05-13._
+_Imported from ZA.Notify — last refreshed 2026-05-14._
 
 _Last refreshed: 2026-05-13_
 
@@ -637,6 +637,81 @@ _Last refreshed: 2026-05-13_
 
 **Per-iteration scale**: even at 124.7 ns / 80 B per setter call, ZA.Notify can run **~8M property changes per second per thread** with ~640 MB/s of GC pressure. Most MVVM workloads have property change rates in the thousands per second, where the difference is invisible.
 <!-- NOTIFY:END -->
+
+#### Scheduling
+<!-- SCHEDULING:START -->
+_Imported from ZA.Scheduling — last refreshed 2026-05-14._
+
+_Last refreshed: 2026-05-14_
+
+.NET 10.0.7, i9-12900HK, BenchmarkDotNet v0.15.4. Coravel 5.0.4 (the de-facto in-process scheduler in .NET) and a hand-rolled `BackgroundService + Timer` baseline (the pattern most apps reach for before adopting a library).
+
+### vs Coravel: registration cost
+
+| Operation | Coravel | ZA.Scheduling | Coravel allocation |
+|---|---:|---:|---:|
+| Single `Schedule()` / `[Job]` registration | 8,211 ns | **compile-time, 0 ns runtime** | 696 B per call |
+| 100 schedule calls (queue accumulation) | 80,217 ns / 77,232 B | **compile-time, 0 ns runtime** | 110× the per-call cost |
+
+**Honest reading**: Coravel's `Schedule()` is a runtime call that allocates an entry the scheduler walks every tick. ZA.Scheduling's `[Job]` registration happens at compile time — the source generator emits one direct dispatcher per attributed type. There is no equivalent runtime registration call in ZA, so the comparison is between Coravel's per-call registration cost and ZA's no-cost-at-all (the cost moved to build time). The "8,211 ns / 696 B per Schedule" is the realistic cost in a Coravel app that schedules jobs dynamically at startup.
+
+### vs naive `BackgroundService + Timer` baseline: dispatch overhead
+
+| Operation | Naive direct call | ZA.Scheduling `IJob.ExecuteAsync` |
+|---|---:|---:|
+| Single dispatch | 0.01 ns | 0.25 ns |
+
+Both rows are in BDN's "ZeroMeasurement" range (warning: "indistinguishable from empty-method duration"). **ZA.Scheduling adds no measurable overhead over a direct method call** — the `[Job]`-attributed proxy compiles to a direct return for synchronous completions, and BDN's JIT inlines both bodies entirely.
+
+The takeaway: if you're considering ZA.Scheduling over a hand-rolled `Timer`, the dispatch cost is identical. The value of the abstraction is the `[Job]` attribute itself (declarative retries, cron, store-backed persistence) — not raw dispatch speed.
+<!-- SCHEDULING:END -->
+
+#### Outbox
+<!-- OUTBOX:START -->
+_Imported from ZA.Outbox — last refreshed 2026-05-14._
+
+_Last refreshed: 2026-05-14_
+
+Correctness-matched comparison: both rows use the **same SQLite-in-memory connection** (different tables), both wrap each enqueue in a transaction, both run a claim-then-dispatch-then-commit cycle on the dispatch tick. Storage variance cancels out — the remaining delta is the cost of the `IOutboxWriter<T>` + `IOutboxStore` + serializer abstraction layer.
+
+.NET 10.0.7, i9-12900HK, BenchmarkDotNet v0.15.4.
+
+| Operation | Hand-rolled | ZA.Outbox | Overhead |
+|---|---:|---:|---:|
+| Enqueue (1 message, transactional) | 6.86 µs / 2.08 KB | **6.99 µs / 2.13 KB** | +2% time, +2% alloc |
+| Dispatch tick (10 messages) | 105.4 µs / 11.9 KB | **115.0 µs / 11.09 KB** | +9% time, **−7% alloc** |
+
+**Honest reading**: ZA.Outbox adds **near-zero abstraction overhead** vs writing the same correctness-matched SQLite outbox by hand. The 2–9% wall-clock delta is the `IOutboxWriter<T>` + `IOutboxStore` interface dispatch + serializer call overhead. Memory allocation is within ±5% of hand-rolled, sometimes lower.
+
+The value of the abstraction is the `[OutboxMessage]` attribute + the typed writer + composability with other ZA packages (dispatcher, dashboard, resilience, telemetry bridges) — paid for at near-no runtime cost.
+<!-- OUTBOX:END -->
+
+#### EventSourcing
+<!-- EVENTSOURCING:START -->
+_Imported from ZA.EventSourcing — last refreshed 2026-05-14._
+
+_Last refreshed: 2026-05-14_
+
+Correctness-matched comparison: both rows use the **same SQLite-in-memory connection** (different tables), both check the current stream version inside a transaction before INSERT, both run an ordered SELECT across the stream on read. Storage variance cancels out — the remaining delta is the cost of the `IEventStore` + `IEventStoreAdapter` + `IEventSerializer` + `IEventTypeRegistry` abstraction layer.
+
+To isolate the abstraction overhead from real-world serialization cost (which both sides would pay equally in production), the ZA row uses a cached no-op serializer. The hand-rolled row similarly stores raw bytes without round-tripping JSON.
+
+.NET 8.0.26, i9-12900HK, BenchmarkDotNet v0.15.8.
+
+| Operation | Hand-rolled | ZA.EventSourcing | Overhead |
+|---|---:|---:|---:|
+| Append (1 event, transactional, OCC check) | 80.7 µs / 3.80 KB | **106.3 µs / 4.79 KB** | +33% time, +26% alloc |
+| Read 100-event stream (ordered) | 66.0 µs / 11.95 KB | **140.9 µs / 25.23 KB** | +114% time, +111% alloc |
+
+**Honest reading**: ZA.EventSourcing adds **a measurable abstraction tax** over a raw SQLite event store — about 33% time on append and ~2× on read. That tax buys you:
+
+- Typed events through `IEventStore.AppendAsync<TEvent>` / `ReadAsync` (the hand-rolled version stores raw bytes the caller has to ser/deser themselves)
+- Pluggable serialization through `IEventSerializer` (so you can swap System.Text.Json for MessagePack, protobuf, or your own zero-alloc serializer without touching the store)
+- Optimistic concurrency through a typed `StreamPosition` API
+- Composability with the rest of the ecosystem (`Aggregate<T>`, projections, snapshots, upcasters, dead-letter handling)
+
+In production the dominant cost on both sides is the serializer + the SQL round-trip — at the millisecond scale of a real database both rows converge and this delta becomes invisible.
+<!-- EVENTSOURCING:END -->
 
 ### Reproduction
 
