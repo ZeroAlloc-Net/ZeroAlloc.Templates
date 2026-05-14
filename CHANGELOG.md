@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.1](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/compare/ZeroAlloc.Templates-v0.4.0...ZeroAlloc.Templates-v0.4.1) (2026-05-14)
+
+
+### Documentation
+
+* **aggregator:** wire Scheduling, Outbox, EventSourcing comparison blocks ([#77](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/issues/77)) ([fcd5cf1](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/commit/fcd5cf10a5b0b18cfaf69c15c5f2257bfb6e6597))
+
 ## [0.4.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/compare/ZeroAlloc.Templates-v0.3.6...ZeroAlloc.Templates-v0.4.0) (2026-05-13)
 
 
