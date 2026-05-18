@@ -77,13 +77,13 @@ Same as command but `IRequest<Result<TResponse, ApplicationError>>` typically wi
 
 ### Add a validation rule
 
-Until ZA.Validation's source generator nupkg ships its analyzer, validation is hand-rolled. Pattern:
+ZA.Validation's `[Validate]` source generator is wired up — `CreateOrderCommand` already uses it. To add or change a rule:
 
-1. Edit `src/MyApp.Application/<Feature>/<Cmd>Validator.cs` — add a check + return `UnitResult<ValidationError>.Failure(new("FieldName", "Message"))` on failure.
-2. The handler already calls `Validate(cmd)` at the top of `Handle` — no wiring change needed.
+1. Edit the `[property: …]` attribute on the relevant property of `src/MyApp.Application/<Feature>/<Cmd>Command.cs`. Examples: `[NotEmpty]`, `[GreaterThan(0)]`, `[Matches(regex)]`, `[LessThan(N)]`, `[MaxLength(N)]`.
+2. Build — the generator regenerates `<Cmd>CommandValidator` automatically. No other wiring change needed.
 3. Add a unit test in `tests/MyApp.UnitTests/Application/` that asserts the new rule fires.
 
-When ZA.Validation's nupkg fix lands: swap to `[Validate]` on the command record + per-property attributes like `[NotEmpty]`, `[GreaterThan(0)]`, `[Matches(regex)]`. Delete the hand-rolled validator.
+The thin wrapper at `CreateOrderValidator.cs` exists for two reasons: it caches the generator-emitted validator instance as a static singleton (avoids per-call construction), and maps the generator's `ValidationResult` shape to the `UnitResult<ValidationError>` shape `CreateOrderHandler` consumes. Reuse this wrapper pattern for new commands — copy the file, swap the type name.
 
 ## 4. ZA-specific gotchas
 
@@ -94,7 +94,6 @@ These bit us during template construction; they'll bite you too if you don't kno
 | Handlers return `ValueTask<T>`, not `Task<T>` | Match the interface |
 | `[Scoped]` / `[Singleton]` / `[Transient]` separate attributes, not `[Service(ServiceLifetime.X)]` | `using ZeroAlloc.Inject;` then `[Scoped]` |
 | ZA generators ship as separate `*.Generator` nupkgs | Reference with `<PrivateAssets>all</PrivateAssets>` + `<IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>` |
-| ZA.Validation's `[Validate]` is decorative until upstream fix | Use hand-rolled `CreateOrderValidator` pattern |
 | ZA.Authorization is host-agnostic abstractions only | Use vanilla `AddAuthorizationBuilder().AddPolicy(...).RequireClaim(...)` |
 | ZA.Telemetry is a code-gen instrumentation library | Use vanilla OpenTelemetry; opt into `[Instrument]` per method |
 | ZA.Mapping needs `<PrivateAssets>all</PrivateAssets>` to prevent ZAMP006 across assembly boundaries | Set on the `<PackageReference>` in Application + Api csprojs |
