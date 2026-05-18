@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/compare/ZeroAlloc.Templates-v0.5.0...ZeroAlloc.Templates-v0.6.0) (2026-05-18)
+
+
+### Features
+
+* **ci:** add real-run smoke gate for jit /orders path ([#93](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/issues/93)) ([7d6005e](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/commit/7d6005e3e1e72885eead36896936a04ae2b15b14))
+
 ## [0.5.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/compare/ZeroAlloc.Templates-v0.4.1...ZeroAlloc.Templates-v0.5.0) (2026-05-18)
 
 
