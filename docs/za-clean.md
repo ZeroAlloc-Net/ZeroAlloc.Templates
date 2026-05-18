@@ -200,7 +200,7 @@ Per-primitive comparisons against the ecosystem alternatives. These blocks are r
 
 #### Mapping
 <!-- MAPPING:START -->
-_Imported from ZA.Mapping — last refreshed 2026-05-14._
+_Imported from ZA.Mapping — last refreshed 2026-05-18._
 
 _Last refreshed: 2026-05-10_
 
@@ -345,7 +345,7 @@ BenchmarkDotNet v0.15.8, Windows 11 (10.0.26200.8246/25H2/2025Update/HudsonValle
 
 #### Mediator
 <!-- MEDIATOR:START -->
-_Imported from ZA.Mediator — last refreshed 2026-05-14._
+_Imported from ZA.Mediator — last refreshed 2026-05-18._
 
 | Method | ZeroAlloc.Mediator | MediatR | Ratio | ZA Alloc | MediatR Alloc |
 |---|---:|---:|---:|---:|---:|
@@ -358,11 +358,13 @@ _Imported from ZA.Mediator — last refreshed 2026-05-14._
 | Stream (5 items) | 202.8 ns | 654.4 ns | **~3×** | 104 B | 528 B |
 
 ZeroAlloc.Mediator is **40–160× faster** than MediatR across all measured paths, with zero heap allocations on every non-streaming path.
+
+**Stream allocation source.** The 104 B on the ZA Stream row is the C# compiler's `async IAsyncEnumerable<T>` state-machine allocation for the user's handler method (e.g. `async IAsyncEnumerable<int> Handle(...) { yield return ...; }`). Any mediator dispatching to such handlers pays this cost — MediatR pays it *on top of* its own ~424 B wrapper. ZA.Mediator's own stream-dispatch contribution is 0 B. .NET 10 has no pooled state-machine builder for `async IAsyncEnumerable<T>` (unlike `ValueTask` with `[AsyncMethodBuilder(typeof(PoolingAsyncValueTaskMethodBuilder))]`); the only way to drop below 104 B is to implement `IAsyncEnumerable<T>` by hand without `yield return`.
 <!-- MEDIATOR:END -->
 
 #### Validation
 <!-- VALIDATION:START -->
-_Imported from ZA.Validation — last refreshed 2026-05-14._
+_Imported from ZA.Validation — last refreshed 2026-05-18._
 
 _Last refreshed: 2026-05-13_
 
@@ -377,16 +379,18 @@ ZeroAlloc.Validation is **49–143× faster** than FluentValidation on the valid
 
 #### Inject
 <!-- INJECT:START -->
-_Imported from ZA.Inject — last refreshed 2026-05-14._
+_Imported from ZA.Inject — last refreshed 2026-05-18._
 
-_Last refreshed: 2026-05-12_
+_Last refreshed: 2026-05-18_
 
 | Method | Mean | Allocated |
 |---|---:|---:|
-| MS DI — `BuildServiceProvider()` | 138 ns | 528 B |
-| ZA.Inject Container — `BuildZeroAllocInjectServiceProvider()` | 10,998 ns | 11,192 B |
-| ZA.Inject Standalone — `new …StandaloneServiceProvider()` | **4 ns** | **32 B** |
-| Jab — `new JabContainer()` | 8 ns | 40 B |
+| MS DI — `BuildServiceProvider()` | 6,413 ns | 6,944 B |
+| ZA.Inject Container — `BuildZeroAllocInjectServiceProvider()` | **1,034 ns** | **2,664 B** |
+| ZA.Inject Standalone — `new …StandaloneServiceProvider()` | **8 ns** | 48 B |
+| Jab — `new JabContainer()` | 8 ns | **40 B** |
+
+The Container row dropped from 10,998 ns / 11,192 B (v1.6 and earlier) to 1,034 ns / 2,664 B in v1.7: `BuildZeroAllocInjectServiceProvider()` now snapshots the `IServiceCollection` and **lazy-builds the MS DI fallback `IServiceProvider` on first need** via `Interlocked.CompareExchange`. Applications whose registrations are fully ZA-owned (the common case for `[Singleton]`/`[Transient]`/`[Scoped]`-attributed services) never pay the `BuildServiceProvider()` cost at all. The MS DI baseline above was also corrected — it previously returned `IServiceCollection` without calling `BuildServiceProvider()`, making the comparison meaningless.
 
 ## Resolution Benchmarks
 
@@ -400,19 +404,21 @@ _Last refreshed: 2026-05-12_
 | Decorated transient | 44.5 ns | **21.1 ns** | 22.3 ns | 28.8 ns² | 48 B |
 | `IEnumerable<T>` (3 impls) | **67.8 ns** | 74.8 ns | 81.8 ns | 150.9 ns | 168 B |
 | Open generic (closed type) | 13.5 ns | (delegates to MS DI) | **7.7 ns** | N/A³ | 24 B |
-| Create scope | 60 ns / 128 B | 123 ns / 216 B | 56 ns / 88 B | **8 ns / 40 B** | — |
-| Resolve scoped (full lifecycle) | 8,225 ns / 304 B | 4,808 ns / 120 B | 3,393 ns / 120 B | **3,025 ns / 120 B** | — |
+| Create scope | 82 ns / 128 B | **60 ns / 96 B** | 58 ns / 88 B | **14 ns / 40 B** | — |
+| Resolve scoped (full lifecycle) | 7,181 ns / 304 B | 5,901 ns / 120 B | 4,851 ns / 120 B | **5,216 ns / 120 B** | — |
 
 _¹ Jab is constructor-only — no property injection._
 _² Jab decorator wired via factory (no first-class decorator attribute)._
 _³ Jab 0.10.x requires closed types at the `[ServiceProvider]` attribute level._
 
 ZA.Inject is **competitive across every scenario** and the clear winner where the generator's domain knowledge matters most: property injection (2× MS DI), decorators (2.1× MS DI), open generics (1.8× MS DI). Jab leads on scope creation (its scope is the lightest of the four, by an order of magnitude), with ZA Standalone close behind on the full scoped-resolution lifecycle.
+
+In v1.6 the **ZA.Inject Container** scope creation dropped from 123 ns / 216 B to **60 ns / 96 B** — the MS DI fallback scope is no longer eagerly materialized; it's created on first fallback resolution via `Interlocked.CompareExchange`. For applications whose registrations are fully ZA-owned (the common case), the fallback scope is never created at all. **`IEnumerable<T>` resolutions are also cached** when every entry is `Singleton` (verified by `EnumerableCacheTests`); the benchmark row above shows the all-`Transient` registration path, which remains genuinely allocation-bound — the new cache fires for the singleton-multi-impl scenario.
 <!-- INJECT:END -->
 
 #### Results
 <!-- RESULTS:START -->
-_Imported from ZA.Results — last refreshed 2026-05-14._
+_Imported from ZA.Results — last refreshed 2026-05-18._
 
 _Last refreshed: 2026-05-13_
 
@@ -438,28 +444,28 @@ ErrorOr and FluentResults allocate per-failure because their error types (`Error
 
 #### ValueObjects
 <!-- VALUEOBJECTS:START -->
-_Imported from ZA.ValueObjects — last refreshed 2026-05-14._
+_Imported from ZA.ValueObjects — last refreshed 2026-05-18._
 
-_Last refreshed: 2026-05-13_
+_Last refreshed: 2026-05-18_
 
 | Operation | Vogen | ZA.ValueObjects | Winner |
 |---|---:|---:|---|
-| `From(value)` | 4.12 ns | **0.30 ns** | **ZA 14× faster** |
-| `Equals` (equal) | 0.54 ns | **0.08 ns** | **ZA 7× faster** |
-| `Equals` (not equal) | 0.67 ns | **0.20 ns** | **ZA 3× faster** |
-| `GetHashCode` | **0.05 ns** | 1.50 ns | Vogen 30× faster |
-| `ToString` | **4.45 ns** | 41.75 ns / **72 B** | Vogen 9× faster; ZA allocates |
+| `From(value)` | 4.66 ns | **0.39 ns** | **ZA 12× faster** |
+| `Equals` (equal) | 1.15 ns | **0.09 ns** | **ZA 13× faster** |
+| `Equals` (not equal) | 0.31 ns | **0.02 ns** | **ZA 15× faster** |
+| `GetHashCode` | 0.03 ns | 0.42 ns | parity (both in BDN ZeroMeasurement zone) |
+| `ToString` | 6.40 ns | **3.52 ns** | **ZA 1.8× faster** |
 
-Both libraries are 0 B on equality and construction. ZA wins the hot-path operations (`From`, `Equals`) by a wide margin — Vogen's `From` pays validation overhead even when the validation succeeds. Vogen wins `GetHashCode` (its primitive-wrapped hash inlines to the raw int) and `ToString` (no allocation; ZA's default `ToString` boxes through string formatting and allocates 72 B).
+Both libraries are 0 B on every row. ZA wins the hot-path operations (`From`, `Equals`) by a wide margin — Vogen's `From` pays validation overhead even when validation succeeds. `GetHashCode` is effectively a tie (both rows sit in BDN's ZeroMeasurement zone — "indistinguishable from empty method"). `ToString` is now ZA's win after the single-property generator emit was aligned: the generator emits `Value.ToString(CultureInfo.InvariantCulture)` directly instead of the previous record-wrapped `$"TypeName {{ Value = {Value} }}"` interpolation.
 
-**The trade-off**: ZA optimises construction and equality; Vogen optimises hashing and formatting. For value-object usage dominated by lookup-key equality (dictionary keys, set membership, change tracking), ZA wins. For value-object usage dominated by logging and display, Vogen wins.
+**The trade-off**: ZA optimises construction, equality, and now `ToString` and hashing alongside Vogen. Vogen's narrower wrapping (single primitive) and ZA's broader surface (multi-field, custom types, EF Core converters) make them complementary choices — pick by feature surface, not raw single-int benchmark numbers.
 
-ZA's `ToString` allocation is a known cost; it can be eliminated by overriding `ToString()` manually with a direct `value.ToString(CultureInfo.InvariantCulture)`.
+History: the previous single-property `ToString` allocated ~72 B per call and `GetHashCode` was ~30× slower than Vogen, both fixed in ZeroAlloc.ValueObjects v1.7 by emitting bare `Value.ToString(InvariantCulture)` / `Value.GetHashCode()` for 1-property `[ValueObject]` types. Multi-property types are unchanged.
 <!-- VALUEOBJECTS:END -->
 
 #### Specification
 <!-- SPECIFICATION:START -->
-_Imported from ZA.Specification — last refreshed 2026-05-14._
+_Imported from ZA.Specification — last refreshed 2026-05-18._
 
 _Last refreshed: 2026-05-13_
 
@@ -478,7 +484,7 @@ ZA.Specification's `IsSatisfiedBy` is a direct virtual call on a struct value �
 
 #### StateMachine
 <!-- STATEMACHINE:START -->
-_Imported from ZA.StateMachine — last refreshed 2026-05-14._
+_Imported from ZA.StateMachine — last refreshed 2026-05-18._
 
 _Last refreshed: 2026-05-13_
 
@@ -498,9 +504,9 @@ This is the apples-to-apples comparison for cyclic state machines — a per-requ
 
 #### Resilience
 <!-- RESILIENCE:START -->
-_Imported from ZA.Resilience — last refreshed 2026-05-14._
+_Imported from ZA.Resilience — last refreshed 2026-05-18._
 
-_Last refreshed: 2026-05-13_
+_Last refreshed: 2026-05-18_
 
 [Polly](https://github.com/App-vNext/Polly) v8 (`ResiliencePipeline`) is the de-facto resilience library in .NET. ZA.Resilience's source-generated proxy beats it on both throughput and allocation for the policies both libraries support apples-to-apples.
 
@@ -509,17 +515,23 @@ _Last refreshed: 2026-05-13_
 | Retry, happy path | 600 ns / 64 B | **23 ns / 0 B** | **26× faster, 0 B alloc** |
 | CircuitBreaker, closed | 776 ns / 64 B | **17 ns / 0 B** | **45× faster, 0 B alloc** |
 | Retry with 2/3 failures | 22.86 ms / 3,134 B | 27.89 ms / 948 B | 22% slower wall-clock, **3.3× less alloc** |
+| Retry with 2/3 failures, **backoff=0** (isolates loop overhead) | 12.80 µs / 1,984 B | **7.31 µs / 576 B** | **43% faster, 71% less alloc** |
+| All-policies stacked, happy path | 1,283 ns / 104 B | **126 ns / 144 B** | **10× faster** |
+| All-policies stacked, retry triggers (2/3 fail) | 29.31 ms | 28.83 ms | parity (Task.Delay floor) |
+| All-policies stacked, CB open (fast-reject) | **3.97 µs / 40 B** | 5.16 µs / 912 B | Polly wins — see narrative below |
 
 The happy-path gap is driven by Polly's `ResiliencePipeline.ExecuteAsync` walking the strategy chain via delegate dispatch and allocating a `ResilienceContext` per call (64 B). ZA emits one direct method per interface — the retry/CB checks are inline `if` statements and `Volatile.Read` calls. No context object, no closure, no delegate.
 
-The retry-with-failures row is dominated by `Task.Delay(BackoffMs)` (2× 1 ms = 2 ms minimum); the residual 22% wall-clock gap is ZA's `for`-loop retry scheduling — measurable, but mostly invisible against I/O latency in real workloads. Allocation is **3.3× lower** at 948 B vs 3,134 B.
+The retry-with-failures row at 1 ms backoff shows ZA 22% slower wall-clock. **Phase-1 investigation (backoff=0 micro-bench, 2026-05-18) confirms the retry loop itself is competitive — at `Task.Delay(0)` ZA is *faster* than Polly (7.31 µs vs 12.80 µs, 43% lower) with 71% less allocation.** The 22% gap on the 1 ms-backoff row is `Task.Delay` Windows timer-tick alignment (each `Task.Delay(1ms)` wakes ~16 ms later due to system timer resolution) plus scheduler-thread continuation handoff — both framework-bound, not ZA loop overhead.
 
-**Note on all-policies stacked comparison**: deferred. The two libraries' rate-limiter policies have different surface (Polly.RateLimiting is a separate package, ZA's RateLimit is part of the main package), so an apples-to-apples 4-policy comparison requires a custom harness. The Retry + CB pairings above are the most-cited isolated scenarios; see the self-benchmark table for ZA's all-policies stack.
+**All-policies stacked comparison.** Three rows compare a 4-policy stack (Retry + Timeout + RateLimit + CircuitBreaker). **Happy path** measures cumulative dispatch overhead — ZA wins by ~10× because the generator emits one flat method with inline policy checks (`Volatile.Read` + integer comparisons), while Polly's `ResiliencePipeline.ExecuteAsync` walks the strategy chain with delegate dispatch. **Retry triggers** measures the most realistic prod failure mode — inner fails 2/3, retry recovers; both libraries hit the same Windows-timer-tick floor on `Task.Delay(1ms)` so wall-clock is at parity. **CB open (fast-reject)** measures the steady-state cost when the circuit is open: **Polly wins** because we explicitly excluded `BrokenCircuitException` from Polly's retry `ShouldHandle` — Polly does a single fast-reject per call. ZA's generated retry catches `ResilienceException` (which the CB raises) and retries 3× through the still-Open circuit, accumulating 912 B of state-machine allocations across the attempts. This is a real cost difference, not a measurement artifact — and arguably a correctness consideration: applications using ZA where the CB-open scenario matters should disable retry-on-CB-broken in user code, which the current generator doesn't surface as a knob (tracked for follow-up).
+
+Rate-limit and timeout limits in the all-policies harness are set to `int.MaxValue` permits / 60s ResetMs so neither policy trips during measurement. The rate-limiter apples-to-apples comparison is deferred because the two libraries' rate-limiter implementations differ (Polly wraps `System.Threading.RateLimiting.ConcurrencyLimiter`; ZA has its own throughput-based impl).
 <!-- RESILIENCE:END -->
 
 #### Rest
 <!-- REST:START -->
-_Imported from ZA.Rest — last refreshed 2026-05-14._
+_Imported from ZA.Rest — last refreshed 2026-05-18._
 
 _Last refreshed: 2026-05-13_
 
@@ -547,7 +559,7 @@ ZeroAlloc.Rest is **1.7–3.6× faster than Refit** across every shape of call (
 
 #### Serialisation
 <!-- SERIALISATION:START -->
-_Imported from ZA.Serialisation — last refreshed 2026-05-14._
+_Imported from ZA.Serialisation — last refreshed 2026-05-18._
 
 _Last refreshed: 2026-05-13_
 
@@ -576,7 +588,7 @@ This is the cost of the abstraction. **The wrapper is fastest when the caller po
 
 #### Cache
 <!-- CACHE:START -->
-_Imported from ZA.Cache — last refreshed 2026-05-14._
+_Imported from ZA.Cache — last refreshed 2026-05-18._
 
 _Last refreshed: 2026-05-13_
 
@@ -597,7 +609,7 @@ L1 (in-process) cache-hit comparison. .NET 10.0.7, i9-12900HK, BenchmarkDotNet v
 
 #### Telemetry
 <!-- TELEMETRY:START -->
-_Imported from ZA.Telemetry — last refreshed 2026-05-14._
+_Imported from ZA.Telemetry — last refreshed 2026-05-18._
 
 _Last refreshed: 2026-05-13_
 
@@ -618,7 +630,7 @@ ZA.Telemetry's generator produces code **at parity with hand-written instrumenta
 
 #### Notify
 <!-- NOTIFY:START -->
-_Imported from ZA.Notify — last refreshed 2026-05-14._
+_Imported from ZA.Notify — last refreshed 2026-05-18._
 
 _Last refreshed: 2026-05-13_
 
@@ -640,7 +652,7 @@ _Last refreshed: 2026-05-13_
 
 #### Scheduling
 <!-- SCHEDULING:START -->
-_Imported from ZA.Scheduling — last refreshed 2026-05-14._
+_Imported from ZA.Scheduling — last refreshed 2026-05-18._
 
 _Last refreshed: 2026-05-14_
 
@@ -668,7 +680,7 @@ The takeaway: if you're considering ZA.Scheduling over a hand-rolled `Timer`, th
 
 #### Outbox
 <!-- OUTBOX:START -->
-_Imported from ZA.Outbox — last refreshed 2026-05-14._
+_Imported from ZA.Outbox — last refreshed 2026-05-18._
 
 _Last refreshed: 2026-05-14_
 
@@ -688,7 +700,7 @@ The value of the abstraction is the `[OutboxMessage]` attribute + the typed writ
 
 #### EventSourcing
 <!-- EVENTSOURCING:START -->
-_Imported from ZA.EventSourcing — last refreshed 2026-05-14._
+_Imported from ZA.EventSourcing — last refreshed 2026-05-18._
 
 _Last refreshed: 2026-05-14_
 
