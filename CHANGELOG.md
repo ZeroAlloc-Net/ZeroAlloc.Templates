@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.5.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/compare/ZeroAlloc.Templates-v0.4.1...ZeroAlloc.Templates-v0.5.0) (2026-05-18)
+
+
+### Features
+
+* **ci:** add weekly aggregator refresh workflow ([#89](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/issues/89)) ([1900f6c](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/commit/1900f6c31a5ed888ef1bb9024d9fa2de9fd5d17d))
+
+
+### Documentation
+
+* **aggregator:** weekly refresh from upstream sources ([#90](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/issues/90)) ([45a3771](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/commit/45a37714f0a665d9cf890be6286853dcd08f7b0e))
+* **template:** refresh validation section — generator nupkg already shipped ([#85](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/issues/85)) ([b21c63e](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/commit/b21c63e302899b23d6b9248de79dc4a411bcfebb))
+
 ## [0.4.1](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/compare/ZeroAlloc.Templates-v0.4.0...ZeroAlloc.Templates-v0.4.1) (2026-05-14)
 
 
