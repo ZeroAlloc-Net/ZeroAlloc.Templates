@@ -139,3 +139,99 @@ jobs:
           cat /tmp/aot-server.log
           kill $PID 2>/dev/null || true
           exit 1
+
+  real-run-smoke:
+    # Real-run smoke for the JIT (non-AOT) path. Scaffolds the template, boots
+    # the API, mints an HS256 JWT with scope=orders.write, POSTs an order, and
+    # asserts 201 Created with a numeric Id in the response.
+    #
+    # Covers the auth + Mediator + [Validate] + EF Core + Application handler
+    # + DTO mapping path. aot-publish-smoke only hits /healthz (anonymous), so
+    # this job catches the bug classes the AOT smoke can't: JWT key wiring,
+    # env-var prefix, validation source-gen wiring, mediator pipeline behavior
+    # configuration, and the rest of the auth-protected request path.
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Install template from source
+        run: dotnet new install ./content/za-clean
+
+      - name: Scaffold a fresh app
+        run: |
+          mkdir -p /tmp/real-run-smoke
+          dotnet new za-clean -o /tmp/real-run-smoke/SmokeApp
+
+      - name: Boot API (JIT) and wait for /healthz
+        shell: bash
+        env:
+          Jwt__DevSigningKey: DEV-ONLY-KEY-DO-NOT-USE-IN-PRODUCTION-AT-LEAST-32-CHARS-LONG
+          Shipping__UseStub: 'true'
+        run: |
+          cd /tmp/real-run-smoke/SmokeApp
+          dotnet run --project src/SmokeApp.Api -c Release > /tmp/api.log 2>&1 &
+          echo $! > /tmp/api.pid
+          for i in $(seq 1 600); do
+            if curl -sf http://localhost:5000/healthz > /dev/null 2>&1; then
+              echo "API ready"
+              exit 0
+            fi
+            sleep 0.05
+          done
+          echo "::error::API did not serve /healthz within 30s"
+          cat /tmp/api.log
+          kill $(cat /tmp/api.pid) 2>/dev/null || true
+          exit 1
+
+      - name: Mint HS256 JWT
+        shell: bash
+        run: |
+          # Hand-crafts an HS256 JWT in bash. base64url = base64 with +/_= → -_ (no padding).
+          # Header + payload signed with HMAC-SHA256 using the template's DEV signing key.
+          KEY="DEV-ONLY-KEY-DO-NOT-USE-IN-PRODUCTION-AT-LEAST-32-CHARS-LONG"
+          b64url() { openssl base64 -A | tr '+/' '-_' | tr -d '='; }
+          HEADER='{"alg":"HS256","typ":"JWT"}'
+          EXP=$(($(date +%s) + 3600))
+          PAYLOAD="{\"scope\":\"orders.write\",\"sub\":\"smoke\",\"exp\":$EXP}"
+          H=$(printf '%s' "$HEADER"  | b64url)
+          P=$(printf '%s' "$PAYLOAD" | b64url)
+          SIG=$(printf '%s' "$H.$P" | openssl dgst -sha256 -hmac "$KEY" -binary | b64url)
+          echo "JWT=$H.$P.$SIG" >> $GITHUB_ENV
+
+      - name: POST /orders (real-run smoke)
+        shell: bash
+        run: |
+          BODY='{"customerId":42,"items":[{"sku":"SKU-001","quantity":1,"unitPriceEur":9.99}],"shippingZip":"1234AB"}'
+          RESPONSE=$(curl -sfS -X POST http://localhost:5000/orders \
+            -H "Authorization: Bearer $JWT" \
+            -H "Content-Type: application/json" \
+            -d "$BODY" \
+            -w "\n%{http_code}" 2>&1 || true)
+          STATUS=$(echo "$RESPONSE" | tail -n1)
+          BODY_OUT=$(echo "$RESPONSE" | sed '$d')
+          echo "HTTP $STATUS"
+          echo "Response body: $BODY_OUT"
+          if [ "$STATUS" != "201" ]; then
+            echo "::error::POST /orders returned $STATUS (expected 201)"
+            echo "--- api log ---"
+            cat /tmp/api.log
+            exit 1
+          fi
+          if ! echo "$BODY_OUT" | grep -qE '"[Ii]d"\s*:\s*[0-9]+'; then
+            echo "::error::Response body missing numeric Id: $BODY_OUT"
+            exit 1
+          fi
+          echo "✓ POST /orders → 201 Created with numeric Id"
+
+      - name: Stop API
+        if: always()
+        run: kill $(cat /tmp/api.pid) 2>/dev/null || true
