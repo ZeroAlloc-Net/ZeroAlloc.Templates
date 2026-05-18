@@ -36,7 +36,7 @@ jobs:
         run: pwsh tools/import-comparisons.ps1
 
       - name: Open PR if changed
-        uses: peter-evans/create-pull-request@v7
+        uses: peter-evans/create-pull-request@v8
         with:
           commit-message: |
             docs(aggregator): weekly refresh from upstream sources
