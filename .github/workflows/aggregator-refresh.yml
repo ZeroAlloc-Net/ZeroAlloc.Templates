@@ -1,0 +1,64 @@
+name: Aggregator refresh
+
+# Weekly cron + manual trigger. Runs tools/import-comparisons.ps1 to refresh
+# docs/za-clean.md from the 17 live <!-- BENCH:START/END --> sources tracked in
+# tools/comparison-sources.json, then opens (or updates) a rolling PR if any
+# source has new numbers since the last run.
+#
+# Human review gate: the PR is NOT auto-merged. A reviewer eyeballs the diff
+# (~30 seconds for typical week) and admin-merges if the imported content
+# looks sane. See the review checklist in the auto-generated PR body.
+#
+# Org setting required: "Allow GitHub Actions to create and approve pull
+# requests" (Settings → Actions → General → Workflow permissions) must be ON.
+# If it's off, peter-evans/create-pull-request@v7 fails with a clear error.
+
+on:
+  schedule:
+    - cron: '0 9 * * 1'   # Monday 09:00 UTC weekly
+  workflow_dispatch:        # manual trigger via Actions tab
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Run aggregator import script
+        shell: pwsh
+        run: pwsh tools/import-comparisons.ps1
+
+      - name: Open PR if changed
+        uses: peter-evans/create-pull-request@v7
+        with:
+          commit-message: |
+            docs(aggregator): weekly refresh from upstream sources
+
+            Automated refresh of docs/za-clean.md from the 17 live
+            <!-- BENCH:START/END --> sources tracked in
+            tools/comparison-sources.json.
+          title: 'docs(aggregator): weekly refresh from upstream sources'
+          body: |
+            Automated weekly refresh of `docs/za-clean.md` from the 17 live `<!-- BENCH:START/END -->` sources tracked in `tools/comparison-sources.json`.
+
+            **Review checklist:**
+            - [ ] No `_Failed to import_` placeholders (would indicate a source went 404 / sentinel mismatch / GitHub raw cache problem).
+            - [ ] Numbers look plausible — no order-of-magnitude regressions in any row.
+            - [ ] No content drift in `<!-- BENCH:START/END -->` block boundaries.
+
+            If a source has consistently failing imports across multiple weekly runs, consider opening an upstream issue or moving the source to `status: "deferred"` in `tools/comparison-sources.json`.
+
+            Merge when content is sane.
+          branch: auto/aggregator-refresh
+          delete-branch: true
+          base: main
+          labels: |
+            docs
+            automated
