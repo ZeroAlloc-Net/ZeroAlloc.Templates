@@ -10,6 +10,7 @@ using MyApp.Infrastructure;
 using MyApp.Infrastructure.Persistence;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
+using ZeroAlloc.Authorization.Generated;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -45,6 +46,11 @@ if (builder.Configuration.GetValue<bool>("Shipping:UseStub"))
 // level RequireAuthorization checks.
 // ---------------------------------------------------------------------------
 builder.Services.AddHttpContextAccessor();
+// v2: register the source-generated policy registry (AuthorizerFor<T> dispatchers +
+// [Policy] classes as scoped) before WithAuthorization() runs. The D3 guard inside
+// AddMyAppApplication's WithAuthorization() throws InvalidOperationException if this
+// call is missing or runs after AddMediator(). See ZeroAlloc.Authorization v2 docs.
+builder.Services.AddZeroAllocAuthorization();
 builder.Services.AddMyAppApplication(opt => opt.UseAccessor<HttpSecurityContextAccessor>());
 
 // ---------------------------------------------------------------------------
