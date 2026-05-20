@@ -13,7 +13,7 @@ namespace MyApp.Application;
 /// <summary>
 /// Composition entry point for the Application assembly. Wires up the ZA.Mediator
 /// dispatcher (with its <see cref="ZeroAlloc.Mediator.IMediator"/> partial interface
-/// generated for this assembly's handlers), the per-request [Authorize] enforcement
+/// generated for this assembly's handlers), the per-request [RequirePolicy] enforcement
 /// via ZA.Mediator.Authorization, and the [Scoped] handlers/services emitted by
 /// ZA.Inject's per-assembly extension.
 ///
@@ -32,7 +32,7 @@ public static class ApplicationServiceCollectionExtensions
     /// <c>o => o.UseAccessor&lt;HttpSecurityContextAccessor&gt;()</c> to bridge
     /// <see cref="System.Security.Claims.ClaimsPrincipal"/> from HttpContext.User.
     /// Non-HTTP hosts (CLI, worker) can call <c>o.UseAnonymousSecurityContext()</c>
-    /// to disable [Authorize] enforcement, or supply their own accessor.
+    /// to disable [RequirePolicy] enforcement, or supply their own accessor.
     /// </param>
     public static IServiceCollection AddMyAppApplication(
         this IServiceCollection services,

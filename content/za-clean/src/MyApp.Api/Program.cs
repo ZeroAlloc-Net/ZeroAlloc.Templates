@@ -42,7 +42,7 @@ if (builder.Configuration.GetValue<bool>("Shipping:UseStub"))
 // .Authorization uses to resolve the per-request ISecurityContext. The
 // HttpSecurityContextAccessor below bridges HttpContext.User (ClaimsPrincipal
 // populated by JwtBearer) into ZA.Authorization's ISecurityContext shape,
-// so handler-level [Authorize] policies see the same identity as endpoint-
+// so handler-level [RequirePolicy] policies see the same identity as endpoint-
 // level RequireAuthorization checks.
 // ---------------------------------------------------------------------------
 builder.Services.AddHttpContextAccessor();
