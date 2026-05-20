@@ -1,4 +1,8 @@
+using System;
+using System.Threading;
+using System.Threading.Tasks;
 using ZeroAlloc.Authorization;
+using ZeroAlloc.Results;
 
 #pragma warning disable MA0048 // two policies intentionally co-located in one file
 
@@ -9,10 +13,14 @@ namespace MyApp.Application.Authorization;
 /// "orders.read" scope claim, mirroring the endpoint-level "OrdersRead"
 /// ASP.NET policy in Program.cs.
 /// </summary>
-[AuthorizationPolicy("OrdersRead")]
+[Policy("OrdersRead")]
 public sealed class OrdersReadPolicy : IAuthorizationPolicy
 {
-    public bool IsAuthorized(ISecurityContext ctx) => HasScope(ctx, "orders.read");
+    public ValueTask<UnitResult<AuthorizationFailure>> EvaluateAsync(
+        ISecurityContext ctx, CancellationToken ct = default)
+        => new(HasScope(ctx, "orders.read")
+            ? UnitResult<AuthorizationFailure>.Success()
+            : new AuthorizationFailure(AuthorizationFailure.DefaultDenyCode, "Missing orders.read scope"));
 
     /// <summary>
     /// Returns true if the space-separated "scope" claim contains <paramref name="scope"/>
@@ -42,8 +50,12 @@ public sealed class OrdersReadPolicy : IAuthorizationPolicy
 /// "orders.write" scope claim, mirroring the endpoint-level "OrdersWrite"
 /// ASP.NET policy in Program.cs.
 /// </summary>
-[AuthorizationPolicy("OrdersWrite")]
+[Policy("OrdersWrite")]
 public sealed class OrdersWritePolicy : IAuthorizationPolicy
 {
-    public bool IsAuthorized(ISecurityContext ctx) => OrdersReadPolicy.HasScope(ctx, "orders.write");
+    public ValueTask<UnitResult<AuthorizationFailure>> EvaluateAsync(
+        ISecurityContext ctx, CancellationToken ct = default)
+        => new(OrdersReadPolicy.HasScope(ctx, "orders.write")
+            ? UnitResult<AuthorizationFailure>.Success()
+            : new AuthorizationFailure(AuthorizationFailure.DefaultDenyCode, "Missing orders.write scope"));
 }
