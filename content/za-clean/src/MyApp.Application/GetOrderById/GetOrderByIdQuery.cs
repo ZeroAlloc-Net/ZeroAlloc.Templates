@@ -5,5 +5,5 @@ using ZeroAlloc.Results;
 
 namespace MyApp.Application.GetOrderById;
 
-[Authorize("OrdersRead")]
+[RequirePolicy("OrdersRead")]
 public sealed record GetOrderByIdQuery(int OrderId) : IRequest<Result<Order, ApplicationError>>;
