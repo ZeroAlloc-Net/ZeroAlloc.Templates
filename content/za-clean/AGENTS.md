@@ -99,6 +99,7 @@ These bit us during template construction; they'll bite you too if you don't kno
 | ZA.Mapping needs `<PrivateAssets>all</PrivateAssets>` to prevent ZAMP006 across assembly boundaries | Set on the `<PackageReference>` in Application + Api csprojs |
 | `OrderId` / `CustomerId` use `[ValueObject]` from ZA.ValueObjects (equality only, no factory) | Hand-write `TryCreate` if validation is needed |
 | EF Core 9's `OwnedNavigationBuilder` doesn't expose `ComplexProperty` | Use a `ValueConverter` round-trip inside `OwnsMany` |
+| Switching a request to `IAuthorizedRequest<TPayload>` for Result-style auth | Under AOT publish, the deny path silently throws `AuthorizationDeniedException` instead of returning `Result<T, AuthorizationFailure>.Failure(...)`. Add a `[ModuleInitializer]` carrier method with `[DynamicDependency(PublicMethods, typeof(Result<TPayload, AuthorizationFailure>))]` per `TPayload` you use. See [ZA.Mediator.Authorization AOT docs](https://github.com/ZeroAlloc-Net/ZeroAlloc.Mediator/blob/main/docs/authorization.md#aot-publish). |
 
 ## 5. AOT-specific gotchas (as of EF Core 10.0.7)
 
