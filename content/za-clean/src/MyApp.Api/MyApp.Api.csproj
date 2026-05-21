@@ -53,7 +53,7 @@
        the need for this workaround. -->
   <Target Name="RemoveTransitiveZeroAllocAuthorizationAnalyzer" BeforeTargets="CoreCompile">
     <ItemGroup>
-      <Analyzer Remove="@(Analyzer)" Condition="'%(Analyzer.NuGetPackageId)' == 'ZeroAlloc.Authorization'" />
+      <Analyzer Remove="@(Analyzer->WithMetadataValue('NuGetPackageId','ZeroAlloc.Authorization'))" />
     </ItemGroup>
   </Target>
 
