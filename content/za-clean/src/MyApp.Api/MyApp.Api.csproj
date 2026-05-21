@@ -22,18 +22,23 @@
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" />
-    <!-- ZeroAlloc.Authorization and ZeroAlloc.Mediator.Authorization are NOT referenced
-         directly here. They flow transitively through MyApp.Application's ProjectReference
-         (runtime assets propagate by default). A direct PackageReference + Application's
-         transitive flow would cause the ZA.Authorization v2 source generator to be picked
-         up by the SDK's analyzer-resolution path even with PackageReference asset
-         suppression (NuGet honors PrivateAssets/ExcludeAssets but
-         Microsoft.NET.ConflictResolution.targets re-adds the analyzer to @(Analyzer)),
-         producing a second GeneratedAuthorizationRegistration.AddZeroAllocAuthorization
-         and a CS0121 ambiguous call at the Program.cs site. By referencing only via
-         Application, the generator runs exactly once (in Application, which owns the
-         [Policy] / [RequirePolicy] types). -->
-    <PackageReference Include="ZeroAlloc.Mediator.Authorization" />
+    <!-- ZeroAlloc.Authorization is NOT referenced directly here; it flows transitively
+         through MyApp.Application's ProjectReference. Application's PackageReference
+         marks its analyzer asset as PrivateAssets to block transitive outflow.
+         ZeroAlloc.Mediator.Authorization stays as a direct PackageReference (Api uses
+         WithAuthorization + ISecurityContextAccessor), but its analyzer asset is
+         excluded to prevent the v2 ZA.Authorization analyzer (a transitive dep of
+         Mediator.Authorization itself) from being picked up by the SDK's analyzer-
+         resolution path and emitting a duplicate
+         GeneratedAuthorizationRegistration.AddZeroAllocAuthorization here. With both
+         the direct-ref drop AND the analyzer-exclude in place, the generator runs
+         exactly once — in MyApp.Application, which owns the [Policy] / [RequirePolicy]
+         types. Tracked as upstream fix candidate: ZA.Mediator.Authorization v2.0.1
+         should set PrivateAssets=analyzers on its own ZA.Authorization PackageReference
+         so this template-side workaround becomes unnecessary. -->
+    <PackageReference Include="ZeroAlloc.Mediator.Authorization">
+      <ExcludeAssets>analyzers</ExcludeAssets>
+    </PackageReference>
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
