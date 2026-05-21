@@ -22,7 +22,18 @@
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" />
-    <PackageReference Include="ZeroAlloc.Authorization" />
+    <!-- ExcludeAssets=analyzers: ZeroAlloc.Authorization 2.0.0 ships its source generator
+         bundled in the nupkg. Without this, the generator runs in BOTH MyApp.Application
+         (where the [Policy] / [RequirePolicy] types live) AND MyApp.Api, emitting
+         duplicate GeneratedAuthorizationRegistration.AddZeroAllocAuthorization extension
+         methods. The two would be equally-good candidates at the Program.cs call site
+         (Application exposes its emission as public AND has InternalsVisibleTo Api),
+         causing CS0121 ambiguous-call errors. MyApp.Api consumes Application's emission;
+         it does not declare any [Policy] / [RequirePolicy] of its own, so it doesn't
+         need the generator to run here. -->
+    <PackageReference Include="ZeroAlloc.Authorization">
+      <ExcludeAssets>analyzers</ExcludeAssets>
+    </PackageReference>
     <PackageReference Include="ZeroAlloc.Mediator.Authorization" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design">
       <PrivateAssets>all</PrivateAssets>
