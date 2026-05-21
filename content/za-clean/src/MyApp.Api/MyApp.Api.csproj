@@ -23,30 +23,41 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" />
 
-    <!-- Neither ZeroAlloc.Authorization nor ZeroAlloc.Mediator.Authorization is referenced
+    <!-- ZeroAlloc.Authorization and ZeroAlloc.Mediator.Authorization are NOT referenced
          directly here. They flow transitively through MyApp.Application's ProjectReference
-         (runtime + compile assets propagate by default; the analyzer is blocked by
-         Application's PrivateAssets=analyzers on its own ZeroAlloc.Authorization
-         PackageReference).
+         (runtime + compile assets propagate by default). The analyzer asset is filtered
+         out below via an MSBuild target. -->
+  </ItemGroup>
 
-         Why no direct refs:
-         - Direct PackageReference at this node would pull ZeroAlloc.Authorization into
-           Api's NuGet restore graph independently, and the transitive analyzer brought
-           in by ZeroAlloc.Mediator.Authorization → ZeroAlloc.Authorization defeats every
-           ExcludeAssets/PrivateAssets suppression we tried at this node (verified across
-           multiple rounds).
-         - By relying purely on Application's ProjectReference flow, Api's only path to
-           the ZA.Authorization analyzer is via Application — and Application sets
-           PrivateAssets=analyzers on its ZA.Authorization PackageReference to block that.
-           Net result: the analyzer runs exactly once, inside MyApp.Application, which is
-           the project that owns the [Policy] / [RequirePolicy] declarations.
+  <!-- The ZA.Authorization v2 source generator emits a public extension method
+       AddZeroAllocAuthorization on every project that resolves its analyzer. That
+       is correct in MyApp.Application (which owns the [Policy] / [RequirePolicy]
+       declarations) but causes a CS0121 ambiguous-call at Program.cs:53 when the
+       generator ALSO runs here in MyApp.Api — both copies of the extension method
+       become equally-good candidates.
 
-         If a future change adds a type to MyApp.Api that needs a direct reference to
-         ZeroAlloc.Authorization or ZeroAlloc.Mediator.Authorization (e.g. a custom
-         ISecurityContext implementation here in Api), prefer adding it to
-         MyApp.Application first; only fall back to a direct reference here as a last
-         resort, and re-apply ExcludeAssets=analyzers with awareness that the upstream
-         ZA.Authorization v2 generator's transitive flow may still break it. -->
+       NuGet's PrivateAssets/ExcludeAssets on a PackageReference does NOT reliably
+       block analyzer flow through a ProjectReference for this SDK/package combo
+       (verified across six verification rounds with `dotnet msbuild -v:diag`).
+       The /analyzer: flag passed to csc is populated by targets that ignore
+       PrivateAssets=analyzers for ProjectReference graph propagation.
+
+       This target removes the ZA.Authorization-sourced analyzer from MyApp.Api's
+       analyzer list before CoreCompile. NuGetPackageId metadata is reliably set
+       on Analyzer items by the SDK, so the match is precise. MyApp.Application
+       still runs the generator (it has its own direct PackageReference), so the
+       v2 contract works end-to-end — just without the duplicate emission here.
+
+       Track upstream: ZeroAlloc.Authorization v2.0.1 should arrange its analyzer
+       packaging so transitive consumers don't pick it up by default, eliminating
+       the need for this workaround. -->
+  <Target Name="RemoveTransitiveZeroAllocAuthorizationAnalyzer" BeforeTargets="CoreCompile">
+    <ItemGroup>
+      <Analyzer Remove="@(Analyzer)" Condition="'%(Analyzer.NuGetPackageId)' == 'ZeroAlloc.Authorization'" />
+    </ItemGroup>
+  </Target>
+
+  <ItemGroup>
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
