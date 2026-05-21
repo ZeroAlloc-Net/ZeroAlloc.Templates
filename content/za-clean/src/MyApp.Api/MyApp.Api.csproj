@@ -22,18 +22,17 @@
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" />
-    <!-- ExcludeAssets=analyzers: ZeroAlloc.Authorization 2.0.0 ships its source generator
-         bundled in the nupkg. Without this, the generator runs in BOTH MyApp.Application
-         (where the [Policy] / [RequirePolicy] types live) AND MyApp.Api, emitting
-         duplicate GeneratedAuthorizationRegistration.AddZeroAllocAuthorization extension
-         methods. The two would be equally-good candidates at the Program.cs call site
-         (Application exposes its emission as public AND has InternalsVisibleTo Api),
-         causing CS0121 ambiguous-call errors. MyApp.Api consumes Application's emission;
-         it does not declare any [Policy] / [RequirePolicy] of its own, so it doesn't
-         need the generator to run here. -->
-    <PackageReference Include="ZeroAlloc.Authorization">
-      <ExcludeAssets>analyzers</ExcludeAssets>
-    </PackageReference>
+    <!-- ZeroAlloc.Authorization and ZeroAlloc.Mediator.Authorization are NOT referenced
+         directly here. They flow transitively through MyApp.Application's ProjectReference
+         (runtime assets propagate by default). A direct PackageReference + Application's
+         transitive flow would cause the ZA.Authorization v2 source generator to be picked
+         up by the SDK's analyzer-resolution path even with PackageReference asset
+         suppression (NuGet honors PrivateAssets/ExcludeAssets but
+         Microsoft.NET.ConflictResolution.targets re-adds the analyzer to @(Analyzer)),
+         producing a second GeneratedAuthorizationRegistration.AddZeroAllocAuthorization
+         and a CS0121 ambiguous call at the Program.cs site. By referencing only via
+         Application, the generator runs exactly once (in Application, which owns the
+         [Policy] / [RequirePolicy] types). -->
     <PackageReference Include="ZeroAlloc.Mediator.Authorization" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design">
       <PrivateAssets>all</PrivateAssets>
