@@ -14,12 +14,16 @@
       <IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
     </PackageReference>
     <PackageReference Include="ZeroAlloc.Mediator.Validation" />
-    <PackageReference Include="ZeroAlloc.Authorization" />
-    <PackageReference Include="ZeroAlloc.Mediator.Authorization" />
-    <PackageReference Include="ZeroAlloc.Mediator.Authorization.Generator">
-      <PrivateAssets>all</PrivateAssets>
-      <IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
+    <!-- PrivateAssets=analyzers: ZeroAlloc.Authorization 2.0.0 bundles its source
+         generator. Without this, the generator flows transitively to MyApp.Api
+         (which references this project) and emits a second copy of
+         GeneratedAuthorizationRegistration.AddZeroAllocAuthorization, causing
+         CS0121 ambiguous-call at Program.cs. The runtime contract still flows;
+         only the analyzer asset is private. -->
+    <PackageReference Include="ZeroAlloc.Authorization">
+      <PrivateAssets>analyzers</PrivateAssets>
     </PackageReference>
+    <PackageReference Include="ZeroAlloc.Mediator.Authorization" />
     <PackageReference Include="ZeroAlloc.Mapping">
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
