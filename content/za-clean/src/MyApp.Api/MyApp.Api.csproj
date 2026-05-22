@@ -23,39 +23,12 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" />
 
-    <!-- ZeroAlloc.Authorization and ZeroAlloc.Mediator.Authorization are NOT referenced
-         directly here. They flow transitively through MyApp.Application's ProjectReference
-         (runtime + compile assets propagate by default). The analyzer asset is filtered
-         out below via an MSBuild target. -->
+    <!-- ZA.Authorization, ZA.Authorization.Generator, and ZA.Mediator.Authorization
+         are NOT referenced directly here. They flow transitively through
+         MyApp.Application's ProjectReference. The Generator package's
+         buildTransitive guard (shipped in 2.0.1) removes its analyzer from this
+         project's @(Analyzer) because we do not set ZeroAllocAuthorizationOwnsPolicies. -->
   </ItemGroup>
-
-  <!-- The ZA.Authorization v2 source generator emits a public extension method
-       AddZeroAllocAuthorization on every project that resolves its analyzer. That
-       is correct in MyApp.Application (which owns the [Policy] / [RequirePolicy]
-       declarations) but causes a CS0121 ambiguous-call at Program.cs:53 when the
-       generator ALSO runs here in MyApp.Api — both copies of the extension method
-       become equally-good candidates.
-
-       NuGet's PrivateAssets/ExcludeAssets on a PackageReference does NOT reliably
-       block analyzer flow through a ProjectReference for this SDK/package combo
-       (verified across six verification rounds with `dotnet msbuild -v:diag`).
-       The /analyzer: flag passed to csc is populated by targets that ignore
-       PrivateAssets=analyzers for ProjectReference graph propagation.
-
-       This target removes the ZA.Authorization-sourced analyzer from MyApp.Api's
-       analyzer list before CoreCompile. NuGetPackageId metadata is reliably set
-       on Analyzer items by the SDK, so the match is precise. MyApp.Application
-       still runs the generator (it has its own direct PackageReference), so the
-       v2 contract works end-to-end — just without the duplicate emission here.
-
-       Track upstream: ZeroAlloc.Authorization v2.0.1 should arrange its analyzer
-       packaging so transitive consumers don't pick it up by default, eliminating
-       the need for this workaround. -->
-  <Target Name="RemoveTransitiveZeroAllocAuthorizationAnalyzer" BeforeTargets="CoreCompile">
-    <ItemGroup>
-      <Analyzer Remove="@(Analyzer->WithMetadataValue('NuGetPackageId','ZeroAlloc.Authorization'))" />
-    </ItemGroup>
-  </Target>
 
   <ItemGroup>
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design">
