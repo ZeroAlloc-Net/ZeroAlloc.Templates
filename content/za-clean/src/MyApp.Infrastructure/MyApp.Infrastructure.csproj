@@ -23,16 +23,4 @@
   <ItemGroup>
     <InternalsVisibleTo Include="MyApp.Api" />
   </ItemGroup>
-
-  <!-- ZeroAlloc.Authorization v2 source generator flows transitively from
-       MyApp.Application via ProjectReference, causing this assembly to emit
-       its own copy of GeneratedAuthorizationRegistration.AddZeroAllocAuthorization.
-       That triggers a CS0121 ambiguous-call when Api references both Application
-       and Infrastructure. Remove the analyzer here so only Application emits it.
-       See MyApp.Api.csproj for the equivalent workaround and upstream tracking. -->
-  <Target Name="RemoveTransitiveZeroAllocAuthorizationAnalyzer" BeforeTargets="CoreCompile">
-    <ItemGroup>
-      <Analyzer Remove="@(Analyzer->WithMetadataValue('NuGetPackageId','ZeroAlloc.Authorization'))" />
-    </ItemGroup>
-  </Target>
 </Project>
