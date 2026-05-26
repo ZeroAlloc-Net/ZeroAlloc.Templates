@@ -1,19 +1,15 @@
 # MyApp
 
-Clean Architecture Web API. **Publishes as a 35.8 MB Native AOT single-file binary; cold-starts in ~1.0 s** (vs ~2.2 s under JIT — ~2.2× faster). Source-generated, zero-allocation through the framework hot path. Built on the [ZeroAlloc.\*](https://github.com/ZeroAlloc-Net) ecosystem.
+Vertical Slice Architecture Web API. Source-generated, AOT-friendly, zero-allocation through the framework hot path. Built on the [ZeroAlloc.\*](https://github.com/ZeroAlloc-Net) ecosystem.
+
+Where Clean Architecture splits the codebase by *technical layer* (Domain / Application / Infrastructure / Api, four csprojs, dependency direction strictly inward), vertical slice splits by *use case*: one folder per feature, one file per slice, every slice owns its request + validator + handler + endpoint + entity. The 10-package ZeroAlloc showcase is identical; the wiring is inverted.
 
 | | Value |
 |---|---:|
-| **AOT binary size** | 35.8 MB single-file, self-contained (win-x64) |
+| **AOT binary size** | ~36 MB single-file, self-contained (win-x64) |
 | **AOT cold start** | ~1.0 s (process → `/healthz` 200, best of 3) |
-| **JIT cold start** (comparison) | ~2.2 s (same scenario) |
 | **Framework primitives end-to-end** | ~165 ns / 200 B (= mapping cost alone; chain adds 0 B) |
 | **Mediator dispatch alone** | ~37 ns / 0 B |
-| **Validator (hand-rolled, regex zip)** | ~40 ns / 0 B |
-| **ValueObject `TryCreate`** | ~13 ns / 0 B |
-| **End-to-end pipeline** (with ASP.NET + EF) | 156 KB / 2 ms — mostly platform overhead, not ZA |
-
-Measured on a 2022 i9-12900HK / Windows 11 / .NET 10.0.7. The decisive datapoint: `EndToEndPrimitives` matches `Mapping_RequestToCommand` byte-for-byte — the validator + Mediator dispatch through the chain allocate **zero bytes**. The 200 B is the `CreateOrderCommand` record + nested `OrderItem[]` array, a caller cost every framework pays.
 
 **Reproduce:**
 
@@ -25,69 +21,120 @@ dotnet run -c Release --project benchmarks/MyApp.Benchmarks.Primitives -- --filt
 dotnet run -c Release --project benchmarks/MyApp.Benchmarks -- --filter "*WritePipelineBench*"
 
 # AOT publish + cold-start
-dotnet publish src/MyApp.Api -c Release -r win-x64 -o ./aot-out
-time ./aot-out/MyApp.Api  # measure to /healthz
+dotnet publish src/MyApp -c Release -r win-x64 -o ./aot-out
+time ./aot-out/MyApp  # measure to /healthz
 ```
 
 ## Quickstart
 
 ```bash
-dotnet run --project src/MyApp.Api
+dotnet run --project src/MyApp
 # In another shell:
 curl http://localhost:5000/healthz
 # → {"status":"ok"}
 ```
 
-The API boots, applies its EF Core SQLite migrations, seeds a sample order in `Development`, and listens on the Kestrel default. OpenTelemetry traces stream to the console.
+The API boots, applies its EF Core SQLite migrations, and listens on the Kestrel default. OpenTelemetry traces stream to the console.
 
 ## Layout
 
 ```
 src/
-├── MyApp.Domain/            Entities, value objects, domain events
-├── MyApp.Application/       Commands, queries, handlers, validators (CQRS via ZA.Mediator)
-├── MyApp.Infrastructure/    EF Core SQLite, ZA.Rest typed HTTP client + ZA.Resilience
-└── MyApp.Api/               Minimal API endpoints, DTOs, JWT auth, OpenTelemetry
+└── MyApp/                                One assembly, everything inside it.
+    ├── Program.cs                        DI wiring + endpoint-discovery walk
+    ├── Common/                           Shared primitives: TypedIds, Errors, Telemetry
+    ├── Authorization/Policies.cs         [Policy] declarations
+    ├── Persistence/                      AppDbContext + Migrations
+    └── Features/
+        ├── Orders/
+        │   ├── PlaceOrder/PlaceOrder.cs    request + validator + handler + endpoint + Order entity
+        │   ├── GetOrder/GetOrder.cs        request + validator + handler + endpoint
+        │   ├── ListOrders/ListOrders.cs    paged read
+        │   └── CancelOrder/CancelOrder.cs  state transition
+        └── Customers/
+            ├── CreateCustomer/CreateCustomer.cs  owns Customer entity
+            └── GetCustomer/GetCustomer.cs
 
 tests/
-├── MyApp.UnitTests/         xUnit — domain + handler unit tests
-├── MyApp.ArchitectureTests/ NetArchTest — boundary rules enforced
-└── MyApp.IntegrationTests/  WebApplicationFactory — happy-path + auth roundtrips
+├── MyApp.UnitTests/         xUnit — handler-level unit tests, one folder per slice
+├── MyApp.ConventionTests/   NetArchTest — vertical-slice conventions enforced
+└── MyApp.IntegrationTests/  WebApplicationFactory — endpoint roundtrips
 
 benchmarks/
-├── MyApp.Benchmarks.Primitives/ BenchmarkDotNet — ZA primitives in isolation (0 B framework cost)
-├── MyApp.Benchmarks/            BenchmarkDotNet — full ASP.NET + EF pipeline cost
-└── MyApp.LoadTest/              NBomber — RPS under sustained concurrency
+├── MyApp.Benchmarks.Primitives/  BenchmarkDotNet — ZA primitives in isolation (0 B framework cost)
+├── MyApp.Benchmarks/             BenchmarkDotNet — full ASP.NET + EF pipeline cost
+└── MyApp.LoadTest/               NBomber — RPS under sustained concurrency
 ```
 
-## Load testing under sustained concurrency
+## The canonical slice — `Features/Orders/PlaceOrder/PlaceOrder.cs`
 
-The NBomber load test scenario (read RPS, 500 VUs for 30s against real Kestrel):
+One file holds every concept that participates in `POST /orders`:
 
-| Mean | p95 | p99 | RPS | Notes |
-|---:|---:|---:|---:|---|
-| 1009 ms | 2138 ms | 2634 ms | **473** | 14,207 OK / 370 timeouts. SQLite read-bound. |
+```csharp
+// Request — the public contract dispatched through IMediator.
+[RequirePolicy("customer")]
+public readonly record struct PlaceOrderCommand(CustomerId CustomerId, decimal Total)
+    : IRequest<Result<OrderId, Error>>;
 
-Latency under 500-VU load reflects SQLite's single-file lock + EF Core's tracking-context allocation per request. PostgreSQL + EF `AsNoTracking()` on reads + response caching dramatically improve both throughput and p99 — the harness is shipped so adopters measure on *their* data layer choice.
+// Validator — invoked automatically by .UseValidation() before the handler runs.
+public sealed class PlaceOrderValidator : AbstractValidator<PlaceOrderCommand>
+{
+    public PlaceOrderValidator()
+    {
+        RuleFor(c => c.Total).GreaterThan(0).WithMessage("Total must be positive");
+    }
+}
 
-**Reproduce:**
+// Handler — owns the DB work.
+public sealed class PlaceOrderHandler(AppDbContext db)
+    : IRequestHandler<PlaceOrderCommand, Result<OrderId, Error>>
+{
+    public async ValueTask<Result<OrderId, Error>> Handle(PlaceOrderCommand cmd, CancellationToken ct)
+    {
+        var order = new Order(OrderId.New(), cmd.CustomerId, cmd.Total);
+        db.Orders.Add(order);
+        await db.SaveChangesAsync(ct);
+        return order.Id;
+    }
+}
 
-```bash
-# Sustained RPS (real Kestrel; stub out the shipping client so the load test
-# doesn't DNS-fail against the placeholder shipping URL)
-Shipping__UseStub=true dotnet run --project src/MyApp.Api          # terminal 1
-dotnet run -c Release --project benchmarks/MyApp.LoadTest          # terminal 2
+// Endpoint — picked up automatically by the assembly walk in Program.cs.
+public static class PlaceOrderEndpoint
+{
+    public static void Map(IEndpointRouteBuilder app) =>
+        app.MapPost("/orders", static async (PlaceOrderCommand cmd, IMediator mediator, CancellationToken ct) =>
+        {
+            var result = await mediator.Send(cmd, ct);
+            return result.Match(id => Results.Created($"/orders/{id}", id), err => err.ToProblem());
+        });
+}
+
+// Persistence entity — owned by this slice. AppDbContext exposes the DbSet.
+internal sealed class Order
+{
+    public OrderId Id { get; private set; }
+    public CustomerId CustomerId { get; private set; }
+    public decimal Total { get; private set; }
+    private Order() { }
+    public Order(OrderId id, CustomerId customerId, decimal total) =>
+        (Id, CustomerId, Total) = (id, customerId, total);
+}
 ```
 
-> **`Shipping__UseStub` flag**: the scaffold's shipping client (`IShippingQuoteHttpClient`) targets a placeholder URL (`https://shipping.example/`), so production-shape orders depend on a real endpoint. For load tests, set `Shipping__UseStub=true` (env var) or `Shipping:UseStub: true` (appsettings) — `Program.cs` swaps the real client for an in-memory stub returning a constant `Money(5, "EUR")`. Defaults to `false`; production deployments untouched.
+To add a new use case — copy a slice file, rename, tweak. No other place in the codebase needs editing: `Program.cs`'s assembly walk picks up the new `*Endpoint` class automatically, `services.AddMediator().RegisterHandlersFromAssembly(...)` picks up the new handler automatically, the `[RequirePolicy]` declaration is enforced by `.UseAuthorization()` automatically.
 
-Full methodology + per-package comparisons (ZA.Mapping vs Mapperly/AutoMapper, etc.): see [docs/za-clean.md](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/blob/main/docs/za-clean.md#benchmarks).
+## Conventions enforced by `MyApp.ConventionTests`
+
+- Every `*Command` / `*Query` implements `IRequest<>`.
+- Every `*Handler` is `public sealed`.
+- No slice references another slice's types (slices are independent — share via `Common/`).
+
+Violations fail CI.
 
 ## Extending
 
-- **AI agents**: [AGENTS.md](AGENTS.md) — orientation for Claude Code, Cursor, GitHub Copilot, Codex, Aider. Includes "how to add a command/query/endpoint/value object" recipes and the ZA-specific gotchas.
-- **Boundary rules**: enforced by `tests/MyApp.ArchitectureTests/CleanArchitectureRules.cs`. Five NetArchTest rules covering Clean dependency direction.
-- **Swap SQLite → PostgreSQL**: change `UseSqlite` to `UseNpgsql` in `Program.cs`, add the EF provider, regenerate migrations. See the template docs for the recipe.
+- **AI agents**: [AGENTS.md](AGENTS.md) — orientation for Claude Code, Cursor, GitHub Copilot, Codex, Aider. Includes "how to add a slice" recipes and the ZA-specific gotchas.
+- **Swap SQLite → PostgreSQL**: change `UseSqlite` to `UseNpgsql` in `Program.cs`, add the EF provider, regenerate migrations.
 
 ## License
 

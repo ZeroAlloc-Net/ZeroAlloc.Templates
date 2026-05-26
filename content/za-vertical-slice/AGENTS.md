@@ -2,120 +2,100 @@
 
 > For AI coding agents (Claude Code, Cursor, GitHub Copilot, Codex, Aider, …) working on this codebase.
 
-This is a Clean Architecture Web API scaffolded from `dotnet new za-clean`. It uses the ZeroAlloc.* ecosystem (source-generated, AOT-safe, zero-allocation packages). For human-facing docs, see [docs/za-clean.md](docs/za-clean.md). For the design decisions behind the layout, see [the template's design doc](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/blob/main/docs/za-clean.md).
+This is a Vertical Slice Architecture Web API scaffolded from `dotnet new za-vertical-slice`. It uses the ZeroAlloc.* ecosystem (source-generated, AOT-safe, zero-allocation packages). For the design decisions behind the layout, see [the template's design doc](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/blob/main/docs/za-vertical-slice.md).
 
 ## 1. Project shape
 
-Four projects under `src/`, three under `tests/`, two under `benchmarks/`. Dependency direction is strictly **inward**:
+One `src/` project. Everything lives inside it, organised by *use case*, not by *layer*. No `Domain` / `Application` / `Infrastructure` / `Api` split.
 
 ```
 HTTP POST /orders
         │
         ▼
-┌─────────────────────────┐
-│ MyApp.Api               │  Endpoint → maps DTO → IMediator.Send
-│  Endpoints/, Mappings/  │  ASP.NET Core + JWT auth + OpenTelemetry
-└─────────┬───────────────┘
-          │ depends on
-          ▼
-┌─────────────────────────┐
-│ MyApp.Application       │  Commands, Queries, Handlers, Validators
-│  CreateOrder/, GetById/ │  ZA.Mediator, ZA.Mapping, ZA.Inject
-└─────────┬───────────────┘
-          │ depends on
-          ▼
-┌─────────────────────────┐    ┌─────────────────────────┐
-│ MyApp.Domain            │ ◀──│ MyApp.Infrastructure    │
-│  Order, Money, OrderId  │    │  AppDbContext, EF, Rest │
-│  ZA.ValueObjects, ZA.Results│    │  ZA.Resilience, ZA.Inject │
-└─────────────────────────┘    └─────────────────────────┘
+┌──────────────────────────────────────────────────────────┐
+│ src/MyApp/Features/Orders/PlaceOrder/PlaceOrder.cs       │
+│                                                           │
+│   PlaceOrderCommand : IRequest<Result<OrderId, Error>>   │
+│   PlaceOrderValidator : AbstractValidator<PlaceOrderCmd> │
+│   PlaceOrderHandler : IRequestHandler<…>                 │
+│   PlaceOrderEndpoint.Map(IEndpointRouteBuilder)          │
+│   internal sealed class Order  ← persistence entity      │
+└────────────────────┬─────────────────────────────────────┘
+                     │ depends only on
+                     ▼
+┌──────────────────────────────────────────────────────────┐
+│ src/MyApp/Common/      TypedIds (OrderId, CustomerId),   │
+│ src/MyApp/Persistence/ AppDbContext, ZeroAlloc.*         │
+│ src/MyApp/Authorization/ [Policy] declarations           │
+└──────────────────────────────────────────────────────────┘
 ```
 
-- **Domain** — entities, value objects. No EF, no ASP.NET. Pure invariants.
-- **Application** — CQRS slice. Handlers return `ValueTask<Result<T, ApplicationError>>`.
-- **Infrastructure** — EF Core SQLite, outbound HTTP via ZA.Rest, resilience policies.
-- **Api** — Minimal API endpoints, DTOs, JWT auth, OpenTelemetry composition.
+- **`Features/<Area>/<UseCase>/<UseCase>.cs`** — one slice per use case. Holds the request + validator + handler + endpoint + (optionally) the persistence entity owned by that slice.
+- **`Common/`** — primitives shared across slices: TypedIds, the `Error` catalog, telemetry setup.
+- **`Persistence/AppDbContext.cs`** — the `DbContext`. Entity definitions live in the slices that *create* the entity (e.g. `PlaceOrder.cs` defines `Order`); `AppDbContext` only exposes the `DbSet<T>`.
+- **`Authorization/Policies.cs`** — `[Policy]` declarations used by `[RequirePolicy(...)]` on requests.
+- **`Program.cs`** — DI wiring + endpoint-discovery walk (assembly walk that calls `Map` on every `public static class *Endpoint`).
 
-## 2. Boundary rules (enforced)
+## 2. Convention rules (enforced)
 
-`tests/MyApp.ArchitectureTests/CleanArchitectureRules.cs` enforces these via NetArchTest. Violations fail CI.
+`tests/MyApp.ConventionTests/VerticalSliceConventionRules.cs` enforces these via NetArchTest. Violations fail CI.
 
-- Domain references nothing outside Domain (no EF, no ASP.NET, no Application/Infra/Api).
-- Application references only Domain (plus ZA packages).
-- Infrastructure references Domain + Application (plus EF + ZA).
-- Api references everything (it's the composition root).
-- Handlers (`IRequestHandler<,>`) live only in Application.
-- `DbContext` types live only in Infrastructure.
+- Every type ending in `Command` or `Query` implements `IRequest<>`.
+- Every type ending in `Handler` is `public sealed`.
+- No slice references another slice's types directly. Slices share via `Common/`, `Persistence/`, or `Authorization/`; cross-slice messaging goes through `IMediator`.
 
-**Before adding a `using` across layers, ask: "does the dependency rules table allow this?"** If not, the code belongs in a different layer.
+**Before adding a `using MyApp.Features.<OtherSlice>...;`, ask: "is this slice talking to another slice's internals?"** If yes, factor the shared type into `Common/` or send a request through `IMediator`.
 
 ## 3. How to add things
 
-### Add a command + handler
+### Add a new use case (slice)
 
-1. Create `src/MyApp.Application/<Feature>/<Cmd>Command.cs` — record implementing `IRequest<Result<T, ApplicationError>>`.
-2. Create `src/MyApp.Application/<Feature>/<Cmd>Handler.cs` — `[Scoped]` class implementing `IRequestHandler<<Cmd>Command, Result<T, ApplicationError>>`. Returns `ValueTask<…>`, **not** `Task<…>`.
-3. If validation is needed: extend the hand-rolled `CreateOrderValidator` pattern OR create a parallel validator class. Call from the top of `Handle`.
-4. ZA.Inject auto-registers via `[Scoped]` — no DI changes needed.
+1. Create `src/MyApp/Features/<Area>/<UseCase>/<UseCase>.cs`.
+2. Define the request as a `readonly record struct *Command`/`*Query` implementing `IRequest<Result<TResponse, Error>>`. Decorate with `[RequirePolicy("...")]` if authentication/authorization applies.
+3. Define `*Validator : AbstractValidator<*Command>`.
+4. Define `*Handler : IRequestHandler<*Command, Result<TResponse, Error>>`. Return `ValueTask<...>`, **not** `Task<...>`.
+5. Define `*Endpoint` as a `public static class` with `public static void Map(IEndpointRouteBuilder)`. Wire `IMediator.Send` + map result to `Results.Created`/`Results.Ok`/`Results.Problem`.
+6. If the slice owns a persistence entity (e.g. `PlaceOrder` owns `Order`), define it as `internal sealed class` in the same file. Add the matching `DbSet<T>` to `AppDbContext`.
+7. Add a unit test in `tests/MyApp.UnitTests/Features/<Area>/<UseCase>/<UseCase>HandlerTests.cs`.
+8. Add an integration test in `tests/MyApp.IntegrationTests/Features/<Area>/<UseCase>/<UseCase>EndpointTests.cs`.
 
-### Add a query
-
-Same as command but `IRequest<Result<TResponse, ApplicationError>>` typically with a smaller response shape.
-
-### Add an endpoint
-
-1. Add a DTO record in `src/MyApp.Api/Dtos/`.
-2. Add a `[Map<<RequestDto>, <Command>>]` partial class in `src/MyApp.Api/Mappings/` (or hand-roll if the mapping isn't trivial — see `OrderToResponse.cs` for an example).
-3. Add the endpoint in `src/MyApp.Api/Endpoints/<Feature>Endpoints.cs`. Wire `IMediator.Send` + map result → `Results.Ok` / `Results.Created` / `Results.Problem`.
-4. Register the policy via `.RequireAuthorization("OrdersRead")` or `"OrdersWrite"` (or add a new policy in `Program.cs`).
+No central registration to edit — `Program.cs` discovers handlers via `RegisterHandlersFromAssembly(...)` and endpoints via the assembly walk.
 
 ### Add a value object
 
-1. Create `src/MyApp.Domain/ValueObjects/<Name>.cs` — `readonly partial struct` with `[ValueObject]` attribute from ZA.ValueObjects.
-2. Add a public `Amount`/`Value` property + private ctor + static `TryCreate(...) → Result<<Name>, string>` factory.
-3. **EF mapping caveat:** at entity-root level use `b.ComplexProperty(o => o.Total, …)`. At owned-collection level (e.g. inside `OwnsMany`) the `OwnedNavigationBuilder` does NOT expose `ComplexProperty` — use a `ValueConverter<<Name>, string>` round-trip. See `OrderConfiguration.cs:9-26` for the comment + example.
+1. Create or extend `src/MyApp/Common/ValueObjects.cs` — `readonly partial record struct` with `[TypedId]` attribute from `ZeroAlloc.ValueObjects` (auto-generates `.New()` factory + JSON converter).
 
 ### Add a validation rule
 
-ZA.Validation's `[Validate]` source generator is wired up — `CreateOrderCommand` already uses it. To add or change a rule:
+ZA.Validation's `[Validate]` source generator is wired up — or you can write `AbstractValidator<T>` directly. Both work. Pick the style that matches the surrounding slice.
 
-1. Edit the `[property: …]` attribute on the relevant property of `src/MyApp.Application/<Feature>/<Cmd>Command.cs`. Examples: `[NotEmpty]`, `[GreaterThan(0)]`, `[Matches(regex)]`, `[LessThan(N)]`, `[MaxLength(N)]`.
-2. Build — the generator regenerates `<Cmd>CommandValidator` automatically. No other wiring change needed.
-3. Add a unit test in `tests/MyApp.UnitTests/Application/` that asserts the new rule fires.
+### Add a policy
 
-The thin wrapper at `CreateOrderValidator.cs` exists for two reasons: it caches the generator-emitted validator instance as a static singleton (avoids per-call construction), and maps the generator's `ValidationResult` shape to the `UnitResult<ValidationError>` shape `CreateOrderHandler` consumes. Reuse this wrapper pattern for new commands — copy the file, swap the type name.
+1. Edit `src/MyApp/Authorization/Policies.cs` — declare a new `[Policy("name")]` static class with the policy logic.
+2. Decorate the request that needs it with `[RequirePolicy("name")]`.
 
 ## 4. ZA-specific gotchas
-
-These bit us during template construction; they'll bite you too if you don't know them:
 
 | Gotcha | What to do |
 |---|---|
 | Handlers return `ValueTask<T>`, not `Task<T>` | Match the interface |
-| `[Scoped]` / `[Singleton]` / `[Transient]` separate attributes, not `[Service(ServiceLifetime.X)]` | `using ZeroAlloc.Inject;` then `[Scoped]` |
+| `[Scoped]` / `[Singleton]` / `[Transient]` are separate attributes, not `[Service(ServiceLifetime.X)]` | `using ZeroAlloc.Inject;` then `[Scoped]` |
 | ZA generators ship as separate `*.Generator` nupkgs | Reference with `<PrivateAssets>all</PrivateAssets>` + `<IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>` |
-| ZA.Authorization is host-agnostic abstractions only | Use vanilla `AddAuthorizationBuilder().AddPolicy(...).RequireClaim(...)` |
+| ZA.Authorization is host-agnostic abstractions only | Use vanilla `AddAuthorizationBuilder().AddPolicy(...).RequireClaim(...)` for ASP.NET routing-level auth; use `[Policy]` + `[RequirePolicy]` for request-level auth |
 | ZA.Telemetry is a code-gen instrumentation library | Use vanilla OpenTelemetry; opt into `[Instrument]` per method |
-| ZA.Mapping needs `<PrivateAssets>all</PrivateAssets>` to prevent ZAMP006 across assembly boundaries | Set on the `<PackageReference>` in Application + Api csprojs |
-| `OrderId` / `CustomerId` use `[ValueObject]` from ZA.ValueObjects (equality only, no factory) | Hand-write `TryCreate` if validation is needed |
-| EF Core 9's `OwnedNavigationBuilder` doesn't expose `ComplexProperty` | Use a `ValueConverter` round-trip inside `OwnsMany` |
-| Switching a request to `IAuthorizedRequest<TPayload>` for Result-style auth | Under AOT publish, the deny path silently throws `AuthorizationDeniedException` instead of returning `Result<T, AuthorizationFailure>.Failure(...)`. Add a `[ModuleInitializer]` carrier method with `[DynamicDependency(PublicMethods, typeof(Result<TPayload, AuthorizationFailure>))]` per `TPayload` you use. See [ZA.Mediator.Authorization AOT docs](https://github.com/ZeroAlloc-Net/ZeroAlloc.Mediator/blob/main/docs/authorization.md#aot-publish). |
+| ZA.Mapping needs `<PrivateAssets>all</PrivateAssets>` | Set on the `<PackageReference>` in `MyApp.csproj` |
+| `OrderId` / `CustomerId` use `[TypedId]` from ZA.ValueObjects | Auto-generated `.New()` factory + JSON converter |
+| Switching a request to `IAuthorizedRequest<TPayload>` for Result-style auth | Under AOT publish, the deny path silently throws `AuthorizationDeniedException`. Add a `[ModuleInitializer]` carrier method with `[DynamicDependency(PublicMethods, typeof(Result<TPayload, AuthorizationFailure>))]` per `TPayload` you use. |
 
-## 5. AOT-specific gotchas (as of EF Core 10.0.7)
+## 5. AOT-specific gotchas (as of EF Core 10)
 
-EF Core's NativeAOT support is incomplete in production-ready form. This template
-works around the gaps:
+EF Core's NativeAOT support is incomplete. This template works around the gaps:
 
 | Issue | Workaround in template |
 |---|---|
 | `Database.MigrateAsync` / `EnsureCreatedAsync` use reflection-based design-time model building | Schema applied via embedded `schema.sql` script (regenerate with `dotnet ef migrations script` after entity changes) |
-| EF 10's `--nativeaot` compiled-model emits incorrect `UnsafeAccessorKind.Field` for `readonly struct` ComplexProperty types | `Order.Total` mapped via `HasConversion` (TEXT column `"<amount>\|<currency>"`) instead of `ComplexProperty` |
-| LINQ-to-SQL translation requires `--precompile-queries`, blocked by source-gen interactions in our stack | `OrderRepository.GetByIdAsync` written in raw SQL via `db.Database.GetDbConnection().CreateCommand()`; `Order.Materialize` factory exposes hand-hydration to the repository |
-| Reflection-based handler scanning (e.g., ZA.Mediator's `RegisterHandlersFromAssembly`) gets trimmed under AOT | `ApplicationServiceCollectionExtensions` registers handlers manually (`services.AddScoped<IRequestHandler<TReq, TResp>, ConcreteHandler>()` per handler) |
+| Reflection-based handler scanning gets trimmed under AOT | `services.AddMediator().RegisterHandlersFromAssembly(typeof(Program).Assembly)` — combined with the slice convention, the trimmer keeps handlers reachable. For AOT-only builds you may need explicit per-handler registration. |
 | Anonymous types lack source-gen JsonTypeInfo, fail at serialization under AOT | All response shapes are concrete records covered by `JsonContext` |
-
-When EF Core's NativeAOT support matures (compiled-model fix + precompile-queries
-fix), revisit these workarounds. Track upstream issues in dotnet/efcore.
 
 ## 6. How to verify
 
@@ -123,22 +103,22 @@ fix), revisit these workarounds. Track upstream issues in dotnet/efcore.
 # Build the whole solution
 dotnet build MyApp.slnx
 
-# Run all tests — unit + architecture + integration
+# Run all tests — unit + convention + integration
 dotnet test MyApp.slnx
 
-# Skip slow categories during inner-loop dev
-dotnet test --filter "Category!=Slow"
+# Run a single slice's tests during inner-loop dev
+dotnet test --filter "FullyQualifiedName~PlaceOrder"
 
 # Run the BDN write-pipeline benchmark
 dotnet run -c Release --project benchmarks/MyApp.Benchmarks -- --filter "*WritePipelineBench*"
 
 # Run the NBomber load test (two terminals)
-dotnet run --project src/MyApp.Api                              # terminal 1
-dotnet run -c Release --project benchmarks/MyApp.LoadTest       # terminal 2
+dotnet run --project src/MyApp                              # terminal 1
+dotnet run -c Release --project benchmarks/MyApp.LoadTest   # terminal 2
 ```
 
 Pre-commit checklist:
 - `dotnet build` is 0 errors, 0 warnings
-- All architecture tests pass (`dotnet test tests/MyApp.ArchitectureTests`)
-- Any new code path has a test
-- Conventional commit message (`feat(application): ...`, `fix(api): ...`, etc.)
+- All convention tests pass (`dotnet test tests/MyApp.ConventionTests`)
+- Any new slice has unit + integration tests
+- Conventional commit message (`feat(orders): add CancelOrder slice`, etc.)
