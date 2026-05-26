@@ -65,8 +65,14 @@ public static class PlaceOrderEndpoint
 /// INSERT via the <see cref="OrderId"/> value-converter configured in
 /// <see cref="AppDbContext.OnModelCreating"/>; constructing with an
 /// <see cref="OrderId"/> wrapping <c>0</c> signals "let the database pick an id".
+/// <para>
+/// <b>Public on purpose:</b> read-side slices (GetOrder, ListOrders) project from
+/// this entity. Handlers, validators, and DTOs stay internal to their slice; only
+/// the persistence entity crosses the slice boundary. The ConventionTests
+/// enforce this distinction.
+/// </para>
 /// </summary>
-internal sealed class Order
+public sealed class Order
 {
     // EF materialisation constructor.
     private Order()
