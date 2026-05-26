@@ -6,6 +6,7 @@ using Microsoft.IdentityModel.Tokens;
 using MyApp.Persistence;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
+using ZeroAlloc.Authorization.Generated;
 using ZeroAlloc.Mediator;
 
 var builder = WebApplication.CreateBuilder(args);
