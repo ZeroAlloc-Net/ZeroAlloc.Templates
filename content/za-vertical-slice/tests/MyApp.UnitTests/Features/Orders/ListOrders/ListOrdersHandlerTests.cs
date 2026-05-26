@@ -52,7 +52,16 @@ public sealed class ListOrdersHandlerTests
         var validator = new ListOrdersQueryValidator();
         var result = validator.Validate(new ListOrdersQuery(Page: 1, PageSize: 1000));
         Assert.False(result.IsValid);
-        Assert.Contains(result.Failures, f => f.PropertyName == nameof(ListOrdersQuery.PageSize));
+        var found = false;
+        foreach (var f in result.Failures)
+        {
+            if (f.PropertyName == nameof(ListOrdersQuery.PageSize))
+            {
+                found = true;
+                break;
+            }
+        }
+        Assert.True(found);
     }
 
     private static AppDbContext NewInMemoryDb()

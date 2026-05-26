@@ -39,7 +39,7 @@ public sealed class PlaceOrderHandlerTests
         var validator = new PlaceOrderCommandValidator();
         var result = validator.Validate(new PlaceOrderCommand(CustomerId: 42, Total: 0m));
         Assert.False(result.IsValid);
-        Assert.Contains(result.Failures, f => f.PropertyName == nameof(PlaceOrderCommand.Total));
+        Assert.True(HasFailureOn(result.Failures, nameof(PlaceOrderCommand.Total)));
     }
 
     [Fact]
@@ -48,7 +48,23 @@ public sealed class PlaceOrderHandlerTests
         var validator = new PlaceOrderCommandValidator();
         var result = validator.Validate(new PlaceOrderCommand(CustomerId: 0, Total: 10m));
         Assert.False(result.IsValid);
-        Assert.Contains(result.Failures, f => f.PropertyName == nameof(PlaceOrderCommand.CustomerId));
+        Assert.True(HasFailureOn(result.Failures, nameof(PlaceOrderCommand.CustomerId)));
+    }
+
+    // The validator's Failures is a ReadOnlySpan<ValidationFailure> (ref struct),
+    // which can't be passed as a generic type argument to Assert.Contains. Iterate
+    // manually instead.
+    private static bool HasFailureOn(ReadOnlySpan<ZeroAlloc.Validation.ValidationFailure> failures, string propertyName)
+    {
+        foreach (var f in failures)
+        {
+            if (f.PropertyName == propertyName)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static AppDbContext NewInMemoryDb()

@@ -23,7 +23,7 @@ namespace MyApp.Features.Orders.CancelOrder;
 /// </summary>
 [Validate]
 [RequirePolicy("OrdersWrite")]
-public readonly record struct CancelOrderCommand([property: GreaterThan(0)] int Id)
+public sealed record CancelOrderCommand([property: GreaterThan(0)] int Id)
     : IRequest<UnitResult<Error>>;
 
 public sealed class CancelOrderHandler(AppDbContext db)

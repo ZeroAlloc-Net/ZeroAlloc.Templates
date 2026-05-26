@@ -20,7 +20,7 @@ namespace MyApp.Features.Orders.GetOrder;
 /// </summary>
 [Validate]
 [RequirePolicy("OrdersRead")]
-public readonly record struct GetOrderQuery([property: GreaterThan(0)] int Id)
+public sealed record GetOrderQuery([property: GreaterThan(0)] int Id)
     : IRequest<Result<OrderDto, Error>>;
 
 /// <summary>

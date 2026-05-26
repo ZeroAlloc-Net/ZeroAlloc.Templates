@@ -22,7 +22,7 @@ namespace MyApp.Features.Orders.PlaceOrder;
 /// </summary>
 [Validate]
 [RequirePolicy("OrdersWrite")]
-public readonly record struct PlaceOrderCommand(
+public sealed record PlaceOrderCommand(
     [property: GreaterThan(0)] int CustomerId,
     [property: GreaterThan(0)] decimal Total)
     : IRequest<Result<OrderId, Error>>;
