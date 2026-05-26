@@ -8,9 +8,6 @@
     <PackageReference Include="xunit.runner.visualstudio" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
     <PackageReference Include="NetArchTest.Rules" />
-    <ProjectReference Include="../../src/MyApp.Domain/MyApp.Domain.csproj" />
-    <ProjectReference Include="../../src/MyApp.Application/MyApp.Application.csproj" />
-    <ProjectReference Include="../../src/MyApp.Infrastructure/MyApp.Infrastructure.csproj" />
-    <ProjectReference Include="../../src/MyApp.Api/MyApp.Api.csproj" />
+    <ProjectReference Include="../../src/MyApp/MyApp.csproj" />
   </ItemGroup>
 </Project>
