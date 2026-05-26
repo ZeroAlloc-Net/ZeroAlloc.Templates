@@ -85,11 +85,6 @@ builder.Services.AddOpenTelemetry()
         .AddMeter("MyApp")
         .AddConsoleExporter());
 
-// AOT: source-generated JSON for DTOs. Insert at index 0 so the generated
-// resolver wins over the reflection-based default.
-builder.Services.ConfigureHttpJsonOptions(o =>
-    o.SerializerOptions.TypeInfoResolverChain.Insert(0, JsonContext.Default));
-
 #if (EnableSwagger)
 builder.Services.AddEndpointsApiExplorer();
 #endif

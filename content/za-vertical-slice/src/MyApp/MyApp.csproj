@@ -21,12 +21,6 @@
     <ZeroAllocAuthorizationOwnsPolicies>true</ZeroAllocAuthorizationOwnsPolicies>
   </PropertyGroup>
   <ItemGroup>
-    <!-- Embed the schema script so the AOT binary can create the database without
-         needing the design-time EF Core pipeline (which is not AOT-compatible).
-         Regenerate via `dotnet ef migrations script -o src/MyApp/schema.sql`. -->
-    <EmbeddedResource Include="schema.sql" />
-  </ItemGroup>
-  <ItemGroup>
     <!-- ASP.NET Core auth -->
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" />
 

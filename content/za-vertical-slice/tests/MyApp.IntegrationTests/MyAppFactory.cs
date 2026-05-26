@@ -4,17 +4,15 @@ using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using MyApp.Application;
-using MyApp.Infrastructure.Persistence;
+using MyApp.Persistence;
 
 namespace MyApp.IntegrationTests;
 
 /// <summary>
-/// Hosts the API with two swaps shared across integration test classes: the
-/// EF DbContext is rebound to a kept-alive in-memory SQLite connection, and
-/// <c>IShippingQuoteClient</c> is replaced by a deterministic stub. Migrations
-/// from <c>MyApp.Infrastructure</c> are applied against the in-memory database
-/// during fixture construction.
+/// Hosts the API with the EF DbContext rebound to a kept-alive in-memory SQLite
+/// connection so every integration test runs against a clean, isolated schema
+/// without needing a file on disk. Slices that need additional service
+/// overrides extend this fixture via <c>WithWebHostBuilder(...)</c>.
 /// </summary>
 public sealed class MyAppFactory : WebApplicationFactory<Program>
 {
@@ -56,14 +54,10 @@ public sealed class MyAppFactory : WebApplicationFactory<Program>
                     Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning));
             });
 
-            var shippingDescriptor = services.SingleOrDefault(
-                d => d.ServiceType == typeof(IShippingQuoteClient));
-            if (shippingDescriptor is not null)
-            {
-                services.Remove(shippingDescriptor);
-            }
-
-            services.AddScoped<IShippingQuoteClient, TestShippingClient>();
+            // Create the schema for each test fixture so slice tests can hit the
+            // database without a migration step.
+            using var scope = services.BuildServiceProvider().CreateScope();
+            scope.ServiceProvider.GetRequiredService<AppDbContext>().Database.EnsureCreated();
         });
     }
 
