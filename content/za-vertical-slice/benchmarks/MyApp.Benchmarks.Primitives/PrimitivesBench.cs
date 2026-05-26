@@ -1,62 +1,61 @@
 using BenchmarkDotNet.Attributes;
-using MyApp.Api.Dtos;
-using MyApp.Api.Mappings;
-using MyApp.Application;
-using MyApp.Application.CreateOrder;
-using MyApp.Domain.ValueObjects;
+using MyApp.Common;
+using MyApp.Features.Orders.PlaceOrder;
 using ZeroAlloc.Results;
 
 namespace MyApp.Benchmarks.Primitives;
 
 /// <summary>
-/// Each framework layer in isolation — no ASP.NET, no Kestrel, no EF.
-/// Counterpart to <c>MyApp.Benchmarks.WritePipelineBench</c> (which exercises the full
-/// HTTP path). Numbers here directly validate the "zero-allocation through the
-/// framework hot path" brand claim. A non-zero <c>Allocated</c> reading on any
-/// method (modulo the immutable destination record returned to the caller) is a
-/// genuine finding worth investigating.
+/// Each ZeroAlloc primitive in isolation — no ASP.NET, no Kestrel, no EF, no
+/// mediator pipeline. Counterpart to <c>MyApp.Benchmarks.WritePipelineBench</c>
+/// (which exercises the full HTTP path). Numbers here validate the
+/// "zero-allocation through the framework hot path" brand claim. A non-zero
+/// <c>Allocated</c> reading on any method is a genuine finding worth
+/// investigating.
 /// </summary>
 [MemoryDiagnoser]
 public class PrimitivesBench
 {
-    private OrderRequest _request = null!;
-    private CreateOrderCommand _command = null!;
-    private FakeMediator _mediator = null!;
+    private PlaceOrderCommand _command = null!;
+    private PlaceOrderCommandValidator _validator = null!;
 
     [GlobalSetup]
     public void Setup()
     {
-        _request = new OrderRequest(
-            42,
-            new[] { new OrderItemDto("SKU-1", 2, 15m) },
-            "1011AA");
-        _command = OrderRequestToCommand.Map(_request);
-        _mediator = new FakeMediator();
+        _command = new PlaceOrderCommand(CustomerId: 42, Total: 99.99m);
+        _validator = new PlaceOrderCommandValidator();
     }
 
+    /// <summary>TypedId construction — should be a single stack write.</summary>
     [Benchmark]
-    public CreateOrderCommand Mapping_RequestToCommand()
-        => OrderRequestToCommand.Map(_request);
+    public OrderId TypedId_Construct() => new OrderId(1);
 
+    /// <summary>Money.TryCreate — happy path, returns Success.</summary>
     [Benchmark]
-    public async ValueTask<Result<OrderId, ApplicationError>> Mediator_DispatchOnly()
-        => await _mediator.Send(_command);
+    public Result<Money, string> Money_TryCreate_Success() => Money.TryCreate(10m, "EUR");
 
+    /// <summary>Money.TryCreate — sad path, returns Failure(string).</summary>
     [Benchmark]
-    public UnitResult<ValidationError> Validator_HandRolled()
-        => CreateOrderValidator.Validate(_command);
+    public Result<Money, string> Money_TryCreate_Failure() => Money.TryCreate(-1m, "EUR");
 
+    /// <summary>Result&lt;T, TError&gt;.Success construction.</summary>
     [Benchmark]
-    public Result<Money, string> ValueObject_TryCreate()
-        => Money.TryCreate(10m, "EUR");
+    public Result<OrderId, Error> Result_Success() =>
+        Result<OrderId, Error>.Success(new OrderId(1));
 
+    /// <summary>Result&lt;T, TError&gt;.Failure construction.</summary>
     [Benchmark]
-    public async ValueTask<Result<OrderId, ApplicationError>> EndToEndPrimitives()
+    public Result<OrderId, Error> Result_Failure() =>
+        Result<OrderId, Error>.Failure(Error.NotFound("order.not_found", "missing"));
+
+    /// <summary>
+    /// Source-generated validator running its full rule set. Two rules
+    /// ([GreaterThan(0)] on CustomerId + Total) on the happy path.
+    /// </summary>
+    [Benchmark]
+    public bool Validator_Generated()
     {
-        var cmd = OrderRequestToCommand.Map(_request);
-        var validation = CreateOrderValidator.Validate(cmd);
-        if (validation.IsFailure)
-            return Result<OrderId, ApplicationError>.Failure(new("validation", "failed"));
-        return await _mediator.Send(cmd);
+        var r = _validator.Validate(_command);
+        return r.IsValid;
     }
 }

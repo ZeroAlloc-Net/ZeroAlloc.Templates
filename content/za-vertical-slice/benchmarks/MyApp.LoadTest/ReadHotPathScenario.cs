@@ -34,8 +34,7 @@ internal static class ReadHotPathScenario
                 var resp = await http.PostAsJsonAsync("/orders", new
                 {
                     customerId = 1 + (i % 10),
-                    items = new[] { new { sku = $"SKU-{i % 50}", quantity = 1 + (i % 3), unitPriceEur = 10m + (i % 25) } },
-                    shippingZip = "1011AA",
+                    total = 10m + (i % 25),
                 });
 
                 if (resp.IsSuccessStatusCode)

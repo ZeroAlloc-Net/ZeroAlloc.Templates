@@ -7,7 +7,9 @@
     <Project Path="tests/MyApp.ConventionTests/MyApp.ConventionTests.csproj" />
     <Project Path="tests/MyApp.IntegrationTests/MyApp.IntegrationTests.csproj" />
   </Folder>
-  <!-- benchmarks/ projects are still on the za-clean shape (reference deleted
-       MyApp.Application/Domain/Infrastructure). Phase 5 ports them and adds
-       them back here. -->
+  <Folder Name="/benchmarks/">
+    <Project Path="benchmarks/MyApp.Benchmarks/MyApp.Benchmarks.csproj" />
+    <Project Path="benchmarks/MyApp.Benchmarks.Primitives/MyApp.Benchmarks.Primitives.csproj" />
+    <Project Path="benchmarks/MyApp.LoadTest/MyApp.LoadTest.csproj" />
+  </Folder>
 </Solution>

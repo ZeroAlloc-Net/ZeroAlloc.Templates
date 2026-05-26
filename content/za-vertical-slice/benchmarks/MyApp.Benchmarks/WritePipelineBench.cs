@@ -7,13 +7,18 @@ using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using MyApp.Application;
-using MyApp.Domain.ValueObjects;
-using MyApp.Infrastructure.Persistence;
-using ZeroAlloc.Results;
+using MyApp.Persistence;
 
 namespace MyApp.Benchmarks;
 
+/// <summary>
+/// End-to-end write-path benchmark for the vertical-slice template's
+/// PlaceOrder slice. Exercises the full HTTP pipeline (JwtBearer →
+/// endpoint policy → mediator [RequirePolicy] → [Validate] → handler →
+/// EF SaveChanges) against a kept-alive in-memory SQLite database, so
+/// regressions in any of those layers surface as a per-call allocation
+/// or duration delta.
+/// </summary>
 [MemoryDiagnoser]
 public class WritePipelineBench
 {
@@ -51,13 +56,8 @@ public class WritePipelineBench
                         Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning));
                 });
 
-                var shippingDescriptor = s.SingleOrDefault(d => d.ServiceType == typeof(IShippingQuoteClient));
-                if (shippingDescriptor is not null)
-                {
-                    s.Remove(shippingDescriptor);
-                }
-
-                s.AddScoped<IShippingQuoteClient, BenchShippingClient>();
+                using var scope = s.BuildServiceProvider().CreateScope();
+                scope.ServiceProvider.GetRequiredService<AppDbContext>().Database.EnsureCreated();
             });
         });
 
@@ -65,16 +65,17 @@ public class WritePipelineBench
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue(
             "Bearer", TestJwt.Issue(["orders.write"]));
 
+        // Vertical-slice PlaceOrderCommand: flat {customerId, total}, no nested
+        // items or shipping zip — those belong to a richer slice when needed.
         _request = new
         {
             customerId = 42,
-            items = new[] { new { sku = "SKU-1", quantity = 2, unitPriceEur = 15m } },
-            shippingZip = "1011AA",
+            total = 99.99m,
         };
     }
 
     [Benchmark]
-    public async Task<HttpResponseMessage> WritePipeline()
+    public async Task<HttpResponseMessage> PlaceOrder_VerticalSlice()
         => await _client!.PostAsJsonAsync("/orders", _request);
 
     [GlobalCleanup]
@@ -84,10 +85,4 @@ public class WritePipelineBench
         _factory?.Dispose();
         _connection?.Dispose();
     }
-}
-
-internal sealed class BenchShippingClient : IShippingQuoteClient
-{
-    public Task<Result<Money, string>> GetQuoteAsync(string zip, CancellationToken ct)
-        => Task.FromResult(Money.TryCreate(5m, "EUR"));
 }

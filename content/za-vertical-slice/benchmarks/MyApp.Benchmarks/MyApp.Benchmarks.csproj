@@ -13,6 +13,6 @@
     <PackageReference Include="BenchmarkDotNet" />
     <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
     <PackageReference Include="System.IdentityModel.Tokens.Jwt" />
-    <ProjectReference Include="../../src/MyApp.Api/MyApp.Api.csproj" />
+    <ProjectReference Include="../../src/MyApp/MyApp.csproj" />
   </ItemGroup>
 </Project>

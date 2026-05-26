@@ -11,7 +11,6 @@
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="BenchmarkDotNet" />
-    <ProjectReference Include="../../src/MyApp.Application/MyApp.Application.csproj" />
-    <ProjectReference Include="../../src/MyApp.Api/MyApp.Api.csproj" />
+    <ProjectReference Include="../../src/MyApp/MyApp.csproj" />
   </ItemGroup>
 </Project>
