@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using MyApp.Persistence;
+using MyApp;
 using MyApp.Authorization;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
@@ -90,6 +91,15 @@ builder.Services.AddOpenTelemetry()
         .AddAspNetCoreInstrumentation()
         .AddMeter("MyApp")
         .AddConsoleExporter());
+
+// AOT: source-generated JSON metadata for every type that crosses the HTTP
+// boundary. With PublishAot=true ASP.NET drops the reflection-based default
+// type resolver at runtime; inserting JsonContext.Default at index 0 of the
+// resolver chain lets minimal-API endpoints serialise + deserialise without
+// reflection. When you add a slice, register its request/response types in
+// JsonContext or the host fails to start.
+builder.Services.ConfigureHttpJsonOptions(o =>
+    o.SerializerOptions.TypeInfoResolverChain.Insert(0, JsonContext.Default));
 
 #if (EnableSwagger)
 builder.Services.AddEndpointsApiExplorer();
