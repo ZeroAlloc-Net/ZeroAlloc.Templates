@@ -200,7 +200,7 @@ Per-primitive comparisons against the ecosystem alternatives. These blocks are r
 
 #### Mapping
 <!-- MAPPING:START -->
-_Imported from ZA.Mapping — last refreshed 2026-05-18._
+_Imported from ZA.Mapping — last refreshed 2026-05-25._
 
 _Last refreshed: 2026-05-10_
 
@@ -345,7 +345,7 @@ BenchmarkDotNet v0.15.8, Windows 11 (10.0.26200.8246/25H2/2025Update/HudsonValle
 
 #### Mediator
 <!-- MEDIATOR:START -->
-_Imported from ZA.Mediator — last refreshed 2026-05-18._
+_Imported from ZA.Mediator — last refreshed 2026-05-25._
 
 | Method | ZeroAlloc.Mediator | MediatR | Ratio | ZA Alloc | MediatR Alloc |
 |---|---:|---:|---:|---:|---:|
@@ -364,7 +364,7 @@ ZeroAlloc.Mediator is **40–160× faster** than MediatR across all measured pat
 
 #### Validation
 <!-- VALIDATION:START -->
-_Imported from ZA.Validation — last refreshed 2026-05-18._
+_Imported from ZA.Validation — last refreshed 2026-05-25._
 
 _Last refreshed: 2026-05-13_
 
@@ -379,7 +379,7 @@ ZeroAlloc.Validation is **49–143× faster** than FluentValidation on the valid
 
 #### Inject
 <!-- INJECT:START -->
-_Imported from ZA.Inject — last refreshed 2026-05-18._
+_Imported from ZA.Inject — last refreshed 2026-05-25._
 
 _Last refreshed: 2026-05-18_
 
@@ -418,7 +418,7 @@ In v1.6 the **ZA.Inject Container** scope creation dropped from 123 ns / 216 B t
 
 #### Results
 <!-- RESULTS:START -->
-_Imported from ZA.Results — last refreshed 2026-05-18._
+_Imported from ZA.Results — last refreshed 2026-05-25._
 
 _Last refreshed: 2026-05-13_
 
@@ -444,7 +444,7 @@ ErrorOr and FluentResults allocate per-failure because their error types (`Error
 
 #### ValueObjects
 <!-- VALUEOBJECTS:START -->
-_Imported from ZA.ValueObjects — last refreshed 2026-05-18._
+_Imported from ZA.ValueObjects — last refreshed 2026-05-25._
 
 _Last refreshed: 2026-05-18_
 
@@ -465,7 +465,7 @@ History: the previous single-property `ToString` allocated ~72 B per call and `G
 
 #### Specification
 <!-- SPECIFICATION:START -->
-_Imported from ZA.Specification — last refreshed 2026-05-18._
+_Imported from ZA.Specification — last refreshed 2026-05-25._
 
 _Last refreshed: 2026-05-13_
 
@@ -484,7 +484,7 @@ ZA.Specification's `IsSatisfiedBy` is a direct virtual call on a struct value �
 
 #### StateMachine
 <!-- STATEMACHINE:START -->
-_Imported from ZA.StateMachine — last refreshed 2026-05-18._
+_Imported from ZA.StateMachine — last refreshed 2026-05-25._
 
 _Last refreshed: 2026-05-13_
 
@@ -504,7 +504,7 @@ This is the apples-to-apples comparison for cyclic state machines — a per-requ
 
 #### Resilience
 <!-- RESILIENCE:START -->
-_Imported from ZA.Resilience — last refreshed 2026-05-18._
+_Imported from ZA.Resilience — last refreshed 2026-05-25._
 
 _Last refreshed: 2026-05-18_
 
@@ -531,7 +531,7 @@ Rate-limit and timeout limits in the all-policies harness are set to `int.MaxVal
 
 #### Rest
 <!-- REST:START -->
-_Imported from ZA.Rest — last refreshed 2026-05-18._
+_Imported from ZA.Rest — last refreshed 2026-05-25._
 
 _Last refreshed: 2026-05-13_
 
@@ -559,7 +559,7 @@ ZeroAlloc.Rest is **1.7–3.6× faster than Refit** across every shape of call (
 
 #### Serialisation
 <!-- SERIALISATION:START -->
-_Imported from ZA.Serialisation — last refreshed 2026-05-18._
+_Imported from ZA.Serialisation — last refreshed 2026-05-25._
 
 _Last refreshed: 2026-05-13_
 
@@ -588,7 +588,7 @@ This is the cost of the abstraction. **The wrapper is fastest when the caller po
 
 #### Cache
 <!-- CACHE:START -->
-_Imported from ZA.Cache — last refreshed 2026-05-18._
+_Imported from ZA.Cache — last refreshed 2026-05-25._
 
 _Last refreshed: 2026-05-13_
 
@@ -609,7 +609,7 @@ L1 (in-process) cache-hit comparison. .NET 10.0.7, i9-12900HK, BenchmarkDotNet v
 
 #### Telemetry
 <!-- TELEMETRY:START -->
-_Imported from ZA.Telemetry — last refreshed 2026-05-18._
+_Imported from ZA.Telemetry — last refreshed 2026-05-25._
 
 _Last refreshed: 2026-05-13_
 
@@ -630,7 +630,7 @@ ZA.Telemetry's generator produces code **at parity with hand-written instrumenta
 
 #### Notify
 <!-- NOTIFY:START -->
-_Imported from ZA.Notify — last refreshed 2026-05-18._
+_Imported from ZA.Notify — last refreshed 2026-05-25._
 
 _Last refreshed: 2026-05-13_
 
@@ -652,7 +652,7 @@ _Last refreshed: 2026-05-13_
 
 #### Scheduling
 <!-- SCHEDULING:START -->
-_Imported from ZA.Scheduling — last refreshed 2026-05-18._
+_Imported from ZA.Scheduling — last refreshed 2026-05-25._
 
 _Last refreshed: 2026-05-14_
 
@@ -680,7 +680,7 @@ The takeaway: if you're considering ZA.Scheduling over a hand-rolled `Timer`, th
 
 #### Outbox
 <!-- OUTBOX:START -->
-_Imported from ZA.Outbox — last refreshed 2026-05-18._
+_Imported from ZA.Outbox — last refreshed 2026-05-25._
 
 _Last refreshed: 2026-05-14_
 
@@ -700,7 +700,7 @@ The value of the abstraction is the `[OutboxMessage]` attribute + the typed writ
 
 #### EventSourcing
 <!-- EVENTSOURCING:START -->
-_Imported from ZA.EventSourcing — last refreshed 2026-05-18._
+_Imported from ZA.EventSourcing — last refreshed 2026-05-25._
 
 _Last refreshed: 2026-05-14_
 
