@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+    <RootNamespace>MyApp.LoadTest</RootNamespace>
+    <NoWarn>$(NoWarn);MA0002;MA0004;MA0006;MA0011;MA0047;MA0048;MA0051;CA1812;CA1822;CA5394</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="NBomber" />
+    <PackageReference Include="NBomber.Http" />
+    <PackageReference Include="System.IdentityModel.Tokens.Jwt" />
+  </ItemGroup>
+</Project>
