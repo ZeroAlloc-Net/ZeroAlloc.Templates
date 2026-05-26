@@ -3,14 +3,16 @@ using Xunit;
 
 public class TemplateScaffoldsAndBuildsTests
 {
-    [Fact]
+    [Theory]
+    [InlineData("za-clean")]
+    [InlineData("za-vertical-slice")]
     [Trait("Category", "Slow")]
-    public async Task Template_installs_scaffolds_builds_and_tests_pass()
+    public async Task Template_installs_scaffolds_builds_and_tests_pass(string templateShortName)
     {
         var repoRoot = FindRepoRoot();
-        var templatePath = Path.Combine(repoRoot, "content", "za-clean");
+        var templatePath = Path.Combine(repoRoot, "content", templateShortName);
         var scaffoldName = "AcmeCo" + Guid.NewGuid().ToString("N")[..6];
-        var scaffoldDir = Path.Combine(Path.GetTempPath(), $"za-clean-smoke-{Guid.NewGuid():N}");
+        var scaffoldDir = Path.Combine(Path.GetTempPath(), $"{templateShortName}-smoke-{Guid.NewGuid():N}");
 
         try
         {
@@ -20,7 +22,7 @@ public class TemplateScaffoldsAndBuildsTests
 
             // 2. Scaffold a fresh app
             Directory.CreateDirectory(scaffoldDir);
-            await Run("dotnet", $"new za-clean -o \"{scaffoldDir}\" --name {scaffoldName}", repoRoot);
+            await Run("dotnet", $"new {templateShortName} -o \"{scaffoldDir}\" --name {scaffoldName}", repoRoot);
 
             // 3. Build the scaffolded app
             await Run("dotnet", $"build \"{Path.Combine(scaffoldDir, $"{scaffoldName}.slnx")}\"", scaffoldDir);
