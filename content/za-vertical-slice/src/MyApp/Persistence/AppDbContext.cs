@@ -27,6 +27,7 @@ public sealed class AppDbContext : DbContext
             b.HasKey(o => o.Id);
             b.Property(o => o.Id)
                 .HasConversion(id => id.Value, value => new OrderId(value));
+            b.Property(o => o.Status).HasConversion<string>();
         });
 
         modelBuilder.Entity<Customer>(b =>

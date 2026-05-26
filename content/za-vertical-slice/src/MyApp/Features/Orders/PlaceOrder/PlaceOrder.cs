@@ -84,6 +84,7 @@ public sealed class Order
         Id = new OrderId(0);
         CustomerId = customerId;
         Total = total;
+        Status = OrderStatus.Pending;
     }
 
     public OrderId Id { get; private set; }
@@ -91,4 +92,33 @@ public sealed class Order
     public CustomerId CustomerId { get; private set; }
 
     public decimal Total { get; private set; }
+
+    public OrderStatus Status { get; private set; }
+
+    /// <summary>
+    /// Soft-cancels the order. Returns <c>false</c> if the order is already
+    /// cancelled (idempotency signal — CancelOrder slice maps this to
+    /// HTTP 409 Conflict).
+    /// </summary>
+    public bool Cancel()
+    {
+        if (Status == OrderStatus.Cancelled)
+        {
+            return false;
+        }
+
+        Status = OrderStatus.Cancelled;
+        return true;
+    }
+}
+
+/// <summary>
+/// Order lifecycle. New orders start in <see cref="Pending"/>; the only
+/// transition is to <see cref="Cancelled"/> via <see cref="Order.Cancel"/>.
+/// Persisted as a string column (see <c>AppDbContext.OnModelCreating</c>).
+/// </summary>
+public enum OrderStatus
+{
+    Pending = 0,
+    Cancelled = 1,
 }
