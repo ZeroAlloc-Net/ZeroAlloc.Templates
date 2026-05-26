@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using MyApp.Common;
 using MyApp.Features.Customers.CreateCustomer;
 using MyApp.Features.Orders.PlaceOrder;
+using MyApp.Persistence.CompiledModel;
 
 namespace MyApp.Persistence;
 
@@ -20,6 +21,20 @@ public sealed class AppDbContext : DbContext
     public DbSet<Order> Orders => Set<Order>();
 
     public DbSet<Customer> Customers => Set<Customer>();
+
+    protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
+    {
+        if (!optionsBuilder.IsConfigured)
+        {
+            // Compiled model required for AOT publish — EF Core 10 refuses to
+            // build the model at runtime under PublishAot=true. Regenerate via
+            // `dotnet ef dbcontext optimize -o Persistence/CompiledModel` after
+            // any entity/mapping change. Integration tests / WebApplicationFactory
+            // pre-configure options with their own UseSqlite call, so this
+            // branch only fires for the production Program.cs DI path.
+            optionsBuilder.UseModel(AppDbContextModel.Instance);
+        }
+    }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

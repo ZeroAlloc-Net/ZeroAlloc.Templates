@@ -54,10 +54,9 @@ public sealed class MyAppFactory : WebApplicationFactory<Program>
                     Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning));
             });
 
-            // Create the schema for each test fixture so slice tests can hit the
-            // database without a migration step.
-            using var scope = services.BuildServiceProvider().CreateScope();
-            scope.ServiceProvider.GetRequiredService<AppDbContext>().Database.EnsureCreated();
+            // Schema creation happens via Program.cs's startup MigrateAsync()
+            // call against the kept-alive in-memory connection — no separate
+            // EnsureCreated() step needed (and would double-create otherwise).
         });
     }
 

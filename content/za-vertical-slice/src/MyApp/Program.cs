@@ -40,7 +40,17 @@ builder.Services.AddMediator()
 var connectionString = builder.Configuration.GetConnectionString("Default")
     ?? "Data Source=app.db";
 
-builder.Services.AddDbContext<AppDbContext>(opts => opts.UseSqlite(connectionString));
+builder.Services.AddDbContext<AppDbContext>(opts =>
+{
+    opts.UseSqlite(connectionString);
+    // EF Core 10 fires PendingModelChangesWarning by default when the runtime
+    // model snapshot differs from the most recent migration's snapshot — and
+    // produces false positives when the compiled-model path (UseModel) is in
+    // use alongside committed migrations. Suppressed because regenerating
+    // migrations on every CI run isn't a viable workflow for a template.
+    opts.ConfigureWarnings(w => w.Ignore(
+        Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning));
+});
 
 // ---------------------------------------------------------------------------
 // JWT bearer authentication. The DEV signing key MUST be replaced before any
@@ -106,6 +116,15 @@ builder.Services.AddEndpointsApiExplorer();
 #endif
 
 var app = builder.Build();
+
+// Apply pending migrations on startup so a fresh dev box doesn't need a
+// separate `dotnet ef database update` step. Safe to re-run — Migrate()
+// is a no-op once the database is up to date.
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    await db.Database.MigrateAsync();
+}
 
 app.UseAuthentication();
 app.UseAuthorization();

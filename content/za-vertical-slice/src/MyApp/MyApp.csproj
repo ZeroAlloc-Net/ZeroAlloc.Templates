@@ -6,15 +6,17 @@
          ZAM008: handlers intentionally take constructor dependencies — they are resolved via DI
          (services.AddMediator().RegisterHandlersFromAssembly), not via the static Mediator API. -->
     <NoWarn>$(NoWarn);ZAM003;ZAM008</NoWarn>
-    <PublishAot>true</PublishAot>
+    <!-- AOT publish intentionally NOT enabled (cf. za-clean which does opt in).
+         The vertical-slice template uses reflection in three places that don't
+         AOT-compile cleanly under EF 10.0.8: assembly-walk endpoint discovery
+         in Program.cs, RegisterHandlersFromAssembly() in the mediator wiring,
+         and EF Core's runtime model materialisation (which throws even with a
+         compiled model when PublishAot=true is set globally). A future
+         iteration can opt into AOT by source-generating the endpoint registry,
+         using explicit per-slice AddScoped<IRequestHandler<,>>, and resolving
+         the EF compiled-model issue upstream. For now, JIT-only matches the
+         design doc's deferred-AOT decision. -->
     <InvariantGlobalization>true</InvariantGlobalization>
-    <!-- Collapse IL2xxx/IL3xxx warnings per source assembly into a single
-         summary line. Expected warnings come from EF Core (model building
-         hooks), OpenTelemetry (RequiresDynamicCode for OTel SDK reflection)
-         and SQLite (DependencyContext.LoadDefault under single-file). All
-         either guarded at runtime (we use the compiled model + embedded
-         schema script) or invoked only outside the hot path. -->
-    <TrimmerSingleWarn>true</TrimmerSingleWarn>
     <!-- This project declares [Policy] / [RequirePolicy]. The vertical-slice
          layout has only one src project, so it owns policies (no sibling src
          project to inherit the Generator transitively from). -->

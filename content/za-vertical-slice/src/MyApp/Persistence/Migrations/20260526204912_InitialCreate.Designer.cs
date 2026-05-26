@@ -10,7 +10,7 @@ using MyApp.Persistence;
 namespace MyApp.Persistence.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20260526192734_InitialCreate")]
+    [Migration("20260526204912_InitialCreate")]
     partial class InitialCreate
     {
         /// <inheritdoc />
