@@ -1,57 +1,41 @@
+using System.Reflection;
 using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
-using MyApp.Api;
-using MyApp.Api.Authorization;
-using MyApp.Api.Endpoints;
-using MyApp.Application;
-using MyApp.Infrastructure;
-using MyApp.Infrastructure.Persistence;
+using MyApp.Persistence;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
-using ZeroAlloc.Authorization.Generated;
+using ZeroAlloc.Mediator;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // ---------------------------------------------------------------------------
-// EF Core + Infrastructure composition (DbContext, [Scoped] services, typed HTTP
-// client wrapped through the ZA.Rest + ZA.Resilience proxy).
+// Mediator + Validation + Authorization. All handlers live inside this
+// assembly under Features/<Area>/<UseCase>/<UseCase>.cs — RegisterHandlersFrom
+// Assembly picks them up automatically.
+//
+// AddZeroAllocAuthorization MUST run before AddMediator().UseAuthorization()
+// so the source-generated policy registry is registered before mediator's
+// authorization middleware queries it. The D3 guard inside UseAuthorization()
+// throws InvalidOperationException if this ordering is violated.
+// ---------------------------------------------------------------------------
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddZeroAllocAuthorization();
+builder.Services.AddZeroAllocValidation();
+
+builder.Services.AddMediator()
+    .RegisterHandlersFromAssembly(typeof(Program).Assembly)
+    .UseValidation()
+    .UseAuthorization();
+
+// ---------------------------------------------------------------------------
+// EF Core / SQLite.
 // ---------------------------------------------------------------------------
 var connectionString = builder.Configuration.GetConnectionString("Default")
     ?? "Data Source=app.db";
-var shippingBaseUrl = builder.Configuration["Shipping:BaseUrl"]
-    ?? "https://shipping.example/";
 
-builder.Services.AddMyAppInfrastructure(connectionString, shippingBaseUrl);
-
-// Load-test / dev convenience: swap the ZA.Rest typed shipping client for an
-// in-memory stub when Shipping:UseStub=true. Override via the
-// Shipping__UseStub=true env var for one-shot runs (e.g. NBomber).
-// Defaults to false — production deployments are untouched.
-if (builder.Configuration.GetValue<bool>("Shipping:UseStub"))
-{
-    var descriptor = builder.Services.Single(d => d.ServiceType == typeof(MyApp.Application.IShippingQuoteClient));
-    builder.Services.Remove(descriptor);
-    builder.Services.AddScoped<MyApp.Application.IShippingQuoteClient, MyApp.Api.External.InMemoryShippingClient>();
-}
-
-// ---------------------------------------------------------------------------
-// Application composition (IMediator dispatcher + handler registrations).
-// AddMyAppApplication takes an AuthorizationOptions callback that ZA.Mediator
-// .Authorization uses to resolve the per-request ISecurityContext. The
-// HttpSecurityContextAccessor below bridges HttpContext.User (ClaimsPrincipal
-// populated by JwtBearer) into ZA.Authorization's ISecurityContext shape,
-// so handler-level [RequirePolicy] policies see the same identity as endpoint-
-// level RequireAuthorization checks.
-// ---------------------------------------------------------------------------
-builder.Services.AddHttpContextAccessor();
-// v2: register the source-generated policy registry (AuthorizerFor<T> dispatchers +
-// [Policy] classes as scoped) before WithAuthorization() runs. The D3 guard inside
-// AddMyAppApplication's WithAuthorization() throws InvalidOperationException if this
-// call is missing or runs after AddMediator(). See ZeroAlloc.Authorization v2 docs.
-builder.Services.AddZeroAllocAuthorization();
-builder.Services.AddMyAppApplication(opt => opt.UseAccessor<HttpSecurityContextAccessor>());
+builder.Services.AddDbContext<AppDbContext>(opts => opts.UseSqlite(connectionString));
 
 // ---------------------------------------------------------------------------
 // JWT bearer authentication. The DEV signing key MUST be replaced before any
@@ -94,9 +78,11 @@ builder.Services.AddOpenTelemetry()
         .AddHttpClientInstrumentation()
         .AddEntityFrameworkCoreInstrumentation()
         .AddSource("ZeroAlloc.Mediator")
+        .AddSource("MyApp")
         .AddConsoleExporter())
     .WithMetrics(m => m
         .AddAspNetCoreInstrumentation()
+        .AddMeter("MyApp")
         .AddConsoleExporter());
 
 // AOT: source-generated JSON for DTOs. Insert at index 0 so the generated
@@ -104,84 +90,37 @@ builder.Services.AddOpenTelemetry()
 builder.Services.ConfigureHttpJsonOptions(o =>
     o.SerializerOptions.TypeInfoResolverChain.Insert(0, JsonContext.Default));
 
+#if (EnableSwagger)
+builder.Services.AddEndpointsApiExplorer();
+#endif
+
 var app = builder.Build();
-
-// Ensure the database schema exists on startup so a fresh dev box doesn't
-// need a separate `dotnet ef database update` step. Seed a sample order in
-// Development.
-//
-// NOTE: Under NativeAOT, `Database.MigrateAsync` and `EnsureCreatedAsync`
-// fail at runtime — both rely on the design-time EF Core model pipeline,
-// which depends on reflection and is not AOT-compatible. Instead, we
-// execute an embedded SQL script (`schema.sql`) generated by
-// `dotnet ef migrations script`. Regenerate the script after any
-// migration change. The script is idempotent for the migrations history
-// table; ordinary CREATE TABLE statements are guarded by checking if the
-// migrations history table is empty before applying.
-using (var scope = app.Services.CreateScope())
-{
-    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-    await ApplyEmbeddedSchemaAsync(db);
-    if (app.Environment.IsDevelopment())
-    {
-        await SeedData.SeedAsync(db);
-    }
-}
-
-static async Task ApplyEmbeddedSchemaAsync(AppDbContext db)
-{
-    var asm = typeof(Program).Assembly;
-    var resourceName = asm.GetManifestResourceNames()
-        .First(n => n.EndsWith("schema.sql", StringComparison.Ordinal));
-    using var stream = asm.GetManifestResourceStream(resourceName)!;
-    using var reader = new StreamReader(stream);
-    var script = await reader.ReadToEndAsync();
-
-    // Check whether the schema has already been applied by querying the
-    // migrations history table. If the table doesn't exist yet, sqlite_master
-    // returns no rows and we proceed with the full script.
-    var conn = db.Database.GetDbConnection();
-    // Track whether we opened the connection ourselves; do not close a
-    // pre-existing connection (e.g. integration tests share a kept-alive
-    // in-memory SQLite connection that backs the entire test session).
-    var openedHere = conn.State != System.Data.ConnectionState.Open;
-    if (openedHere)
-    {
-        await conn.OpenAsync();
-    }
-    try
-    {
-        await using (var check = conn.CreateCommand())
-        {
-            check.CommandText = "SELECT name FROM sqlite_master WHERE type='table' AND name='__EFMigrationsHistory';";
-            var exists = await check.ExecuteScalarAsync();
-            if (exists is not null)
-            {
-                // Already applied — skip.
-                return;
-            }
-        }
-
-        await using var cmd = conn.CreateCommand();
-        cmd.CommandText = script;
-        await cmd.ExecuteNonQueryAsync();
-    }
-    finally
-    {
-        if (openedHere)
-        {
-            await conn.CloseAsync();
-        }
-    }
-}
 
 app.UseAuthentication();
 app.UseAuthorization();
 
-app.MapOrders();
-// Use a concrete record type rather than an anonymous object so the
-// source-generated JsonContext can serialise the response under AOT.
-app.MapGet("/healthz", () => Results.Ok(new HealthResponse("ok"))).AllowAnonymous();
+// ---------------------------------------------------------------------------
+// Endpoint discovery — runtime assembly walk. Every public static class whose
+// name ends in "Endpoint" and that exposes a public static
+// void Map(IEndpointRouteBuilder) method is invoked once at startup.
+//
+// This is a vertical-slice convention: each slice owns its own Map call in
+// the same file as its request/handler/validator. The walk avoids hand-
+// maintaining a central registration list. v0.5 may swap this for a source
+// generator if startup time becomes a concern.
+// ---------------------------------------------------------------------------
+foreach (var endpointType in typeof(Program).Assembly
+    .GetTypes()
+    .Where(t => t is { IsClass: true, IsAbstract: true, IsSealed: true } && t.Name.EndsWith("Endpoint", StringComparison.Ordinal))
+    .Where(t => t.GetMethod("Map", BindingFlags.Public | BindingFlags.Static, new[] { typeof(IEndpointRouteBuilder) }) is not null))
+{
+    endpointType
+        .GetMethod("Map", BindingFlags.Public | BindingFlags.Static, new[] { typeof(IEndpointRouteBuilder) })!
+        .Invoke(null, new object[] { app });
+}
+
+// Health check — exposed for liveness/readiness probes.
+app.MapHealthChecks("/healthz");
 
 app.Run();
 
@@ -189,9 +128,3 @@ app.Run();
 /// Exposed so <c>WebApplicationFactory&lt;Program&gt;</c> can host the API in integration tests.
 /// </summary>
 public partial class Program { }
-
-/// <summary>
-/// Health-check response. Concrete (non-anonymous) so the source-generated
-/// <see cref="MyApp.Api.JsonContext"/> can serialise it under NativeAOT.
-/// </summary>
-public sealed record HealthResponse(string Status);
