@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using MyApp.Common;
+using MyApp.Features.Customers.CreateCustomer;
 using MyApp.Features.Orders.PlaceOrder;
 
 namespace MyApp.Persistence;
@@ -37,30 +38,13 @@ public sealed class AppDbContext : DbContext
         {
             b.HasKey(c => c.Id);
             b.Property(c => c.Id)
-                .HasConversion(id => id.Value, value => new CustomerId(value));
+                .HasConversion(id => id.Value, value => new CustomerId(value))
+                .ValueGeneratedOnAdd();
+            b.Property(c => c.Name).IsRequired();
+            b.Property(c => c.Email).IsRequired();
         });
 
         base.OnModelCreating(modelBuilder);
     }
 }
 
-// ---------------------------------------------------------------------------
-// Stub entity placeholder.
-//
-// The real Order entity is owned by the PlaceOrder slice
-// (Features/Orders/PlaceOrder/PlaceOrder.cs). Customer is still a stub until
-// the CreateCustomer slice lands — it will replace this declaration with the
-// real definition and delete the stub in the same commit.
-//
-// The stub uses a private parameterless constructor so EF Core can materialize
-// instances via reflection while preventing arbitrary external construction.
-// ---------------------------------------------------------------------------
-
-public sealed class Customer
-{
-    public CustomerId Id { get; private set; }
-
-    private Customer()
-    {
-    }
-}

@@ -61,3 +61,30 @@ public sealed class OrdersWritePolicy : IAuthorizationPolicy
             ? UnitResult<AuthorizationFailure>.Success()
             : new AuthorizationFailure(AuthorizationFailure.DefaultDenyCode, "Missing orders.write scope"));
 }
+
+/// <summary>
+/// Grants access to read-side customer queries. Requires the "customers.read"
+/// scope. Mirrors <see cref="OrdersReadPolicy"/> for the customers area.
+/// </summary>
+[Policy("CustomersRead")]
+public sealed class CustomersReadPolicy : IAuthorizationPolicy
+{
+    public ValueTask<UnitResult<AuthorizationFailure>> EvaluateAsync(
+        ISecurityContext ctx, CancellationToken ct = default)
+        => new(OrdersReadPolicy.HasScope(ctx, "customers.read")
+            ? UnitResult<AuthorizationFailure>.Success()
+            : new AuthorizationFailure(AuthorizationFailure.DefaultDenyCode, "Missing customers.read scope"));
+}
+
+/// <summary>
+/// Grants access to write-side customer commands. Strict "customers.write" scope.
+/// </summary>
+[Policy("CustomersWrite")]
+public sealed class CustomersWritePolicy : IAuthorizationPolicy
+{
+    public ValueTask<UnitResult<AuthorizationFailure>> EvaluateAsync(
+        ISecurityContext ctx, CancellationToken ct = default)
+        => new(OrdersReadPolicy.HasScope(ctx, "customers.write")
+            ? UnitResult<AuthorizationFailure>.Success()
+            : new AuthorizationFailure(AuthorizationFailure.DefaultDenyCode, "Missing customers.write scope"));
+}
