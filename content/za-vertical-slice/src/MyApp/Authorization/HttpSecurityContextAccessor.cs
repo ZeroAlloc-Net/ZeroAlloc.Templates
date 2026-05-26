@@ -6,7 +6,7 @@ using ZeroAlloc.Mediator.Authorization;
 
 #pragma warning disable MA0048 // accessor + adapter co-located in one file by design
 
-namespace MyApp.Api.Authorization;
+namespace MyApp.Authorization;
 
 /// <summary>
 /// Bridges the current <see cref="HttpContext.User"/> (a <see cref="ClaimsPrincipal"/>

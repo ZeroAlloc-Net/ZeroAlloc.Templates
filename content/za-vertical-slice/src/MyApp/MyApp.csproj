@@ -73,6 +73,13 @@
     <PackageReference Include="ZeroAlloc.Rest.Resilience" />
   </ItemGroup>
   <ItemGroup>
+    <!-- Global usings so the AOT-friendly RequestDelegateGenerator can resolve
+         ZA.Mediator's IMediator referenced from minimal-API endpoint lambdas
+         (the generator emits scaffolding into a separate file whose namespace
+         doesn't import the lambda site's usings). -->
+    <Using Include="ZeroAlloc.Mediator" />
+  </ItemGroup>
+  <ItemGroup>
     <InternalsVisibleTo Include="MyApp.UnitTests" />
     <InternalsVisibleTo Include="MyApp.IntegrationTests" />
     <InternalsVisibleTo Include="MyApp.ConventionTests" />

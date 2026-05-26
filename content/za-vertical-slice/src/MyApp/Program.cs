@@ -4,10 +4,13 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using MyApp.Persistence;
+using MyApp.Authorization;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
 using ZeroAlloc.Authorization.Generated;
 using ZeroAlloc.Mediator;
+using ZeroAlloc.Mediator.Authorization;
+using ZeroAlloc.Mediator.Validation;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -22,13 +25,13 @@ var builder = WebApplication.CreateBuilder(args);
 // throws InvalidOperationException if this ordering is violated.
 // ---------------------------------------------------------------------------
 builder.Services.AddHttpContextAccessor();
+builder.Services.AddHealthChecks();
 builder.Services.AddZeroAllocAuthorization();
-builder.Services.AddZeroAllocValidation();
 
 builder.Services.AddMediator()
     .RegisterHandlersFromAssembly(typeof(Program).Assembly)
-    .UseValidation()
-    .UseAuthorization();
+    .WithValidation()
+    .WithAuthorization(o => o.UseAccessor<HttpSecurityContextAccessor>());
 
 // ---------------------------------------------------------------------------
 // EF Core / SQLite.
