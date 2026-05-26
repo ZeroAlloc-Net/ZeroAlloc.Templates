@@ -1,0 +1,86 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>MyApp</RootNamespace>
+    <!-- ZAM003: class request types are fine here.
+         ZAM008: handlers intentionally take constructor dependencies — they are resolved via DI
+         (services.AddMediator().RegisterHandlersFromAssembly), not via the static Mediator API. -->
+    <NoWarn>$(NoWarn);ZAM003;ZAM008</NoWarn>
+    <PublishAot>true</PublishAot>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <!-- Collapse IL2xxx/IL3xxx warnings per source assembly into a single
+         summary line. Expected warnings come from EF Core (model building
+         hooks), OpenTelemetry (RequiresDynamicCode for OTel SDK reflection)
+         and SQLite (DependencyContext.LoadDefault under single-file). All
+         either guarded at runtime (we use the compiled model + embedded
+         schema script) or invoked only outside the hot path. -->
+    <TrimmerSingleWarn>true</TrimmerSingleWarn>
+    <!-- This project declares [Policy] / [RequirePolicy]. The vertical-slice
+         layout has only one src project, so it owns policies (no sibling src
+         project to inherit the Generator transitively from). -->
+    <ZeroAllocAuthorizationOwnsPolicies>true</ZeroAllocAuthorizationOwnsPolicies>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- Embed the schema script so the AOT binary can create the database without
+         needing the design-time EF Core pipeline (which is not AOT-compatible).
+         Regenerate via `dotnet ef migrations script -o src/MyApp/schema.sql`. -->
+    <EmbeddedResource Include="schema.sql" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- ASP.NET Core auth -->
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" />
+
+    <!-- EF Core -->
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+
+    <!-- OpenTelemetry -->
+    <PackageReference Include="OpenTelemetry.Exporter.Console" />
+    <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" />
+    <PackageReference Include="OpenTelemetry.Extensions.Hosting" />
+    <PackageReference Include="OpenTelemetry.Instrumentation.AspNetCore" />
+    <PackageReference Include="OpenTelemetry.Instrumentation.Http" />
+    <PackageReference Include="OpenTelemetry.Instrumentation.EntityFrameworkCore" />
+
+    <!-- ZeroAlloc: Mediator + Validation + Authorization -->
+    <PackageReference Include="ZeroAlloc.Mediator" />
+    <PackageReference Include="ZeroAlloc.Mediator.Generator">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="ZeroAlloc.Mediator.Validation" />
+    <PackageReference Include="ZeroAlloc.Mediator.Authorization" />
+    <PackageReference Include="ZeroAlloc.Authorization" />
+    <PackageReference Include="ZeroAlloc.Authorization.Generator" />
+    <PackageReference Include="ZeroAlloc.Validation" />
+    <PackageReference Include="ZeroAlloc.Validation.Generator">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
+    </PackageReference>
+
+    <!-- ZeroAlloc: primitives + Mapping + Inject + Telemetry/Resilience/Rest -->
+    <PackageReference Include="ZeroAlloc.Results" />
+    <PackageReference Include="ZeroAlloc.ValueObjects" />
+    <PackageReference Include="ZeroAlloc.Mapping">
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+    <PackageReference Include="ZeroAlloc.Inject" />
+    <PackageReference Include="ZeroAlloc.Inject.Generator">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="ZeroAlloc.Telemetry" />
+    <PackageReference Include="ZeroAlloc.Resilience" />
+    <PackageReference Include="ZeroAlloc.Rest" />
+    <PackageReference Include="ZeroAlloc.Rest.SystemTextJson" />
+    <PackageReference Include="ZeroAlloc.Rest.Resilience" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="MyApp.UnitTests" />
+    <InternalsVisibleTo Include="MyApp.IntegrationTests" />
+    <InternalsVisibleTo Include="MyApp.ConventionTests" />
+  </ItemGroup>
+</Project>
