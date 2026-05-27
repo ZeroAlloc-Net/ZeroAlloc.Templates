@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.7.1](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/compare/ZeroAlloc.Templates-v0.7.0...ZeroAlloc.Templates-v0.7.1) (2026-05-27)
+
+
+### Miscellaneous
+
+* trigger 0.7.1 release for readonly record struct migration ([9c366a2](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/commit/9c366a2e5806dd5fcd94c2a5d8864b451a8881c6))
+
 ## [0.7.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/compare/ZeroAlloc.Templates-v0.6.1...ZeroAlloc.Templates-v0.7.0) (2026-05-27)
 
 
