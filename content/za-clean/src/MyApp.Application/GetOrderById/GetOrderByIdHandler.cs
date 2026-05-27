@@ -13,11 +13,11 @@ public sealed class GetOrderByIdHandler(IOrderRepository repo)
 {
     public async ValueTask<Result<Order, ApplicationError>> Handle(GetOrderByIdQuery request, CancellationToken ct)
     {
-        var order = await repo.GetByIdAsync(new OrderId(request.OrderId), ct).ConfigureAwait(false);
+        var order = await repo.GetByIdAsync(request.OrderId, ct).ConfigureAwait(false);
         return order is null
             ? Result<Order, ApplicationError>.Failure(new ApplicationError(
                 "order.not-found",
-                "Order " + request.OrderId.ToString(CultureInfo.InvariantCulture) + " not found"))
+                "Order " + request.OrderId.Value.ToString(CultureInfo.InvariantCulture) + " not found"))
             : Result<Order, ApplicationError>.Success(order);
     }
 }

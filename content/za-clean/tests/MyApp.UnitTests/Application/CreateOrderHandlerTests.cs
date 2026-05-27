@@ -16,7 +16,7 @@ public class CreateOrderHandlerTests
         var handler = new CreateOrderHandler(repo, shipping);
 
         var cmd = new CreateOrderCommand(
-            CustomerId: 42,
+            CustomerId: new CustomerId(42),
             Items: new List<OrderItem> { new("SKU-1", 2, 15m) },
             ShippingZip: "1011AA");
 
@@ -36,7 +36,7 @@ public class CreateOrderHandlerTests
         var handler = new CreateOrderHandler(repo, shipping);
 
         var cmd = new CreateOrderCommand(
-            CustomerId: 42,
+            CustomerId: new CustomerId(42),
             Items: new List<OrderItem> { new("SKU-1", 1, 10m) },
             ShippingZip: "1011AA");
 

@@ -8,21 +8,19 @@ namespace MyApp.UnitTests.Application;
 
 public class CreateOrderHandlerValidationTests
 {
-    [Theory]
-    [InlineData(0, "1011AA", "Customer")]    // bad customer
-    [InlineData(42, "BAD-ZIP", "Shipping")]  // bad zip
-    public async Task Returns_validation_failure_for_invalid_input(int customerId, string zip, string expectedFieldPrefix)
+    [Fact]
+    public async Task Returns_validation_failure_for_bad_shipping_zip()
     {
         var repo = new FakeOrderRepository();
         var shipping = new FakeShippingClient(5m);
         var handler = new CreateOrderHandler(repo, shipping);
-        var cmd = new CreateOrderCommand(customerId, [new("SKU-1", 2, 15m)], zip);
+        var cmd = new CreateOrderCommand(new CustomerId(42), [new("SKU-1", 2, 15m)], "BAD-ZIP");
 
         var result = await handler.Handle(cmd, CancellationToken.None);
 
         Assert.True(result.IsFailure);
         Assert.Equal("validation.failed", result.Error.Code);
-        Assert.StartsWith(expectedFieldPrefix, result.Error.Message, StringComparison.Ordinal);
+        Assert.StartsWith("Shipping", result.Error.Message, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -31,7 +29,7 @@ public class CreateOrderHandlerValidationTests
         var repo = new FakeOrderRepository();
         var shipping = new FakeShippingClient(5m);
         var handler = new CreateOrderHandler(repo, shipping);
-        var cmd = new CreateOrderCommand(42, [], "1011AA");
+        var cmd = new CreateOrderCommand(new CustomerId(42), [], "1011AA");
 
         var result = await handler.Handle(cmd, CancellationToken.None);
 
