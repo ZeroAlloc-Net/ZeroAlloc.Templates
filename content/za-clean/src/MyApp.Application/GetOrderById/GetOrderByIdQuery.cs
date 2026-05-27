@@ -1,4 +1,5 @@
 using MyApp.Domain;
+using MyApp.Domain.ValueObjects;
 using ZeroAlloc.Authorization;
 using ZeroAlloc.Mediator;
 using ZeroAlloc.Results;
@@ -6,4 +7,4 @@ using ZeroAlloc.Results;
 namespace MyApp.Application.GetOrderById;
 
 [RequirePolicy("OrdersRead")]
-public sealed record GetOrderByIdQuery(int OrderId) : IRequest<Result<Order, ApplicationError>>;
+public sealed record GetOrderByIdQuery(OrderId OrderId) : IRequest<Result<Order, ApplicationError>>;
