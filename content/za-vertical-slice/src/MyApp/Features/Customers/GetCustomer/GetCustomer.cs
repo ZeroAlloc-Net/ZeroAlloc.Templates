@@ -20,7 +20,7 @@ namespace MyApp.Features.Customers.GetCustomer;
 /// </summary>
 [Validate]
 [RequirePolicy("CustomersRead")]
-public sealed record GetCustomerQuery([property: GreaterThan(0)] int Id)
+public readonly record struct GetCustomerQuery([property: GreaterThan(0)] int Id)
     : IRequest<Result<CustomerDto, Error>>;
 
 public sealed record CustomerDto(int Id, string Name, string Email);

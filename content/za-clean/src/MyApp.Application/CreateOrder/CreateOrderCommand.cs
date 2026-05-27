@@ -11,7 +11,7 @@ namespace MyApp.Application.CreateOrder;
 // the handler refuses to run without the "orders.write" scope claim.
 [Validate]
 [RequirePolicy("OrdersWrite")]
-public sealed record CreateOrderCommand(
+public readonly record struct CreateOrderCommand(
     [property: GreaterThan(0)] int CustomerId,
     [property: NotEmpty] IReadOnlyList<OrderItem> Items,
     [property: NotEmpty, Matches("^[0-9]{4}[A-Z]{2}$")] string ShippingZip)

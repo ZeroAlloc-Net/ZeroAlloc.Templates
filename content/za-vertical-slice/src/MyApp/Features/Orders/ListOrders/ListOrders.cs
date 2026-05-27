@@ -22,7 +22,7 @@ namespace MyApp.Features.Orders.ListOrders;
 /// </summary>
 [Validate]
 [RequirePolicy("OrdersRead")]
-public sealed record ListOrdersQuery(
+public readonly record struct ListOrdersQuery(
     [property: GreaterThan(0)] int Page,
     [property: InclusiveBetween(1, 100)] int PageSize)
     : IRequest<Result<OrderPage, Error>>;

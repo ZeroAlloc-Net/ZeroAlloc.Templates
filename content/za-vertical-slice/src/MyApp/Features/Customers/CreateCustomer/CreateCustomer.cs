@@ -20,7 +20,7 @@ namespace MyApp.Features.Customers.CreateCustomer;
 /// </summary>
 [Validate]
 [RequirePolicy("CustomersWrite")]
-public sealed record CreateCustomerCommand(
+public readonly record struct CreateCustomerCommand(
     [property: NotEmpty] string Name,
     [property: NotEmpty, EmailAddress] string Email)
     : IRequest<Result<CustomerId, Error>>;
