@@ -20,10 +20,10 @@ namespace MyApp.Features.Customers.GetCustomer;
 /// </summary>
 [Validate]
 [RequirePolicy("CustomersRead")]
-public readonly record struct GetCustomerQuery([property: GreaterThan(0)] int Id)
+public readonly record struct GetCustomerQuery(CustomerId Id)
     : IRequest<Result<CustomerDto, Error>>;
 
-public sealed record CustomerDto(int Id, string Name, string Email);
+public sealed record CustomerDto(CustomerId Id, string Name, string Email);
 
 public sealed class GetCustomerHandler(AppDbContext db)
     : IRequestHandler<GetCustomerQuery, Result<CustomerDto, Error>>
@@ -32,15 +32,15 @@ public sealed class GetCustomerHandler(AppDbContext db)
     {
         var customer = await db.Customers
             .AsNoTracking()
-            .FirstOrDefaultAsync(c => c.Id == new CustomerId(query.Id), ct)
+            .FirstOrDefaultAsync(c => c.Id == query.Id, ct)
             .ConfigureAwait(false);
 
         return customer is null
             ? Result<CustomerDto, Error>.Failure(Error.NotFound(
                 "customer.not_found",
-                $"Customer {query.Id} not found"))
+                $"Customer {query.Id.Value} not found"))
             : Result<CustomerDto, Error>.Success(new CustomerDto(
-                customer.Id.Value,
+                customer.Id,
                 customer.Name,
                 customer.Email));
     }
@@ -48,10 +48,13 @@ public sealed class GetCustomerHandler(AppDbContext db)
 
 public static class GetCustomerEndpoint
 {
+    // Route binding stays `int` (keeps the URL shape stable and avoids
+    // requiring CustomerId to implement IParsable<T>). The endpoint wraps
+    // it into the CustomerId typed ID before crossing the slice boundary.
     public static void Map(IEndpointRouteBuilder app) =>
         app.MapGet("/customers/{id:int}", static async (int id, IMediator mediator, CancellationToken ct) =>
             {
-                var result = await mediator.Send(new GetCustomerQuery(id), ct).ConfigureAwait(false);
+                var result = await mediator.Send(new GetCustomerQuery(new CustomerId(id)), ct).ConfigureAwait(false);
                 return result.IsSuccess
                     ? Results.Ok(result.Value)
                     : result.Error.ToProblem();

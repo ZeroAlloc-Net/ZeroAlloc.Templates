@@ -22,7 +22,7 @@ public class PrimitivesBench
     [GlobalSetup]
     public void Setup()
     {
-        _command = new PlaceOrderCommand(CustomerId: 42, Total: 99.99m);
+        _command = new PlaceOrderCommand(CustomerId: new CustomerId(42), Total: 99.99m);
         _validator = new PlaceOrderCommandValidator();
     }
 
@@ -49,8 +49,10 @@ public class PrimitivesBench
         Result<OrderId, Error>.Failure(Error.NotFound("order.not_found", "missing"));
 
     /// <summary>
-    /// Source-generated validator running its full rule set. Two rules
-    /// ([GreaterThan(0)] on CustomerId + Total) on the happy path.
+    /// Source-generated validator running its full rule set. One rule
+    /// ([GreaterThan(0)] on Total) on the happy path — CustomerId no
+    /// longer carries a value-bounds rule because the typed-ID wrapper
+    /// supplies type safety in lieu of a runtime check.
     /// </summary>
     [Benchmark]
     public bool Validator_Generated()
