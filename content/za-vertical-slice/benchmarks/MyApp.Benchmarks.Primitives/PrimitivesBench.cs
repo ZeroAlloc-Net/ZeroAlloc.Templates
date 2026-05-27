@@ -16,7 +16,7 @@ namespace MyApp.Benchmarks.Primitives;
 [MemoryDiagnoser]
 public class PrimitivesBench
 {
-    private PlaceOrderCommand _command = null!;
+    private PlaceOrderCommand _command;
     private PlaceOrderCommandValidator _validator = null!;
 
     [GlobalSetup]

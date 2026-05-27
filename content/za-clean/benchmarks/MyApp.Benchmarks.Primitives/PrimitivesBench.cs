@@ -20,7 +20,7 @@ namespace MyApp.Benchmarks.Primitives;
 public class PrimitivesBench
 {
     private OrderRequest _request = null!;
-    private CreateOrderCommand _command = null!;
+    private CreateOrderCommand _command;
     private FakeMediator _mediator = null!;
 
     [GlobalSetup]
