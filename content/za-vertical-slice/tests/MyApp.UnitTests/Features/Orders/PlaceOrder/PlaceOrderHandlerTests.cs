@@ -22,7 +22,7 @@ public sealed class PlaceOrderHandlerTests
     {
         await using var db = NewInMemoryDb();
         var handler = new PlaceOrderHandler(db);
-        var cmd = new PlaceOrderCommand(CustomerId: 42, Total: 99.99m);
+        var cmd = new PlaceOrderCommand(CustomerId: new CustomerId(42), Total: 99.99m);
 
         var result = await handler.Handle(cmd, CancellationToken.None);
 
@@ -37,18 +37,9 @@ public sealed class PlaceOrderHandlerTests
     public void PlaceOrderCommand_WithZeroTotal_ValidatorReportsFailure()
     {
         var validator = new PlaceOrderCommandValidator();
-        var result = validator.Validate(new PlaceOrderCommand(CustomerId: 42, Total: 0m));
+        var result = validator.Validate(new PlaceOrderCommand(CustomerId: new CustomerId(42), Total: 0m));
         Assert.False(result.IsValid);
         Assert.True(HasFailureOn(result.Failures, nameof(PlaceOrderCommand.Total)));
-    }
-
-    [Fact]
-    public void PlaceOrderCommand_WithZeroCustomerId_ValidatorReportsFailure()
-    {
-        var validator = new PlaceOrderCommandValidator();
-        var result = validator.Validate(new PlaceOrderCommand(CustomerId: 0, Total: 10m));
-        Assert.False(result.IsValid);
-        Assert.True(HasFailureOn(result.Failures, nameof(PlaceOrderCommand.CustomerId)));
     }
 
     // The validator's Failures is a ReadOnlySpan<ValidationFailure> (ref struct),

@@ -27,7 +27,7 @@ public readonly record struct ListOrdersQuery(
     [property: InclusiveBetween(1, 100)] int PageSize)
     : IRequest<Result<OrderPage, Error>>;
 
-public sealed record OrderListItem(int Id, int CustomerId, decimal Total);
+public sealed record OrderListItem(OrderId Id, CustomerId CustomerId, decimal Total);
 
 public sealed record OrderPage(int Page, int PageSize, int Total, IReadOnlyList<OrderListItem> Items);
 
@@ -43,7 +43,7 @@ public sealed class ListOrdersHandler(AppDbContext db)
             .OrderBy(o => o.Id)
             .Skip((query.Page - 1) * query.PageSize)
             .Take(query.PageSize)
-            .Select(o => new OrderListItem(o.Id.Value, o.CustomerId.Value, o.Total))
+            .Select(o => new OrderListItem(o.Id, o.CustomerId, o.Total))
             .ToListAsync(ct)
             .ConfigureAwait(false);
 

@@ -18,10 +18,10 @@ public sealed class GetCustomerHandlerTests
         await db.SaveChangesAsync();
 
         var handler = new GetCustomerHandler(db);
-        var result = await handler.Handle(new GetCustomerQuery(seeded.Id.Value), CancellationToken.None);
+        var result = await handler.Handle(new GetCustomerQuery(seeded.Id), CancellationToken.None);
 
         Assert.True(result.IsSuccess);
-        Assert.Equal(seeded.Id.Value, result.Value.Id);
+        Assert.Equal(seeded.Id, result.Value.Id);
         Assert.Equal("Acme Ltd.", result.Value.Name);
         Assert.Equal("billing@acme.example", result.Value.Email);
     }
@@ -32,7 +32,7 @@ public sealed class GetCustomerHandlerTests
         await using var db = NewInMemoryDb();
         var handler = new GetCustomerHandler(db);
 
-        var result = await handler.Handle(new GetCustomerQuery(9999), CancellationToken.None);
+        var result = await handler.Handle(new GetCustomerQuery(new CustomerId(9999)), CancellationToken.None);
 
         Assert.True(result.IsFailure);
         Assert.Equal(ErrorKind.NotFound, result.Error.Kind);

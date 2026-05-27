@@ -18,7 +18,7 @@ public sealed class CancelOrderHandlerTests
         await db.SaveChangesAsync();
 
         var handler = new CancelOrderHandler(db);
-        var result = await handler.Handle(new CancelOrderCommand(order.Id.Value), CancellationToken.None);
+        var result = await handler.Handle(new CancelOrderCommand(order.Id), CancellationToken.None);
 
         Assert.True(result.IsSuccess);
         var persisted = await db.Orders.AsNoTracking().FirstAsync(o => o.Id == order.Id);
@@ -35,7 +35,7 @@ public sealed class CancelOrderHandlerTests
         await db.SaveChangesAsync();
 
         var handler = new CancelOrderHandler(db);
-        var result = await handler.Handle(new CancelOrderCommand(order.Id.Value), CancellationToken.None);
+        var result = await handler.Handle(new CancelOrderCommand(order.Id), CancellationToken.None);
 
         Assert.True(result.IsFailure);
         Assert.Equal(ErrorKind.Conflict, result.Error.Kind);
@@ -48,7 +48,7 @@ public sealed class CancelOrderHandlerTests
         await using var db = NewInMemoryDb();
         var handler = new CancelOrderHandler(db);
 
-        var result = await handler.Handle(new CancelOrderCommand(9999), CancellationToken.None);
+        var result = await handler.Handle(new CancelOrderCommand(new OrderId(9999)), CancellationToken.None);
 
         Assert.True(result.IsFailure);
         Assert.Equal(ErrorKind.NotFound, result.Error.Kind);

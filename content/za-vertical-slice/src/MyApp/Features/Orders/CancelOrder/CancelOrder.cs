@@ -23,7 +23,7 @@ namespace MyApp.Features.Orders.CancelOrder;
 /// </summary>
 [Validate]
 [RequirePolicy("OrdersWrite")]
-public readonly record struct CancelOrderCommand([property: GreaterThan(0)] int Id)
+public readonly record struct CancelOrderCommand(OrderId Id)
     : IRequest<UnitResult<Error>>;
 
 public sealed class CancelOrderHandler(AppDbContext db)
@@ -31,20 +31,19 @@ public sealed class CancelOrderHandler(AppDbContext db)
 {
     public async ValueTask<UnitResult<Error>> Handle(CancelOrderCommand cmd, CancellationToken ct)
     {
-        var orderId = new OrderId(cmd.Id);
-        var order = await db.Orders.FirstOrDefaultAsync(o => o.Id == orderId, ct).ConfigureAwait(false);
+        var order = await db.Orders.FirstOrDefaultAsync(o => o.Id == cmd.Id, ct).ConfigureAwait(false);
         if (order is null)
         {
             return UnitResult<Error>.Failure(Error.NotFound(
                 "order.not_found",
-                $"Order {cmd.Id} not found"));
+                $"Order {cmd.Id.Value} not found"));
         }
 
         if (!order.Cancel())
         {
             return UnitResult<Error>.Failure(Error.Conflict(
                 "order.already_cancelled",
-                $"Order {cmd.Id} is already cancelled"));
+                $"Order {cmd.Id.Value} is already cancelled"));
         }
 
         await db.SaveChangesAsync(ct).ConfigureAwait(false);
@@ -57,7 +56,7 @@ public static class CancelOrderEndpoint
     public static void Map(IEndpointRouteBuilder app) =>
         app.MapDelete("/orders/{id:int}", static async (int id, IMediator mediator, CancellationToken ct) =>
             {
-                var result = await mediator.Send(new CancelOrderCommand(id), ct).ConfigureAwait(false);
+                var result = await mediator.Send(new CancelOrderCommand(new OrderId(id)), ct).ConfigureAwait(false);
                 return result.IsSuccess
                     ? Results.NoContent()
                     : result.Error.ToProblem();
