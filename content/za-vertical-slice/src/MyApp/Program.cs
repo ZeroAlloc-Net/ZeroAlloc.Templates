@@ -12,6 +12,7 @@ using ZeroAlloc.Authorization.Generated;
 using ZeroAlloc.Mediator;
 using ZeroAlloc.Mediator.Authorization;
 using ZeroAlloc.Mediator.Validation;
+using ZeroAlloc.Serialisation.SystemTextJson;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -108,8 +109,15 @@ builder.Services.AddOpenTelemetry()
 // resolver chain lets minimal-API endpoints serialise + deserialise without
 // reflection. When you add a slice, register its request/response types in
 // JsonContext or the host fails to start.
+// AddZeroAllocValueObjectConverters registers the typed-ID converters
+// emitted by ZeroAlloc.Serialisation 2.3.1's source generator. STJ checks
+// options.Converters before the context's typeinfo, so CustomerId/OrderId
+// serialize as bare integers instead of wrapped { "Value": 42 } objects.
 builder.Services.ConfigureHttpJsonOptions(o =>
-    o.SerializerOptions.TypeInfoResolverChain.Insert(0, JsonContext.Default));
+{
+    o.SerializerOptions.TypeInfoResolverChain.Insert(0, JsonContext.Default);
+    o.SerializerOptions.AddZeroAllocValueObjectConverters();
+});
 
 #if (EnableSwagger)
 builder.Services.AddEndpointsApiExplorer();

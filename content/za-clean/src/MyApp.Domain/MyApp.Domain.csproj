@@ -6,5 +6,11 @@
   <ItemGroup>
     <PackageReference Include="ZeroAlloc.ValueObjects" />
     <PackageReference Include="ZeroAlloc.Results" />
+    <!-- Brings the source generator that emits transparent JsonConverters
+         for [ValueObject] partial structs declared here plus the per-assembly
+         AddZeroAllocValueObjectConverters() extension method. Required for
+         the JsonSerializerContext-based pipeline in MyApp.Api. -->
+    <PackageReference Include="ZeroAlloc.Serialisation" />
+    <PackageReference Include="ZeroAlloc.Serialisation.SystemTextJson" />
   </ItemGroup>
 </Project>
