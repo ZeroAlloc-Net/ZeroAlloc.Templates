@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.7.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/compare/ZeroAlloc.Templates-v0.6.1...ZeroAlloc.Templates-v0.7.0) (2026-05-27)
+
+
+### Features
+
+* za-vertical-slice template (Templates 0.4.0) ([#117](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/issues/117)) ([6ec9867](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/commit/6ec98676b63e12ea5951c2999c276bdb1107332f))
+
 ## [0.6.1](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/compare/ZeroAlloc.Templates-v0.6.0...ZeroAlloc.Templates-v0.6.1) (2026-05-26)
 
 
