@@ -17,15 +17,17 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Verify root vs content/za-clean config files match
+      - name: Verify root vs content config files match
         shell: bash
         run: |
           for file in Directory.Build.props Directory.Packages.props global.json; do
-            if ! diff -q "$file" "content/za-clean/$file" > /dev/null; then
-              echo "::error::$file has drifted between repo root and content/za-clean/"
-              diff "$file" "content/za-clean/$file" || true
-              exit 1
-            fi
+            for template in za-clean za-vertical-slice; do
+              if ! diff -q "$file" "content/$template/$file" > /dev/null; then
+                echo "::error::$file has drifted between repo root and content/$template/"
+                diff "$file" "content/$template/$file" || true
+                exit 1
+              fi
+            done
           done
 
       - name: Setup .NET
@@ -46,10 +48,11 @@ jobs:
         # Catches "primitives bench wiring broke" before merge. Doesn't run
         # full BDN iterations (those are minutes); --job dry validates the
         # harness boots and the [Benchmark] methods invoke without throwing.
-        run: |
-          dotnet run -c Release \
-            --project content/za-clean/benchmarks/MyApp.Benchmarks.Primitives \
-            --no-build -- --filter "*" --job dry
+        # working-directory pins BDN's project-file search to this project's
+        # tree, avoiding a name collision with content/za-vertical-slice's
+        # identically-named MyApp.Benchmarks.Primitives.csproj when both ship.
+        working-directory: content/za-clean/benchmarks/MyApp.Benchmarks.Primitives
+        run: dotnet run -c Release --no-build -- --filter "*" --job dry
 
       - name: Pack template
         run: dotnet pack ZeroAlloc.Templates.csproj -c Release -o ./nupkg
@@ -71,6 +74,37 @@ jobs:
           name: ZeroAlloc.Templates.nupkg
           path: nupkg/*.nupkg
           if-no-files-found: error
+
+  build-vs:
+    # Mirror of `build` for content/za-vertical-slice. Kept as a parallel job
+    # rather than a matrix dimension so each variant's logs read top-to-bottom.
+    # Pack + scaffolding smoke tests live in `build` only — the SmokeTests
+    # project is parameterized over both templates already, so one packed
+    # nupkg gets exercised against both shapes from there.
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Restore (content)
+        run: dotnet restore content/za-vertical-slice/MyApp.slnx
+
+      - name: Build (content)
+        run: dotnet build content/za-vertical-slice/MyApp.slnx --no-restore --configuration Release
+
+      - name: Test (content)
+        run: dotnet test content/za-vertical-slice/MyApp.slnx --no-build --configuration Release
+
+      - name: Primitives benchmark dry-run
+        working-directory: content/za-vertical-slice/benchmarks/MyApp.Benchmarks.Primitives
+        run: dotnet run -c Release --no-build -- --filter "*" --job dry
 
   aot-publish-smoke:
     # Critical gate for v0.3.0's "AOT-publishable" claim. Scaffolds a fresh
@@ -235,3 +269,155 @@ jobs:
       - name: Stop API
         if: always()
         run: kill $(cat /tmp/api.pid) 2>/dev/null || true
+
+  aot-publish-smoke-vs:
+    # AOT publish smoke for the vertical-slice template. Mirrors aot-publish-smoke
+    # with paths adjusted for the single-src layout (src/SmokeApp instead of
+    # src/SmokeApp.Api) and the env-var prefix dropped (no shipping stub).
+    runs-on: ubuntu-latest
+    needs: build-vs
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Install template from source
+        run: dotnet new install ./content/za-vertical-slice
+
+      - name: Scaffold a fresh app
+        run: |
+          mkdir -p /tmp/aot-smoke-vs
+          dotnet new za-vertical-slice -o /tmp/aot-smoke-vs/SmokeApp
+
+      - name: Publish AOT (linux-x64)
+        run: |
+          cd /tmp/aot-smoke-vs/SmokeApp
+          dotnet publish src/SmokeApp -c Release -r linux-x64 -o ./aot-out
+
+      - name: Capture binary size
+        shell: bash
+        run: |
+          SIZE=$(stat -c%s /tmp/aot-smoke-vs/SmokeApp/aot-out/SmokeApp)
+          SIZE_MB=$(echo "scale=1; $SIZE / 1024 / 1024" | bc)
+          echo "## AOT publish smoke (vertical-slice)" >> $GITHUB_STEP_SUMMARY
+          echo "- **Binary size**: ${SIZE_MB} MB" >> $GITHUB_STEP_SUMMARY
+
+      - name: Boot + smoke
+        shell: bash
+        run: |
+          cd /tmp/aot-smoke-vs/SmokeApp
+          START=$(date +%s%N)
+          Jwt__DevSigningKey=DEV-ONLY-KEY-DO-NOT-USE-IN-PRODUCTION-AT-LEAST-32-CHARS-LONG \
+            ./aot-out/SmokeApp > /tmp/aot-server-vs.log 2>&1 &
+          PID=$!
+          for i in $(seq 1 600); do
+            if curl -sf http://localhost:5000/healthz > /dev/null 2>&1; then
+              END=$(date +%s%N)
+              MS=$(( (END - START) / 1000000 ))
+              echo "- **Cold start**: ${MS} ms" >> $GITHUB_STEP_SUMMARY
+              curl -sf http://localhost:5000/healthz
+              kill $PID
+              exit 0
+            fi
+            sleep 0.05
+          done
+          echo "::error::AOT binary did not serve /healthz within 30s"
+          echo "--- server log ---"
+          cat /tmp/aot-server-vs.log
+          kill $PID 2>/dev/null || true
+          exit 1
+
+  real-run-smoke-vs:
+    # Real-run smoke for the vertical-slice template. Posts the flat PlaceOrder
+    # body ({customerId, total}) — no nested items / shipping zip — and asserts
+    # 201 Created. Covers JWT + endpoint policy + mediator [RequirePolicy] +
+    # [Validate] + EF SaveChanges end-to-end on the scaffolded app.
+    runs-on: ubuntu-latest
+    needs: build-vs
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Install template from source
+        run: dotnet new install ./content/za-vertical-slice
+
+      - name: Scaffold a fresh app
+        run: |
+          mkdir -p /tmp/real-run-smoke-vs
+          dotnet new za-vertical-slice -o /tmp/real-run-smoke-vs/SmokeApp
+
+      - name: Boot API (JIT) and wait for /healthz
+        shell: bash
+        env:
+          Jwt__DevSigningKey: DEV-ONLY-KEY-DO-NOT-USE-IN-PRODUCTION-AT-LEAST-32-CHARS-LONG
+        run: |
+          cd /tmp/real-run-smoke-vs/SmokeApp
+          dotnet run --project src/SmokeApp -c Release > /tmp/api-vs.log 2>&1 &
+          echo $! > /tmp/api-vs.pid
+          for i in $(seq 1 600); do
+            if curl -sf http://localhost:5000/healthz > /dev/null 2>&1; then
+              echo "API ready"
+              exit 0
+            fi
+            sleep 0.05
+          done
+          echo "::error::API did not serve /healthz within 30s"
+          cat /tmp/api-vs.log
+          kill $(cat /tmp/api-vs.pid) 2>/dev/null || true
+          exit 1
+
+      - name: Mint HS256 JWT
+        shell: bash
+        run: |
+          KEY="DEV-ONLY-KEY-DO-NOT-USE-IN-PRODUCTION-AT-LEAST-32-CHARS-LONG"
+          b64url() { openssl base64 -A | tr '+/' '-_' | tr -d '='; }
+          HEADER='{"alg":"HS256","typ":"JWT"}'
+          EXP=$(($(date +%s) + 3600))
+          PAYLOAD="{\"scope\":\"orders.write\",\"sub\":\"smoke\",\"exp\":$EXP}"
+          H=$(printf '%s' "$HEADER"  | b64url)
+          P=$(printf '%s' "$PAYLOAD" | b64url)
+          SIG=$(printf '%s' "$H.$P" | openssl dgst -sha256 -hmac "$KEY" -binary | b64url)
+          echo "JWT=$H.$P.$SIG" >> $GITHUB_ENV
+
+      - name: POST /orders (real-run smoke)
+        shell: bash
+        run: |
+          # Vertical-slice PlaceOrderCommand body: flat {customerId, total}.
+          BODY='{"customerId":42,"total":99.99}'
+          RESPONSE=$(curl -sfS -X POST http://localhost:5000/orders \
+            -H "Authorization: Bearer $JWT" \
+            -H "Content-Type: application/json" \
+            -d "$BODY" \
+            -w "\n%{http_code}" 2>&1 || true)
+          STATUS=$(echo "$RESPONSE" | tail -n1)
+          BODY_OUT=$(echo "$RESPONSE" | sed '$d')
+          echo "HTTP $STATUS"
+          echo "Response body: $BODY_OUT"
+          if [ "$STATUS" != "201" ]; then
+            echo "::error::POST /orders returned $STATUS (expected 201)"
+            echo "--- api log ---"
+            cat /tmp/api-vs.log
+            exit 1
+          fi
+          if ! echo "$BODY_OUT" | grep -qE '"[Vv]alue"\s*:\s*[0-9]+'; then
+            echo "::error::Response body missing numeric OrderId.Value: $BODY_OUT"
+            exit 1
+          fi
+          echo "✓ POST /orders → 201 Created with numeric OrderId"
+
+      - name: Stop API
+        if: always()
+        run: kill $(cat /tmp/api-vs.pid) 2>/dev/null || true

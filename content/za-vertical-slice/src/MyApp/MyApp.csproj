@@ -1,0 +1,89 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>MyApp</RootNamespace>
+    <!-- ZAM003: class request types are fine here.
+         ZAM008: handlers intentionally take constructor dependencies — they are resolved via DI
+         (services.AddMediator().RegisterHandlersFromAssembly), not via the static Mediator API. -->
+    <NoWarn>$(NoWarn);ZAM003;ZAM008</NoWarn>
+    <!-- AOT publish intentionally NOT enabled (cf. za-clean which does opt in).
+         The vertical-slice template uses reflection in three places that don't
+         AOT-compile cleanly under EF 10.0.8: assembly-walk endpoint discovery
+         in Program.cs, RegisterHandlersFromAssembly() in the mediator wiring,
+         and EF Core's runtime model materialisation (which throws even with a
+         compiled model when PublishAot=true is set globally). A future
+         iteration can opt into AOT by source-generating the endpoint registry,
+         using explicit per-slice AddScoped<IRequestHandler<,>>, and resolving
+         the EF compiled-model issue upstream. For now, JIT-only matches the
+         design doc's deferred-AOT decision. -->
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <!-- This project declares [Policy] / [RequirePolicy]. The vertical-slice
+         layout has only one src project, so it owns policies (no sibling src
+         project to inherit the Generator transitively from). -->
+    <ZeroAllocAuthorizationOwnsPolicies>true</ZeroAllocAuthorizationOwnsPolicies>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- ASP.NET Core auth -->
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" />
+
+    <!-- EF Core -->
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+
+    <!-- OpenTelemetry -->
+    <PackageReference Include="OpenTelemetry.Exporter.Console" />
+    <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" />
+    <PackageReference Include="OpenTelemetry.Extensions.Hosting" />
+    <PackageReference Include="OpenTelemetry.Instrumentation.AspNetCore" />
+    <PackageReference Include="OpenTelemetry.Instrumentation.Http" />
+    <PackageReference Include="OpenTelemetry.Instrumentation.EntityFrameworkCore" />
+
+    <!-- ZeroAlloc: Mediator + Validation + Authorization -->
+    <PackageReference Include="ZeroAlloc.Mediator" />
+    <PackageReference Include="ZeroAlloc.Mediator.Generator">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="ZeroAlloc.Mediator.Validation" />
+    <PackageReference Include="ZeroAlloc.Mediator.Authorization" />
+    <PackageReference Include="ZeroAlloc.Authorization" />
+    <PackageReference Include="ZeroAlloc.Authorization.Generator" />
+    <PackageReference Include="ZeroAlloc.Validation" />
+    <PackageReference Include="ZeroAlloc.Validation.Generator">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
+    </PackageReference>
+
+    <!-- ZeroAlloc: primitives + Mapping + Inject + Telemetry/Resilience/Rest -->
+    <PackageReference Include="ZeroAlloc.Results" />
+    <PackageReference Include="ZeroAlloc.ValueObjects" />
+    <PackageReference Include="ZeroAlloc.Mapping">
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+    <PackageReference Include="ZeroAlloc.Inject" />
+    <PackageReference Include="ZeroAlloc.Inject.Generator">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="ZeroAlloc.Telemetry" />
+    <PackageReference Include="ZeroAlloc.Resilience" />
+    <PackageReference Include="ZeroAlloc.Rest" />
+    <PackageReference Include="ZeroAlloc.Rest.SystemTextJson" />
+    <PackageReference Include="ZeroAlloc.Rest.Resilience" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Global usings so the AOT-friendly RequestDelegateGenerator can resolve
+         ZA.Mediator's IMediator referenced from minimal-API endpoint lambdas
+         (the generator emits scaffolding into a separate file whose namespace
+         doesn't import the lambda site's usings). -->
+    <Using Include="ZeroAlloc.Mediator" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="MyApp.UnitTests" />
+    <InternalsVisibleTo Include="MyApp.IntegrationTests" />
+    <InternalsVisibleTo Include="MyApp.ConventionTests" />
+  </ItemGroup>
+</Project>
