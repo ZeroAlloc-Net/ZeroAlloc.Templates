@@ -4,22 +4,11 @@ Candidate enhancements identified during real-world usage. Each item is independ
 
 ---
 
-## B1 — Fix za-vertical-slice WritePipelineBench schema-collision crash
+## ~~B1 — Fix za-vertical-slice WritePipelineBench schema-collision crash~~ — ✅ shipped 2026-05-28
 
-**What.** The benchmark project crashes during `[GlobalSetup]` with `SqliteException: SQLite Error 1: 'table "Customers" already exists'`. All three benchmarks (`PlaceOrder_FullPipeline`, `PlaceOrder_MediatorDirect`, `PlaceOrder_HandlerDirect`) report `NA` in the BDN output. The `dotnet run` exit code stays 0 because BDN considers itself successful when individual benchmarks fail — so CI passes but no useful numbers are produced.
+**Shipped:** Dropped the `Database.EnsureCreated()` call from `content/za-vertical-slice/benchmarks/MyApp.Benchmarks/WritePipelineBench.cs`'s `ConfigureServices` callback. `Program.cs`'s startup `MigrateAsync()` is now the single schema source — no race, no `SqliteException: 'table "Customers" already exists'`. The three previously-NA'd benchmarks (`PlaceOrder_FullPipeline`, `PlaceOrder_MediatorDirect`, `PlaceOrder_HandlerDirect`) now produce real numbers under the `Benchmarks (manual)` workflow.
 
-**Why.** Surfaced 2026-05-28 during the first triggered run of the `Benchmarks (manual)` workflow_dispatch CI. Two competing schema-creation paths fight at startup:
-
-- `Program.cs` calls `db.Database.MigrateAsync()` (applies migrations)
-- `content/za-vertical-slice/benchmarks/MyApp.Benchmarks/WritePipelineBench.cs:76` calls `Database.EnsureCreated()` inside `WithWebHostBuilder` → `ConfigureServices`
-
-Whichever fires second sees the tables already exist. The exception bubbles up because EF Core's migration tracker doesn't recognise the schema as "applied" (no `__EFMigrationsHistory` rows).
-
-**Sketch.** Drop the `EnsureCreated()` call from the bench's `ConfigureServices` callback. Let `Program.cs`'s `MigrateAsync` be the single schema source — its `MigrationsAssembly` configuration on line 70 is already wired correctly. The in-memory SQLite connection lives in the bench's `_connection` field and is shared with the WebApplicationFactory via the explicit `UseSqlite(_connection!, ...)` call, so removing `EnsureCreated` doesn't break the shared-connection invariant.
-
-**Tradeoff / risks.** Pure deletion. Risk: if a future change strips the migration assembly or the seed step, the bench fails differently. Mitigated by the existing `MigrationsAssembly` config.
-
-**Graduation signal.** When a maintainer wants real WritePipeline numbers for za-vertical-slice — currently blocked. The other three benchmark legs (za-clean Primitives, za-clean WritePipeline, za-vertical-slice Primitives) produce clean numbers and are published in [`docs/za-clean.md`](za-clean.md#benchmarks).
+**Diagnosis (durable record):** Two competing schema-creation paths fought at startup — `Program.cs`'s `MigrateAsync()` and the bench's `EnsureCreated()`. Whichever fired second hit "table already exists". Pure deletion fix; the in-memory SQLite connection's lifetime is unaffected (it lives in `_connection` and is shared via `UseSqlite(_connection!, ...)`).
 
 ---
 
