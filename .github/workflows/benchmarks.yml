@@ -1,0 +1,74 @@
+name: Benchmarks (manual)
+
+# Manual BenchmarkDotNet runs for both templates' Primitives + WritePipeline
+# suites. Triggered via the GitHub Actions UI ("Run workflow"). Each matrix
+# leg uploads its BenchmarkDotNet.Artifacts as a workflow artifact — download
+# the bdn-* artifacts to harvest the per-method tables and paste them into
+# docs/za-clean.md / docs/za-vertical-slice.md / READMEs.
+#
+# Skipped intentionally:
+#   - The NBomber MyApp.LoadTest scenario (500 VUs against real Kestrel; fine
+#     locally, fragile on shared CI runners).
+#   - AOT-published benchmarks (the existing aot-smoke job already proves
+#     AOT compatibility; JIT numbers are the regression net).
+
+on:
+  workflow_dispatch:
+
+jobs:
+  benchmark:
+    name: ${{ matrix.template }} / ${{ matrix.suite }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - template: za-clean
+            suite: Primitives
+            project: benchmarks/MyApp.Benchmarks.Primitives
+            filter: "*"
+          - template: za-clean
+            suite: WritePipeline
+            project: benchmarks/MyApp.Benchmarks
+            filter: "*WritePipelineBench*"
+          - template: za-vertical-slice
+            suite: Primitives
+            project: benchmarks/MyApp.Benchmarks.Primitives
+            filter: "*"
+          - template: za-vertical-slice
+            suite: WritePipeline
+            project: benchmarks/MyApp.Benchmarks
+            filter: "*WritePipelineBench*"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+
+      # Pin the working directory to the specific benchmark project so BDN's
+      # project-file search doesn't collide with the identically-named sibling
+      # project in the other template.
+      - name: Restore
+        working-directory: content/${{ matrix.template }}/${{ matrix.project }}
+        run: dotnet restore
+
+      - name: Build
+        working-directory: content/${{ matrix.template }}/${{ matrix.project }}
+        run: dotnet build -c Release --no-restore
+
+      - name: Run BenchmarkDotNet
+        working-directory: content/${{ matrix.template }}/${{ matrix.project }}
+        run: dotnet run -c Release --no-build -- --filter "${{ matrix.filter }}" --exporters github
+
+      - name: Upload BDN artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bdn-${{ matrix.template }}-${{ matrix.suite }}
+          path: content/${{ matrix.template }}/${{ matrix.project }}/BenchmarkDotNet.Artifacts/**
+          if-no-files-found: warn
+          retention-days: 30
