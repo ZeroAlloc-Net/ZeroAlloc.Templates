@@ -20,6 +20,12 @@ jobs:
     name: ${{ matrix.template }} / ${{ matrix.suite }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    # Postgres attaches at job level (GHA has no per-leg services syntax), so
+    # all 4 matrix legs receive the container. Only za-vertical-slice /
+    # WritePipeline actually consumes it via WritePipelineBench's [Params]
+    # DbBackend.Postgres profile. Cost: ~150MB cached image pull + ~3s startup
+    # per leg, negligible against the 30-min budget. See
+    # docs/plans/2026-05-28-postgres-bench-profile-design.md §CI workflow.
     services:
       postgres:
         image: postgres:17
