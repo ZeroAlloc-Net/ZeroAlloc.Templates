@@ -1,14 +1,22 @@
 name: Benchmarks (manual)
 
-# Manual BenchmarkDotNet runs for both templates' Primitives + WritePipeline
-# suites. Triggered via the GitHub Actions UI ("Run workflow"). Each matrix
-# leg uploads its BenchmarkDotNet.Artifacts as a workflow artifact — download
-# the bdn-* artifacts to harvest the per-method tables and paste them into
-# docs/za-clean.md / docs/za-vertical-slice.md / READMEs.
+# Manual BenchmarkDotNet + NBomber runs for both templates. Triggered via
+# the GitHub Actions UI ("Run workflow"). Each leg uploads its artifacts —
+# bdn-* for BenchmarkDotNet, nbomber-* for NBomber.
+#
+# Two jobs:
+#   - benchmark (matrix): BDN Primitives + WritePipeline for both templates.
+#     The za-vertical-slice/WritePipeline leg cross-products SQLite + Postgres
+#     via WritePipelineBench's [Params] DbBackend.
+#   - nbomber-postgres-vs: za-vertical-slice load test against real Postgres.
+#     Distinct from the BDN matrix because it spins up the SUT as a separate
+#     process. Postgres is the only sensible load-test target — SQLite's
+#     single-process file lock caps at ~470 RPS. The CI-fragility concern
+#     that originally kept NBomber out of CI is mitigated by colocation
+#     (SUT runs on the same runner as NBomber, no cross-host network).
+#     If the job becomes a frequent retry-magnet, demote to manual-only.
 #
 # Skipped intentionally:
-#   - The NBomber MyApp.LoadTest scenario (500 VUs against real Kestrel; fine
-#     locally, fragile on shared CI runners).
 #   - AOT-published benchmarks (the existing aot-smoke job already proves
 #     AOT compatibility; JIT numbers are the regression net).
 
@@ -97,3 +105,91 @@ jobs:
           path: content/${{ matrix.template }}/${{ matrix.project }}/BenchmarkDotNet.Artifacts/**
           if-no-files-found: warn
           retention-days: 30
+
+  nbomber-postgres-vs:
+    name: za-vertical-slice / NBomber-Postgres
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: myapp_load
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Build SUT
+        working-directory: content/za-vertical-slice
+        run: dotnet build src/MyApp -c Release
+
+      - name: Build LoadTest
+        working-directory: content/za-vertical-slice
+        run: dotnet build benchmarks/MyApp.LoadTest -c Release
+
+      - name: Start SUT against Postgres
+        working-directory: content/za-vertical-slice
+        env:
+          Database__Provider: Postgres
+          Database__SchemaStrategy: EnsureCreated
+          ConnectionStrings__Default: "Host=localhost;Port=5432;Username=postgres;Password=postgres;Database=myapp_load"
+          ASPNETCORE_URLS: "http://localhost:5000"
+        run: |
+          nohup dotnet run -c Release --no-build --project src/MyApp > sut.log 2>&1 &
+          echo $! > sut.pid
+
+      - name: Wait for /healthz
+        run: |
+          for i in {1..60}; do
+            if curl -fs http://localhost:5000/healthz > /dev/null; then
+              echo "SUT healthy after ${i}s"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "SUT did not become healthy in 60s — dumping log"
+          cat content/za-vertical-slice/sut.log
+          exit 1
+
+      - name: Run NBomber
+        working-directory: content/za-vertical-slice
+        run: dotnet run -c Release --no-build --project benchmarks/MyApp.LoadTest -- http://localhost:5000
+
+      - name: Stop SUT
+        if: always()
+        working-directory: content/za-vertical-slice
+        run: |
+          if [ -f sut.pid ]; then
+            kill "$(cat sut.pid)" || true
+          fi
+
+      - name: Upload NBomber reports
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: nbomber-za-vertical-slice-postgres
+          path: content/za-vertical-slice/reports/**
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Upload SUT log
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: nbomber-sut-log
+          path: content/za-vertical-slice/sut.log
+          if-no-files-found: warn
+          retention-days: 7
