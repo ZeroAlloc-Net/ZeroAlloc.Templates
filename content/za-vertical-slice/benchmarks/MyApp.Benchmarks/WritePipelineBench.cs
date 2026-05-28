@@ -12,6 +12,7 @@ using Microsoft.Extensions.DependencyInjection;
 using MyApp.Common;
 using MyApp.Features.Orders.PlaceOrder;
 using MyApp.Persistence;
+using Npgsql;
 using ZeroAlloc.Mediator;
 using ZeroAlloc.Results;
 
@@ -70,6 +71,7 @@ public class WritePipelineBench
     public void Setup()
     {
         var skipMigrate = Backend == DbBackend.Postgres;
+        NpgsqlConnectionStringBuilder? csb = null;
 
         if (Backend == DbBackend.Sqlite)
         {
@@ -84,10 +86,18 @@ public class WritePipelineBench
             var pwd = Environment.GetEnvironmentVariable("POSTGRES_PASSWORD") ?? "postgres";
             var adminDb = Environment.GetEnvironmentVariable("POSTGRES_DB") ?? "bench";
 
-            _postgresAdminConnString = $"Host={host};Port={port};Username={user};Password={pwd};Database={adminDb}";
+            csb = new NpgsqlConnectionStringBuilder
+            {
+                Host = host,
+                Port = int.Parse(port, System.Globalization.CultureInfo.InvariantCulture),
+                Username = user,
+                Password = pwd,
+                Database = adminDb,
+            };
+            _postgresAdminConnString = csb.ConnectionString;
             _postgresDbName = "bench_" + Guid.NewGuid().ToString("N")[..8];
 
-            using var admin = new Npgsql.NpgsqlConnection(_postgresAdminConnString);
+            using var admin = new NpgsqlConnection(_postgresAdminConnString);
             admin.Open();
             using var cmd = admin.CreateCommand();
             cmd.CommandText = $"CREATE DATABASE \"{_postgresDbName}\"";
@@ -122,8 +132,8 @@ public class WritePipelineBench
                 }
                 else
                 {
-                    var workerConnString =
-                        $"{_postgresAdminConnString!.Replace($"Database={Environment.GetEnvironmentVariable("POSTGRES_DB") ?? "bench"}", $"Database={_postgresDbName}", StringComparison.Ordinal)}";
+                    csb!.Database = _postgresDbName;
+                    var workerConnString = csb.ConnectionString;
                     s.AddDbContext<AppDbContext>(opt =>
                     {
                         opt.UseNpgsql(workerConnString);
@@ -203,7 +213,7 @@ public class WritePipelineBench
         {
             try
             {
-                using var admin = new Npgsql.NpgsqlConnection(_postgresAdminConnString);
+                using var admin = new NpgsqlConnection(_postgresAdminConnString);
                 admin.Open();
                 using var cmd = admin.CreateCommand();
                 cmd.CommandText = $"DROP DATABASE IF EXISTS \"{_postgresDbName}\" WITH (FORCE)";
