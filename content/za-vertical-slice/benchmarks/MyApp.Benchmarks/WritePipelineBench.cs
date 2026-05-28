@@ -72,8 +72,11 @@ public class WritePipelineBench
                         Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning));
                 });
 
-                using var scope = s.BuildServiceProvider().CreateScope();
-                scope.ServiceProvider.GetRequiredService<AppDbContext>().Database.EnsureCreated();
+                // Schema creation is owned by Program.cs's startup
+                // `db.Database.MigrateAsync()`. An EnsureCreated() call here
+                // raced with that path and trip SqliteException 1 ("table
+                // 'Customers' already exists") at startup — see docs/backlog.md
+                // B1 for the diagnosis. Leaving migration as the single source.
             });
         });
 
