@@ -12,22 +12,25 @@ Candidate enhancements identified during real-world usage. Each item is independ
 
 ---
 
-## B2 — Postgres bench profile for WritePipeline (better signal-to-noise)
+## ~~B2 — Postgres bench profile for WritePipeline~~ — ✅ shipped 2026-05-28 (za-vertical-slice only)
 
-**What.** The `WritePipelineBench` for both templates runs against in-memory SQLite (`DataSource=:memory:`). The NBomber load test (file-backed SQLite) was capped at 473 RPS in the original measurements, dominated by SQLite's single-file lock. The BDN `WritePipeline` row similarly underrepresents ZA framework cost because EF + SQLite I/O dominates the per-request budget.
+**Shipped:** Added `[Params(DbBackend.Sqlite, DbBackend.Postgres)]` dispatch to `content/za-vertical-slice/benchmarks/MyApp.Benchmarks/WritePipelineBench.cs`. SQLite path unchanged (B1 fix preserved); Postgres path creates a fresh `bench_<guid8>` database per process via `NpgsqlConnectionStringBuilder` and applies the EF runtime model via `EnsureCreated()`. `Program.cs` honours a new `Bench:SkipStartupMigrate` config flag so the Sqlite-typed startup migration is bypassed when running against Npgsql. `.github/workflows/benchmarks.yml` gained a `services: postgres:17` block + `POSTGRES_*` env vars. Six real rows landed in [run 26592448470](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/actions/runs/26592448470); numbers + interpretation now live in `docs/za-vertical-slice.md`. za-clean replication deferred — graduation signal: if a clean-template adopter asks.
 
-**Why.** A Postgres-backed bench profile would surface the framework cost more clearly — Postgres's per-statement latency is more predictable and concurrent reads don't lock. Two benchmark profiles per template (one SQLite, one Postgres) would let adopters compare apples-to-apples while seeing how the data-layer choice moves the numbers.
+**Diagnosis (durable record):** First CI run after the bench refactor produced NA for all 3 Postgres rows with the EF Core error *"Services for database providers 'Microsoft.EntityFrameworkCore.Sqlite', 'Npgsql.EntityFrameworkCore.PostgreSQL' have been registered in the service provider."* Root cause: the bench's `ConfigureServices` was only removing the `DbContextOptions<AppDbContext>` descriptor before re-adding `AddDbContext(UseNpgsql)`. But `Program.cs`'s original `AddDbContext(UseSqlite)` also registers provider-specific singletons (`IDatabaseProvider`, `IRelationalConnection`, etc.) which survived the descriptor removal — EF Core then refused to register Npgsql's provider services into a container that still held Sqlite's. Fix: strip every descriptor whose service-type `FullName` starts with `Microsoft.EntityFrameworkCore` or `Npgsql.EntityFrameworkCore` *before* re-adding the DbContext. Idempotent: the Sqlite branch re-adds an identical stack. **Lesson for future WAF-style DI overrides:** removing only the options class is not enough; remove the full EF stack and re-add cleanly.
 
-**Sketch.**
+---
 
-- Add a second bench profile in `MyApp.Benchmarks.WritePipelineBench`, either via `[Params]` for the DB backend or via two separate `[Benchmark]` methods.
-- Provision Postgres in `.github/workflows/benchmarks.yml` via `services: postgres:17` on the matrix job.
-- Use `testcontainers-dotnet` for local-dev parity, or document `docker run postgres:17` as the local setup.
-- Update `docs/za-clean.md` with a comparison row — "WritePipeline (SQLite): X ms / Y KB; WritePipeline (Postgres): X' ms / Y' KB. The delta is dominated by EF tracking + Postgres protocol overhead, not ZA framework cost."
+## B3 — Postgres bench profile for za-clean (replication)
 
-**Tradeoff / risks.** ~30-60 min of workflow plumbing (Postgres service container, connection-string config, secrets/env wiring) plus the bench code itself. CI run time grows ~30s per leg. Worth it if the templates' published numbers are meant to be representative — currently they're SQLite-bound, which obscures the ZA framework cost narrative.
+**What.** Replicate B2's `[Params]` DbBackend dispatch into `content/za-clean/benchmarks/MyApp.Benchmarks/WritePipelineBench.cs`. The mechanics are identical to B2; the bench class is simpler (1 method vs 3), so the diff is smaller.
 
-**Graduation signal.** First adopter who asks "what are the Postgres numbers?" Or proactive: pair with the next za-clean perf-related change. Depends on B1 (the za-vertical-slice WritePipelineBench has to run cleanly before adding a second profile is meaningful).
+**Why.** If za-clean adopters care about the framework-cost narrative the way vertical-slice's now demonstrates, they'll want the same Postgres row. Until they do, this is speculative.
+
+**Sketch.** Mirror PR #140's changes onto the za-clean tree: add Npgsql `PackageReference` to `MyApp.Benchmarks.csproj`, mirror the `Bench:SkipStartupMigrate` flag into za-clean's `Program.cs` startup-migration block, port the `WritePipelineBench.cs` refactor (including the EF-stack-strip from the B2 diagnosis), benchmarks.yml already has the services block from B2 so no workflow change needed. Fold numbers into `docs/za-clean.md`'s existing benchmarks section.
+
+**Tradeoff / risks.** ~1h of straightforward mirroring once B2 is merged. No new architectural decisions — every choice is "what B2 did". Risk: za-clean's bench is also part of the published numbers in `docs/za-clean.md`, so doubling the row count needs a small narrative adjustment in that doc.
+
+**Graduation signal.** First za-clean adopter who asks "what's the Postgres delta?" — *or* proactive when the next za-clean perf-related PR lands and would benefit from the apples-to-apples Postgres baseline.
 
 ---
 
