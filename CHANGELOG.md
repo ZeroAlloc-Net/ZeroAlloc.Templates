@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.8.1](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/compare/ZeroAlloc.Templates-v0.8.0...ZeroAlloc.Templates-v0.8.1) (2026-05-28)
+
+
+### Bug Fixes
+
+* **za-vertical-slice/bench:** drop EnsureCreated, let MigrateAsync own schema ([#139](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/issues/139)) ([883346c](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/commit/883346ca63e1d11c1b8e8ac23e782e63378a704c))
+
+
+### Documentation
+
+* refresh BDN numbers from CI + file backlog B1/B2 ([#133](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/issues/133)) ([af51102](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/commit/af511021387d1a501c70779fd63d216219b03f28))
+
 ## [0.8.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/compare/ZeroAlloc.Templates-v0.7.1...ZeroAlloc.Templates-v0.8.0) (2026-05-28)
 
 
