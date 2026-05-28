@@ -110,12 +110,14 @@ jobs:
     name: za-vertical-slice / NBomber-Postgres
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    env:
+      POSTGRES_DB_NAME: myapp_load
     services:
       postgres:
         image: postgres:17
         env:
           POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: myapp_load
+          POSTGRES_DB: ${{ env.POSTGRES_DB_NAME }}
         ports:
           - 5432:5432
         options: >-
@@ -145,18 +147,23 @@ jobs:
         env:
           Database__Provider: Postgres
           Database__SchemaStrategy: EnsureCreated
-          ConnectionStrings__Default: "Host=localhost;Port=5432;Username=postgres;Password=postgres;Database=myapp_load"
+          ConnectionStrings__Default: "Host=localhost;Port=5432;Username=postgres;Password=postgres;Database=${{ env.POSTGRES_DB_NAME }}"
           ASPNETCORE_URLS: "http://localhost:5000"
         run: |
-          nohup dotnet run -c Release --no-build --project src/MyApp > sut.log 2>&1 &
+          setsid nohup dotnet run -c Release --no-build --project src/MyApp > sut.log 2>&1 &
           echo $! > sut.pid
 
       - name: Wait for /healthz
         run: |
           for i in {1..60}; do
-            if curl -fs http://localhost:5000/healthz > /dev/null; then
+            if curl -fsS http://localhost:5000/healthz > /dev/null; then
               echo "SUT healthy after ${i}s"
               exit 0
+            fi
+            if ! kill -0 "$(cat content/za-vertical-slice/sut.pid)" 2>/dev/null; then
+              echo "SUT process died before becoming healthy — dumping log"
+              cat content/za-vertical-slice/sut.log
+              exit 1
             fi
             sleep 1
           done
@@ -173,7 +180,10 @@ jobs:
         working-directory: content/za-vertical-slice
         run: |
           if [ -f sut.pid ]; then
-            kill "$(cat sut.pid)" || true
+            # `-PID` (negative PID) signals the entire process group — dotnet run may
+            # spawn the app as a child, and killing only the launcher would leave the
+            # SUT bound to port 5000 until container teardown.
+            kill -TERM -"$(cat sut.pid)" || true
           fi
 
       - name: Upload NBomber reports
