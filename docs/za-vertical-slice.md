@@ -120,3 +120,44 @@ docker stop bench-pg
 ```
 
 CI provisions Postgres via the `services:` block in `.github/workflows/benchmarks.yml`; the workflow is manual-only (`workflow_dispatch`), so trigger it from the Actions UI on the branch you want numbers for.
+
+## Load testing against Postgres
+
+NBomber's `MyApp.LoadTest` previously targeted in-memory SQLite via the production app — capped at ~470 RPS by SQLite's single-process file lock. That ceiling is the lock, not the framework. Running against Postgres reveals the real throughput.
+
+The SUT and NBomber run as separate processes. The SUT is configured for Postgres via env vars; NBomber's scenario code is unchanged.
+
+### Local recipe
+
+```bash
+# 1. Start Postgres
+docker run --rm -d -p 5432:5432 \
+  -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=myapp_load \
+  --name myapp-load-pg postgres:17
+
+# 2. Start the SUT
+Database__Provider=Postgres \
+Database__SchemaStrategy=EnsureCreated \
+ConnectionStrings__Default="Host=localhost;Port=5432;Username=postgres;Password=postgres;Database=myapp_load" \
+dotnet run -c Release --project src/MyApp &
+
+# 3. Wait for /healthz, then run NBomber
+until curl -fs http://localhost:5000/healthz; do sleep 0.5; done
+dotnet run -c Release --project benchmarks/MyApp.LoadTest
+
+# Cleanup
+kill %1; docker stop myapp-load-pg
+```
+
+`Database__SchemaStrategy=EnsureCreated` bypasses migrations history — the SUT creates the schema directly from the EF runtime model. That's fine for load-testing (ephemeral DB, throwaway state). Production deployments should scaffold Postgres-typed migrations and switch back to the default `Migrate` strategy.
+
+### CI
+
+The `nbomber-postgres-vs` job in `.github/workflows/benchmarks.yml` runs the recipe above end-to-end on every manual workflow trigger. Artifacts:
+
+- `nbomber-za-vertical-slice-postgres` — NBomber's HTML / CSV / Markdown reports.
+- `nbomber-sut-log` — the SUT's stdout/stderr (kept short, 7-day retention).
+
+### Numbers
+
+> Filled in after the first post-merge CI run on `main`. Same flow as the BDN numbers above (PR #140 lands the harness; a follow-up commit on `main` pastes the numbers + a comparison-to-SQLite paragraph from the production-app side).
