@@ -134,7 +134,11 @@ Violations fail CI.
 ## Extending
 
 - **AI agents**: [AGENTS.md](AGENTS.md) — orientation for Claude Code, Cursor, GitHub Copilot, Codex, Aider. Includes "how to add a slice" recipes and the ZA-specific gotchas.
-- **Swap SQLite → PostgreSQL**: change `UseSqlite` to `UseNpgsql` in `Program.cs`, add the EF provider, regenerate migrations.
+- **Swap SQLite → PostgreSQL**: set `Database:Provider=Postgres` and point `ConnectionStrings:Default` at your Postgres conn string. For load-testing or ad-hoc experimentation, also set `Database:SchemaStrategy=EnsureCreated` (creates the schema from the runtime model — bypasses migration history; not for long-lived production deployments). For production Postgres, scaffold proper migrations:
+    ```bash
+    dotnet ef migrations add InitialCreate --context AppDbContext --output-dir Persistence/Migrations.Postgres
+    ```
+    and leave `Database:SchemaStrategy` at its default (`Migrate`).
 
 ## License
 
