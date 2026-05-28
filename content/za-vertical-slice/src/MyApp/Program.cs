@@ -128,8 +128,14 @@ var app = builder.Build();
 // Apply pending migrations on startup so a fresh dev box doesn't need a
 // separate `dotnet ef database update` step. Safe to re-run — Migrate()
 // is a no-op once the database is up to date.
-using (var scope = app.Services.CreateScope())
+//
+// `Bench:SkipStartupMigrate` is honoured by the WritePipelineBench Postgres
+// profile, which substitutes a non-Sqlite DbContext at WebApplicationFactory
+// time and creates the schema via EnsureCreated() instead. Production
+// configuration never sets this flag.
+if (!builder.Configuration.GetValue<bool>("Bench:SkipStartupMigrate"))
 {
+    using var scope = app.Services.CreateScope();
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
     await db.Database.MigrateAsync();
 }
