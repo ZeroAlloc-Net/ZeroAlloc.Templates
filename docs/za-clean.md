@@ -160,7 +160,7 @@ AMD EPYC 7763, .NET SDK 10.0.300, .NET 10.0.8 X64 RyuJIT x86-64-v3
 |-------------------------- |-----------:|----------:|----------:|-------:|----------:|
 | `Mapping_RequestToCommand`|  45.090 ns | 0.2784 ns | 0.2325 ns | 0.0157 |     160 B |
 | `Mediator_DispatchOnly`   |  28.870 ns | 0.0447 ns | 0.0396 ns |      - |       0 B |
-| `Validator_HandRolled`    | 111.922 ns | 0.1563 ns | 0.1220 ns |      - |       0 B |
+| `Validator_Generated`     | 111.922 ns | 0.1563 ns | 0.1220 ns |      - |       0 B |
 | `ValueObject_TryCreate`   |   3.355 ns | 0.0082 ns | 0.0064 ns |      - |       0 B |
 | `EndToEndPrimitives`      | 216.436 ns | 0.7865 ns | 0.7357 ns | 0.0312 |     160 B |
 
