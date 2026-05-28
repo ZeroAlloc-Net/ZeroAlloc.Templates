@@ -25,7 +25,7 @@ public sealed class CreateOrderHandler(IOrderRepository repo, IShippingQuoteClie
             return Result<OrderId, ApplicationError>.Failure(new ApplicationError("shipping.unavailable", quote.Error));
         }
 
-        var order = Order.Create(new CustomerId(request.CustomerId));
+        var order = Order.Create(request.CustomerId);
         foreach (var item in request.Items)
         {
             var price = Money.TryCreate(item.UnitPriceEur, "EUR");

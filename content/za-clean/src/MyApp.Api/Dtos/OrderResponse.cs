@@ -1,8 +1,10 @@
+using MyApp.Domain.ValueObjects;
+
 namespace MyApp.Api.Dtos;
 
 public sealed record OrderResponse(
-    int OrderId,
-    int CustomerId,
+    OrderId OrderId,
+    CustomerId CustomerId,
     string Status,
     decimal Total,
     string Currency,

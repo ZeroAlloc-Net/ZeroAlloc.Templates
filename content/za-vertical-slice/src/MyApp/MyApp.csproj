@@ -60,6 +60,11 @@
     <!-- ZeroAlloc: primitives + Mapping + Inject + Telemetry/Resilience/Rest -->
     <PackageReference Include="ZeroAlloc.Results" />
     <PackageReference Include="ZeroAlloc.ValueObjects" />
+    <!-- Source-gen JsonConverters for [ValueObject] structs declared here
+         plus AddZeroAllocValueObjectConverters() extension method called
+         from Program.cs's ConfigureHttpJsonOptions. -->
+    <PackageReference Include="ZeroAlloc.Serialisation" />
+    <PackageReference Include="ZeroAlloc.Serialisation.SystemTextJson" />
     <PackageReference Include="ZeroAlloc.Mapping">
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>

@@ -23,7 +23,7 @@ namespace MyApp.Features.Orders.PlaceOrder;
 [Validate]
 [RequirePolicy("OrdersWrite")]
 public readonly record struct PlaceOrderCommand(
-    [property: GreaterThan(0)] int CustomerId,
+    CustomerId CustomerId,
     [property: GreaterThan(0)] decimal Total)
     : IRequest<Result<OrderId, Error>>;
 
@@ -35,7 +35,7 @@ public sealed class PlaceOrderHandler(AppDbContext db)
 {
     public async ValueTask<Result<OrderId, Error>> Handle(PlaceOrderCommand cmd, CancellationToken ct)
     {
-        var order = new Order(new CustomerId(cmd.CustomerId), cmd.Total);
+        var order = new Order(cmd.CustomerId, cmd.Total);
         await db.Orders.AddAsync(order, ct).ConfigureAwait(false);
         await db.SaveChangesAsync(ct).ConfigureAwait(false);
         return Result<OrderId, Error>.Success(order.Id);

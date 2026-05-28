@@ -1,4 +1,5 @@
 using MyApp.Application.GetOrderById;
+using MyApp.Domain.ValueObjects;
 using Xunit;
 
 namespace MyApp.UnitTests.Application;
@@ -11,7 +12,7 @@ public class GetOrderByIdHandlerTests
         var repo = new FakeOrderRepository();
         var handler = new GetOrderByIdHandler(repo);
 
-        var result = await handler.Handle(new GetOrderByIdQuery(OrderId: 999), CancellationToken.None);
+        var result = await handler.Handle(new GetOrderByIdQuery(OrderId: new OrderId(999)), CancellationToken.None);
 
         Assert.True(result.IsFailure);
         Assert.Equal("order.not-found", result.Error.Code);

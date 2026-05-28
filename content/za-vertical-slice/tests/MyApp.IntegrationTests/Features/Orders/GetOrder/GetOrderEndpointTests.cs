@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using MyApp.Common;
 using MyApp.Features.Orders.GetOrder;
 using Xunit;
 
@@ -35,7 +36,7 @@ public sealed class GetOrderEndpointTests : IClassFixture<MyAppFactory>
         Assert.Equal(HttpStatusCode.OK, resp.StatusCode);
         var dto = await resp.Content.ReadFromJsonAsync<OrderDto>();
         Assert.NotNull(dto);
-        Assert.Equal(42, dto!.CustomerId);
+        Assert.Equal(new CustomerId(42), dto!.CustomerId);
         Assert.Equal(12.34m, dto.Total);
     }
 

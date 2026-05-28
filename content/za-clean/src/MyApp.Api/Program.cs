@@ -11,6 +11,7 @@ using MyApp.Infrastructure.Persistence;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
 using ZeroAlloc.Authorization.Generated;
+using ZeroAlloc.Serialisation.SystemTextJson;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -99,10 +100,17 @@ builder.Services.AddOpenTelemetry()
         .AddAspNetCoreInstrumentation()
         .AddConsoleExporter());
 
-// AOT: source-generated JSON for DTOs. Insert at index 0 so the generated
-// resolver wins over the reflection-based default.
+// AOT: source-generated JSON for DTOs. Insert JsonContext.Default at index 0
+// so the generated resolver wins over the reflection-based default.
+// AddZeroAllocValueObjectConverters registers the typed-ID converters emitted
+// by ZeroAlloc.Serialisation 2.3.1's source generator — STJ consults
+// options.Converters before the context's typeinfo, so CustomerId/OrderId
+// serialize as bare integers instead of wrapped { "Value": 42 } objects.
 builder.Services.ConfigureHttpJsonOptions(o =>
-    o.SerializerOptions.TypeInfoResolverChain.Insert(0, JsonContext.Default));
+{
+    o.SerializerOptions.TypeInfoResolverChain.Insert(0, JsonContext.Default);
+    o.SerializerOptions.AddZeroAllocValueObjectConverters();
+});
 
 var app = builder.Build();
 

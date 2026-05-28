@@ -18,11 +18,11 @@ public sealed class GetOrderHandlerTests
         await db.SaveChangesAsync();
 
         var handler = new GetOrderHandler(db);
-        var result = await handler.Handle(new GetOrderQuery(seeded.Id.Value), CancellationToken.None);
+        var result = await handler.Handle(new GetOrderQuery(seeded.Id), CancellationToken.None);
 
         Assert.True(result.IsSuccess);
-        Assert.Equal(seeded.Id.Value, result.Value.Id);
-        Assert.Equal(7, result.Value.CustomerId);
+        Assert.Equal(seeded.Id, result.Value.Id);
+        Assert.Equal(new CustomerId(7), result.Value.CustomerId);
         Assert.Equal(42.50m, result.Value.Total);
     }
 
@@ -32,7 +32,7 @@ public sealed class GetOrderHandlerTests
         await using var db = NewInMemoryDb();
         var handler = new GetOrderHandler(db);
 
-        var result = await handler.Handle(new GetOrderQuery(9999), CancellationToken.None);
+        var result = await handler.Handle(new GetOrderQuery(new OrderId(9999)), CancellationToken.None);
 
         Assert.True(result.IsFailure);
         Assert.Equal(ErrorKind.NotFound, result.Error.Kind);

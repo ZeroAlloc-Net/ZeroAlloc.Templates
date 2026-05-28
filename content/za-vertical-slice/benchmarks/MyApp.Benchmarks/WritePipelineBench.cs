@@ -82,7 +82,7 @@ public class WritePipelineBench
             "Bearer", TestJwt.Issue(["orders.write"]));
 
         _httpRequest = new { customerId = 42, total = 99.99m };
-        _command = new PlaceOrderCommand(CustomerId: 42, Total: 99.99m);
+        _command = new PlaceOrderCommand(CustomerId: new CustomerId(42), Total: 99.99m);
     }
 
     /// <summary>Full HTTP path: serialization + JWT validation + ASP.NET policy + mediator + EF.</summary>

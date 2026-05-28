@@ -27,7 +27,7 @@ public class PrimitivesBench
     public void Setup()
     {
         _request = new OrderRequest(
-            42,
+            new CustomerId(42),
             new[] { new OrderItemDto("SKU-1", 2, 15m) },
             "1011AA");
         _command = OrderRequestToCommand.Map(_request);

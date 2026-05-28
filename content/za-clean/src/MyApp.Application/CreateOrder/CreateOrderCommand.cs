@@ -12,7 +12,7 @@ namespace MyApp.Application.CreateOrder;
 [Validate]
 [RequirePolicy("OrdersWrite")]
 public readonly record struct CreateOrderCommand(
-    [property: GreaterThan(0)] int CustomerId,
+    CustomerId CustomerId,
     [property: NotEmpty] IReadOnlyList<OrderItem> Items,
     [property: NotEmpty, Matches("^[0-9]{4}[A-Z]{2}$")] string ShippingZip)
     : IRequest<Result<OrderId, ApplicationError>>;

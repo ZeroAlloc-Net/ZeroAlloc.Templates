@@ -4,11 +4,12 @@ using MyApp.Domain;
 namespace MyApp.Api.Mappings;
 
 /// <summary>
-/// Application/Domain → wire-format projector. Hand-written because the response
-/// shape involves multiple ZA.ValueObjects unwraps (Id.Value, CustomerId.Value,
-/// Total.Amount, Total.Currency) plus an enum-to-string projection for Status —
-/// ZA.Mapping's generator doesn't currently emit enum→string, so the explicit
-/// projector is clearer than fighting attribute knobs.
+/// Application/Domain → wire-format projector. Now hand-projects only the
+/// Money decomposition (Total.Amount, Total.Currency) and the enum-to-string
+/// status — the typed IDs flow straight through unchanged because
+/// <see cref="OrderResponse"/> carries them as typed properties and serialises
+/// via the ZA.ValueObjects-generated JSON converter to the same bare-integer
+/// wire format the prior <c>int</c>-shaped DTO produced.
 /// </summary>
 public static class OrderToResponse
 {
@@ -22,8 +23,8 @@ public static class OrderToResponse
         }
 
         return new OrderResponse(
-            OrderId: order.Id.Value,
-            CustomerId: order.CustomerId.Value,
+            OrderId: order.Id,
+            CustomerId: order.CustomerId,
             Status: order.Status.ToString(),
             Total: order.Total.Amount,
             Currency: order.Total.Currency,
