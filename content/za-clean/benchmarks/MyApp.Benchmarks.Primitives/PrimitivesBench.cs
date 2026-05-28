@@ -43,7 +43,7 @@ public class PrimitivesBench
         => await _mediator.Send(_command);
 
     [Benchmark]
-    public UnitResult<ValidationError> Validator_HandRolled()
+    public UnitResult<ValidationError> Validator_Generated()
         => CreateOrderValidator.Validate(_command);
 
     [Benchmark]

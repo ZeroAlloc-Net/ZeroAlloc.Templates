@@ -145,38 +145,43 @@ A caveat on the storage layer: the template ships SQLite-in-WAL because it's fri
 
 ### Results
 
-Measured on a 2022 i9-12900HK / Windows 11 / .NET 10.0.7. Single run; reproduce on your own hardware for capacity planning.
+Measured in CI on GitHub Actions ubuntu-latest (AMD EPYC, .NET 10.0.8) via the `Benchmarks (manual)` workflow on 2026-05-28 — `gh workflow run benchmarks.yml`. Single run; reproduce on your own hardware for capacity planning.
 
 #### Primitives — ZA framework cost in isolation
 
 Measured with `MyApp.Benchmarks.Primitives` — no ASP.NET, no EF, just the ZA packages. These are the numbers that deliver on the "zero-allocation through the framework hot path" claim.
 
-| Method                    | Mean      | Error     | StdDev    | Allocated |
-|-------------------------- |----------:|----------:|----------:|----------:|
-| `Mapping_RequestToCommand`| 100.47 ns | 10.636 ns | 30.174 ns | 200 B (destination record + nested OrderItem[]) |
-| `Mediator_DispatchOnly`   |  37.38 ns |  1.994 ns |  5.879 ns | 0 B       |
-| `Validator_HandRolled`    |  40.35 ns |  3.332 ns |  9.824 ns | 0 B       |
-| `ValueObject_TryCreate`   |  12.52 ns |  0.823 ns |  2.428 ns | 0 B       |
-| `EndToEndPrimitives`      | 165.24 ns | 15.591 ns | 44.483 ns | 200 B (= mapping alone — chain adds 0 B) |
+```
+BenchmarkDotNet v0.15.8, Linux Ubuntu 24.04.4 LTS
+AMD EPYC 9V74 / 7763 (varies per CI run), .NET SDK 10.0.300, .NET 10.0.8 X64 RyuJIT
+```
 
-The decisive datapoint: `EndToEndPrimitives` matches `Mapping_RequestToCommand` byte-for-byte. The validator + mediator dispatch through the chain allocate **zero bytes**. The 200 B is the `CreateOrderCommand` record + nested `OrderItem[]` array — caller cost every framework pays, not ZA overhead.
+| Method                    | Mean      | Error     | StdDev    | Gen0   | Allocated |
+|-------------------------- |----------:|----------:|----------:|-------:|----------:|
+| `Mapping_RequestToCommand`| 33.687 ns | 0.2659 ns | 0.2488 ns | 0.0157 |     160 B |
+| `Mediator_DispatchOnly`   | 24.636 ns | 0.0615 ns | 0.0545 ns |      - |       0 B |
+| `Validator_Generated`     | 42.525 ns | 0.0514 ns | 0.0401 ns |      - |       0 B |
+| `ValueObject_TryCreate`   |  2.679 ns | 0.0027 ns | 0.0023 ns |      - |       0 B |
+| `EndToEndPrimitives`      | 95.563 ns | 0.5635 ns | 0.4705 ns | 0.0312 |     160 B |
 
-Compare with the full-pipeline `WritePipeline` row below: that 156 KB is ASP.NET model binding + JSON + EF tracking, not ZA framework cost. Use the primitives table for "does the framework allocate", the pipeline table for "does the endpoint allocate".
+The decisive datapoint: `EndToEndPrimitives` matches `Mapping_RequestToCommand` byte-for-byte (both 160 B). The validator + mediator dispatch through the chain allocate **zero bytes**. The 160 B is the `CreateOrderCommand` record + nested `OrderItem[]` array — caller cost every framework pays, not ZA overhead.
+
+`Validator_Generated` measures the ZA.Validation-generated `CreateOrderCommandValidator` end-to-end, including the regex check on `ShippingZip`. As of [ZA.Validation 1.5.3](https://github.com/ZeroAlloc-Net/ZeroAlloc.Validation/pull/52), `[Matches]` emits a `private static readonly Regex` field initialised with `RegexOptions.Compiled` — JIT-compiled matcher, no per-call cache lookup, direct dispatch. Pre-1.5.3 this row sat at ~112 ns (interpreted `Regex.IsMatch` with cached lookup).
+
+Compare with the full-pipeline `WritePipeline` row below: that ~158 KB is ASP.NET model binding + JSON + EF tracking, not ZA framework cost. Use the primitives table for "does the framework allocate", the pipeline table for "does the endpoint allocate".
 
 #### Full pipeline (ASP.NET + EF Core in the mix)
 
 ```
-BenchmarkDotNet v0.14.0, Windows 11 (10.0.26200.8246)
-.NET SDK 10.0.203
-  [Host]     : .NET 10.0.7 (10.0.726.21808), X64 RyuJIT AVX2
-  DefaultJob : .NET 10.0.7 (10.0.726.21808), X64 RyuJIT AVX2
+BenchmarkDotNet v0.15.8, Linux Ubuntu 24.04.4 LTS
+AMD EPYC 7763, .NET SDK 10.0.300, .NET 10.0.8 X64 RyuJIT x86-64-v3
 ```
 
-| Method        | Mean     | Error     | StdDev    | Allocated |
-|-------------- |---------:|----------:|----------:|----------:|
-| WritePipeline | 2.037 ms | 0.1501 ms | 0.4427 ms | 156.75 KB |
+| Method        | Mean     | Error     | StdDev    | Gen0    | Allocated |
+|-------------- |---------:|----------:|----------:|--------:|----------:|
+| WritePipeline | 1.050 ms | 0.0230 ms | 0.0649 ms | 15.6250 | 157.57 KB |
 
-The 156.75 KB is dominated by ASP.NET Core's request pipeline (model binding, JSON deserialization, response shaping) and EF Core's tracking buffer — not the ZA framework cost. The handler-level allocation (mapping + Mediator dispatch + Result construction) is in the low hundreds of bytes; the rest is HTTP plumbing every endpoint pays. Use this as a regression baseline, not a capacity-planning number.
+The 157.57 KB is dominated by ASP.NET Core's request pipeline (model binding, JSON deserialization, response shaping) and EF Core's tracking buffer — not the ZA framework cost. The handler-level allocation (mapping + Mediator dispatch + Result construction) is in the low hundreds of bytes; the rest is HTTP plumbing every endpoint pays. Use this as a regression baseline, not a capacity-planning number. A Postgres-backed bench profile is filed as a backlog item — SQLite's single-file lock dominates the wall-clock budget under the current setup.
 
 #### NBomber — read-RPS scenario (real Kestrel)
 
