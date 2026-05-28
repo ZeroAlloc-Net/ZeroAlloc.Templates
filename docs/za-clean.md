@@ -153,18 +153,20 @@ Measured with `MyApp.Benchmarks.Primitives` — no ASP.NET, no EF, just the ZA p
 
 ```
 BenchmarkDotNet v0.15.8, Linux Ubuntu 24.04.4 LTS
-AMD EPYC 7763, .NET SDK 10.0.300, .NET 10.0.8 X64 RyuJIT x86-64-v3
+AMD EPYC 9V74 / 7763 (varies per CI run), .NET SDK 10.0.300, .NET 10.0.8 X64 RyuJIT
 ```
 
-| Method                    | Mean       | Error     | StdDev    | Gen0   | Allocated |
-|-------------------------- |-----------:|----------:|----------:|-------:|----------:|
-| `Mapping_RequestToCommand`|  45.090 ns | 0.2784 ns | 0.2325 ns | 0.0157 |     160 B |
-| `Mediator_DispatchOnly`   |  28.870 ns | 0.0447 ns | 0.0396 ns |      - |       0 B |
-| `Validator_Generated`     | 111.922 ns | 0.1563 ns | 0.1220 ns |      - |       0 B |
-| `ValueObject_TryCreate`   |   3.355 ns | 0.0082 ns | 0.0064 ns |      - |       0 B |
-| `EndToEndPrimitives`      | 216.436 ns | 0.7865 ns | 0.7357 ns | 0.0312 |     160 B |
+| Method                    | Mean      | Error     | StdDev    | Gen0   | Allocated |
+|-------------------------- |----------:|----------:|----------:|-------:|----------:|
+| `Mapping_RequestToCommand`| 33.687 ns | 0.2659 ns | 0.2488 ns | 0.0157 |     160 B |
+| `Mediator_DispatchOnly`   | 24.636 ns | 0.0615 ns | 0.0545 ns |      - |       0 B |
+| `Validator_Generated`     | 42.525 ns | 0.0514 ns | 0.0401 ns |      - |       0 B |
+| `ValueObject_TryCreate`   |  2.679 ns | 0.0027 ns | 0.0023 ns |      - |       0 B |
+| `EndToEndPrimitives`      | 95.563 ns | 0.5635 ns | 0.4705 ns | 0.0312 |     160 B |
 
 The decisive datapoint: `EndToEndPrimitives` matches `Mapping_RequestToCommand` byte-for-byte (both 160 B). The validator + mediator dispatch through the chain allocate **zero bytes**. The 160 B is the `CreateOrderCommand` record + nested `OrderItem[]` array — caller cost every framework pays, not ZA overhead.
+
+`Validator_Generated` measures the ZA.Validation-generated `CreateOrderCommandValidator` end-to-end, including the regex check on `ShippingZip`. As of [ZA.Validation 1.5.3](https://github.com/ZeroAlloc-Net/ZeroAlloc.Validation/pull/52), `[Matches]` emits a `private static readonly Regex` field initialised with `RegexOptions.Compiled` — JIT-compiled matcher, no per-call cache lookup, direct dispatch. Pre-1.5.3 this row sat at ~112 ns (interpreted `Regex.IsMatch` with cached lookup).
 
 Compare with the full-pipeline `WritePipeline` row below: that ~158 KB is ASP.NET model binding + JSON + EF tracking, not ZA framework cost. Use the primitives table for "does the framework allocate", the pipeline table for "does the endpoint allocate".
 
@@ -177,9 +179,9 @@ AMD EPYC 7763, .NET SDK 10.0.300, .NET 10.0.8 X64 RyuJIT x86-64-v3
 
 | Method        | Mean     | Error     | StdDev    | Gen0    | Allocated |
 |-------------- |---------:|----------:|----------:|--------:|----------:|
-| WritePipeline | 1.093 ms | 0.0308 ms | 0.0832 ms | 15.6250 | 157.58 KB |
+| WritePipeline | 1.050 ms | 0.0230 ms | 0.0649 ms | 15.6250 | 157.57 KB |
 
-The 157.58 KB is dominated by ASP.NET Core's request pipeline (model binding, JSON deserialization, response shaping) and EF Core's tracking buffer — not the ZA framework cost. The handler-level allocation (mapping + Mediator dispatch + Result construction) is in the low hundreds of bytes; the rest is HTTP plumbing every endpoint pays. Use this as a regression baseline, not a capacity-planning number. A Postgres-backed bench profile is filed as a backlog item — SQLite's single-file lock dominates the wall-clock budget under the current setup.
+The 157.57 KB is dominated by ASP.NET Core's request pipeline (model binding, JSON deserialization, response shaping) and EF Core's tracking buffer — not the ZA framework cost. The handler-level allocation (mapping + Mediator dispatch + Result construction) is in the low hundreds of bytes; the rest is HTTP plumbing every endpoint pays. Use this as a regression baseline, not a capacity-planning number. A Postgres-backed bench profile is filed as a backlog item — SQLite's single-file lock dominates the wall-clock budget under the current setup.
 
 #### NBomber — read-RPS scenario (real Kestrel)
 
