@@ -412,8 +412,13 @@ jobs:
             cat /tmp/api-vs.log
             exit 1
           fi
-          if ! echo "$BODY_OUT" | grep -qE '"[Vv]alue"\s*:\s*[0-9]+'; then
-            echo "::error::Response body missing numeric OrderId.Value: $BODY_OUT"
+          # Under ZA.Serialisation 2.3.1+ the typed-ID converter writes
+          # OrderId as a bare integer on the wire — either the body is a
+          # bare integer (endpoint returns OrderId directly) or `"id":N`
+          # inside an object. The OLD wrapped form `{"id":{"value":N}}`
+          # was the bug 2.3.1/2.3.2 fixed; this assertion now rejects it.
+          if ! echo "$BODY_OUT" | grep -qE '^[0-9]+$|"[Ii]d"\s*:\s*[0-9]+'; then
+            echo "::error::Response body missing numeric OrderId (expected bare integer or numeric id field): $BODY_OUT"
             exit 1
           fi
           echo "✓ POST /orders → 201 Created with numeric OrderId"
