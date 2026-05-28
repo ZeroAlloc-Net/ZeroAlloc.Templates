@@ -32,7 +32,7 @@ Two BDN projects + one NBomber load test live under `benchmarks/`:
 
 - **`MyApp.Benchmarks.Primitives`** — `PrimitivesBench` exercises each ZA layer standalone: mediator dispatch, validator, value-object construction, mapping. No ASP.NET, no EF, no HTTP. Numbers in ns/op, allocations in bytes. These deliver on the "zero-allocation through the framework hot path" claim.
 - **`MyApp.Benchmarks`** — `WritePipelineBench` hosts the API via `WebApplicationFactory<Program>` and runs `POST /orders` through three attribution layers (full HTTP path / mediator-direct / handler-direct) × two database backends (SQLite in-memory / Postgres localhost). Reports μs and per-request allocation. The 3 × 2 cross-product reveals where time is spent.
-- **`MyApp.LoadTest`** — NBomber scenario at 500 VUs against real Kestrel. Documented separately; not run in CI.
+- **`MyApp.LoadTest`** — NBomber scenario at 500 VUs against real Kestrel; see "Load testing against Postgres" below. Run by the manual `nbomber-postgres-vs` CI job.
 
 ## WritePipelineBench — the framework-cost story
 
