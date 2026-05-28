@@ -20,6 +20,19 @@ jobs:
     name: ${{ matrix.template }} / ${{ matrix.suite }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: bench
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 5
     strategy:
       fail-fast: false
       matrix:
@@ -62,6 +75,12 @@ jobs:
 
       - name: Run BenchmarkDotNet
         working-directory: content/${{ matrix.template }}/${{ matrix.project }}
+        env:
+          POSTGRES_HOST: localhost
+          POSTGRES_PORT: "5432"
+          POSTGRES_DB: bench
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
         run: dotnet run -c Release --no-build -- --filter "${{ matrix.filter }}" --exporters github
 
       - name: Upload BDN artifacts
