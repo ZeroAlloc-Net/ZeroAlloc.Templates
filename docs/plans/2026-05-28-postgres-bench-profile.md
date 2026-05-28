@@ -6,7 +6,7 @@
 
 **Architecture:** Single bench class with `[Params(DbBackend.Sqlite, DbBackend.Postgres)]`. Sqlite path unchanged (keeps `Program.cs`'s `MigrateAsync` as the schema source — B1 fix preserved). Postgres path creates a fresh per-process database (`bench_<guid8>`) and applies the EF runtime model via `EnsureCreated()`; the bench sets a `Bench:SkipStartupMigrate` config flag so `Program.cs` doesn't try to apply Sqlite-typed migrations against Postgres.
 
-**Tech Stack:** .NET 10, BenchmarkDotNet 0.15.x, EF Core 10, Npgsql.EntityFrameworkCore.PostgreSQL 9.x, Postgres 17 (GHA `services:` block + local `docker run`).
+**Tech Stack:** .NET 10, BenchmarkDotNet 0.15.x, EF Core 10, Npgsql.EntityFrameworkCore.PostgreSQL 10.x, Postgres 17 (GHA `services:` block + local `docker run`).
 
 **Design doc:** `docs/plans/2026-05-28-postgres-bench-profile-design.md` (committed `90a68eb`).
 **Branch:** `feat/postgres-bench-profile`.
@@ -440,7 +440,7 @@ Graduates **B2** (`docs/backlog.md`). Adds a Postgres-backed profile to za-verti
 - **Bench class**: `[Params(DbBackend.Sqlite, DbBackend.Postgres)]` cross-products `Method × Backend` → 6 rows per artifact. Sqlite branch unchanged (B1 fix preserved — `Program.cs`'s `MigrateAsync` is still the schema source for the Sqlite path). Postgres branch creates a fresh `bench_<guid8>` database per process and applies the runtime model via `EnsureCreated()`.
 - **Program.cs**: introduces a `Bench:SkipStartupMigrate` config flag (production never sets it). The bench sets it only when `Backend == Postgres`, so the Sqlite-typed migrations don't run against Postgres.
 - **CI**: `benchmarks.yml` gains a `services: postgres:17` block + env vars. All 4 matrix legs receive the container; only the za-vertical-slice WritePipeline leg uses it.
-- **Package**: adds `Npgsql.EntityFrameworkCore.PostgreSQL 9.x` to all 3 `Directory.Packages.props` and references it from `MyApp.Benchmarks.csproj`.
+- **Package**: adds `Npgsql.EntityFrameworkCore.PostgreSQL 10.x` (matched to the in-use EF Core 10 line) to all 3 `Directory.Packages.props` and references it from `MyApp.Benchmarks.csproj`.
 
 za-clean replication deferred (per design doc Q1).
 

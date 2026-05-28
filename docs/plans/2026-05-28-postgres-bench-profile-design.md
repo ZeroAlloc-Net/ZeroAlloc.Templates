@@ -27,7 +27,7 @@ The B1 schema-collision risk doesn't recur — what B1 fixed was two paths *raci
 
 ### Package additions
 
-`Npgsql.EntityFrameworkCore.PostgreSQL` 9.x added to `Directory.Packages.props` (root, `content/za-clean`, `content/za-vertical-slice`) and referenced from `content/za-vertical-slice/benchmarks/MyApp.Benchmarks/MyApp.Benchmarks.csproj` only. Production `MyApp.csproj` stays Sqlite-only — the README's "swap to Postgres" recipe is unchanged.
+`Npgsql.EntityFrameworkCore.PostgreSQL` 10.x added to `Directory.Packages.props` (root, `content/za-clean`, `content/za-vertical-slice`) and referenced from `content/za-vertical-slice/benchmarks/MyApp.Benchmarks/MyApp.Benchmarks.csproj` only. The 10.x line is selected to match the EF Core 10 abstractions already in use (`Microsoft.EntityFrameworkCore.Sqlite 10.0.8`); pinning Npgsql 9.x against EF Core 10 would be the more likely NU1605 risk. Production `MyApp.csproj` stays Sqlite-only — the README's "swap to Postgres" recipe is unchanged.
 
 ### Per-class lifecycle
 
