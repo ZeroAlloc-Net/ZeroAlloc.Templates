@@ -36,14 +36,25 @@ builder.Services.AddMediator()
     .WithAuthorization(o => o.UseAccessor<HttpSecurityContextAccessor>());
 
 // ---------------------------------------------------------------------------
-// EF Core / SQLite.
+// EF Core — provider selected by `Database:Provider` config (Sqlite|Postgres).
+// Default is Sqlite so the zero-setup `dotnet run` quickstart still works
+// (`Data Source=app.db` flows into UseSqlite). To target Postgres, set
+// `Database:Provider=Postgres` and `ConnectionStrings:Default=Host=...;...`.
 // ---------------------------------------------------------------------------
+var dbProvider = builder.Configuration.GetValue<string>("Database:Provider") ?? "Sqlite";
 var connectionString = builder.Configuration.GetConnectionString("Default")
     ?? "Data Source=app.db";
 
 builder.Services.AddDbContext<AppDbContext>(opts =>
 {
-    opts.UseSqlite(connectionString);
+    if (string.Equals(dbProvider, "Postgres", StringComparison.OrdinalIgnoreCase))
+    {
+        opts.UseNpgsql(connectionString);
+    }
+    else
+    {
+        opts.UseSqlite(connectionString);
+    }
     // EF Core 10 fires PendingModelChangesWarning by default when the runtime
     // model snapshot differs from the most recent migration's snapshot — and
     // produces false positives when the compiled-model path (UseModel) is in
