@@ -47,7 +47,7 @@ The bench has three methods, each removing one layer:
 **Setup notes:**
 
 - **SQLite** profile uses an in-memory connection (`DataSource=:memory:`); schema applied via the production `Program.cs` `MigrateAsync()` path.
-- **Postgres** profile creates a fresh per-process database (`bench_<guid8>`) and applies the EF runtime model via `EnsureCreated()`. The bench sets a `Bench:SkipStartupMigrate` config flag so `Program.cs`'s startup migration is skipped (existing Sqlite-typed migrations don't translate to Postgres DDL).
+- **Postgres** profile creates a fresh per-process database (`bench_<guid8>`) and applies the EF runtime model via `EnsureCreated()`. The bench sets `Database:SchemaStrategy=Skip` so `Program.cs`'s startup migration is bypassed (existing Sqlite-typed migrations don't translate to Postgres DDL).
 
 ### Numbers — `Benchmarks (manual)` workflow run [26592448470](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/actions/runs/26592448470)
 
