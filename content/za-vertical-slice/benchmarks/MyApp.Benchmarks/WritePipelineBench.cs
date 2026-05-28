@@ -110,7 +110,7 @@ public class WritePipelineBench
             b.ConfigureAppConfiguration((_, cfg) => cfg.AddInMemoryCollection(new Dictionary<string, string?>
             {
                 ["Jwt:DevSigningKey"] = TestJwt.DevKey,
-                ["Bench:SkipStartupMigrate"] = skipMigrate ? "true" : "false",
+                ["Database:SchemaStrategy"] = skipMigrate ? "Skip" : "Migrate",
             }));
             b.ConfigureServices(s =>
             {

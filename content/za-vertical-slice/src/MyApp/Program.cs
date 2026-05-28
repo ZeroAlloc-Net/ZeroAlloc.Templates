@@ -136,19 +136,36 @@ builder.Services.AddEndpointsApiExplorer();
 
 var app = builder.Build();
 
-// Apply pending migrations on startup so a fresh dev box doesn't need a
-// separate `dotnet ef database update` step. Safe to re-run — Migrate()
-// is a no-op once the database is up to date.
+// Apply schema on startup. `Database:SchemaStrategy` controls how:
 //
-// `Bench:SkipStartupMigrate` is honoured by the WritePipelineBench Postgres
-// profile, which substitutes a non-Sqlite DbContext at WebApplicationFactory
-// time and creates the schema via EnsureCreated() instead. Production
-// configuration never sets this flag.
-if (!builder.Configuration.GetValue<bool>("Bench:SkipStartupMigrate"))
+//   Migrate         (default) — `MigrateAsync()`. Production behavior; the
+//                   shipped Sqlite migrations apply. Postgres deployments
+//                   must scaffold their own Postgres-typed migrations first
+//                   (existing migrations declare Sqlite types).
+//   EnsureCreated   — runtime-model schema creation via `EnsureCreatedAsync()`.
+//                   Used by ad-hoc Postgres experimentation and the
+//                   NBomber-against-Postgres load test. Bypasses migrations
+//                   history; not appropriate for long-lived production
+//                   Postgres deployments.
+//   Skip            — startup does nothing. Used by WritePipelineBench's
+//                   Postgres branch, which owns schema creation in
+//                   [GlobalSetup].
+var schemaStrategy = builder.Configuration.GetValue<string>("Database:SchemaStrategy")
+    ?? "Migrate";
+
+if (!string.Equals(schemaStrategy, "Skip", StringComparison.OrdinalIgnoreCase))
 {
     using var scope = app.Services.CreateScope();
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-    await db.Database.MigrateAsync();
+
+    if (string.Equals(schemaStrategy, "EnsureCreated", StringComparison.OrdinalIgnoreCase))
+    {
+        await db.Database.EnsureCreatedAsync();
+    }
+    else
+    {
+        await db.Database.MigrateAsync();
+    }
 }
 
 app.UseAuthentication();
