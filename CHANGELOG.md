@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/compare/ZeroAlloc.Templates-v0.7.1...ZeroAlloc.Templates-v0.8.0) (2026-05-28)
+
+
+### Features
+
+* migrate template request/DTO types to typed IDs (2.3.1 foundation) ([#128](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/issues/128)) ([7569f09](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/commit/7569f098ac863861f900885adb06454eb7848e4e))
+
 ## [0.7.1](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/compare/ZeroAlloc.Templates-v0.7.0...ZeroAlloc.Templates-v0.7.1) (2026-05-27)
 
 
