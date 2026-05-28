@@ -114,10 +114,25 @@ public class WritePipelineBench
             }));
             b.ConfigureServices(s =>
             {
-                var dbDescriptor = s.SingleOrDefault(d => d.ServiceType == typeof(DbContextOptions<AppDbContext>));
-                if (dbDescriptor is not null)
+                // Strip every EF Core registration the production AddDbContext
+                // left behind. Removing only DbContextOptions<AppDbContext>
+                // leaves provider-specific singletons (IDatabaseProvider,
+                // IRelationalConnection, etc.) from the original UseSqlite
+                // call in the container; re-adding AddDbContext with UseNpgsql
+                // then registers a second IDatabaseProvider and EF throws
+                // "Services for database providers '...Sqlite', '...Npgsql'
+                // have been registered". Removing the whole EF stack
+                // unconditionally is simpler than a per-provider strip and
+                // is correct for the Sqlite branch too (re-adds an identical
+                // stack).
+                var efDescriptors = s
+                    .Where(d => d.ServiceType.FullName is { } n
+                        && (n.StartsWith("Microsoft.EntityFrameworkCore", StringComparison.Ordinal)
+                            || n.StartsWith("Npgsql.EntityFrameworkCore", StringComparison.Ordinal)))
+                    .ToList();
+                foreach (var d in efDescriptors)
                 {
-                    s.Remove(dbDescriptor);
+                    s.Remove(d);
                 }
 
                 if (Backend == DbBackend.Sqlite)
