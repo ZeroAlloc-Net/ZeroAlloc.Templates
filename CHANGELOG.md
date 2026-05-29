@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.9.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/compare/ZeroAlloc.Templates-v0.8.1...ZeroAlloc.Templates-v0.9.0) (2026-05-29)
+
+
+### Features
+
+* **za-clean:** postgres mirror + cross-template SchemaStrategy sync ([#143](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/issues/143)) ([c7dd442](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/commit/c7dd4422db190c2606e8102b704fa615e90796ff))
+* **za-vertical-slice/bench:** postgres bench profile (B2) ([#140](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/issues/140)) ([34c82ad](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/commit/34c82adc492ded299129cfa4643cb257022746e5))
+
+
+### Documentation
+
+* **za-clean:** fill in B3 Postgres numbers + refresh BDN table ([#144](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/issues/144)) ([d05d238](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/commit/d05d238239d044aff703f2b027c22ab887c2dd36))
+
 ## [0.8.1](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/compare/ZeroAlloc.Templates-v0.8.0...ZeroAlloc.Templates-v0.8.1) (2026-05-28)
 
 
