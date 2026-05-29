@@ -139,7 +139,10 @@ using (var scope = app.Services.CreateScope())
 
 static async Task ApplyEmbeddedSchemaAsync(AppDbContext db)
 {
-    var asm = typeof(Program).Assembly;
+    // schema.sql / schema.postgres.sql are embedded in MyApp.Infrastructure
+    // (alongside the Persistence folder). Read from the AppDbContext's
+    // assembly rather than the Api's.
+    var asm = typeof(AppDbContext).Assembly;
     var resourceName = asm.GetManifestResourceNames()
         .First(n => n.EndsWith("schema.sql", StringComparison.Ordinal));
     using var stream = asm.GetManifestResourceStream(resourceName)!;

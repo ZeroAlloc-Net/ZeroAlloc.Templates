@@ -15,12 +15,6 @@
     <TrimmerSingleWarn>true</TrimmerSingleWarn>
   </PropertyGroup>
   <ItemGroup>
-    <!-- Embed the schema script so the AOT binary can create the database without
-         needing the design-time EF Core pipeline (which is not AOT-compatible).
-         Regenerate via `dotnet ef migrations script -o src/MyApp.Api/schema.sql`. -->
-    <EmbeddedResource Include="schema.sql" />
-  </ItemGroup>
-  <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" />
 
     <!-- ZA.Authorization, ZA.Authorization.Generator, and ZA.Mediator.Authorization

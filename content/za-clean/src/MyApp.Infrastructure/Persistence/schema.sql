@@ -23,7 +23,7 @@ CREATE TABLE "OrderLines" (
 CREATE INDEX "IX_OrderLines_OrderId" ON "OrderLines" ("OrderId");
 
 INSERT INTO "__EFMigrationsHistory" ("MigrationId", "ProductVersion")
-VALUES ('20260511111619_InitialCreate', '10.0.7');
+VALUES ('20260511111619_InitialCreate', '10.0.8');
 
 COMMIT;
 
