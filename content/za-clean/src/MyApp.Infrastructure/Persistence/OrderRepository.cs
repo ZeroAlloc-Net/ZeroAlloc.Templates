@@ -75,9 +75,13 @@ public sealed class OrderRepository(AppDbContext db) : IOrderRepository
         var cmd = conn.CreateCommand();
         await using (cmd.ConfigureAwait(false))
         {
-            cmd.CommandText = "SELECT CustomerId, Status, Total FROM Orders WHERE Id = $id;";
+            // ADO.NET parameter prefix: `@` is accepted by both Microsoft.Data.Sqlite
+            // (which also accepts `$` and `:`) AND Npgsql (which rejects `$` because
+            // Postgres uses `$1`/`$2` for positional parameters in raw SQL). Using
+            // `@id` keeps this raw-SQL repository provider-agnostic.
+            cmd.CommandText = "SELECT CustomerId, Status, Total FROM Orders WHERE Id = @id;";
             var pId = cmd.CreateParameter();
-            pId.ParameterName = "$id";
+            pId.ParameterName = "@id";
             pId.Value = orderId;
             cmd.Parameters.Add(pId);
 
@@ -100,9 +104,9 @@ public sealed class OrderRepository(AppDbContext db) : IOrderRepository
         var cmd = conn.CreateCommand();
         await using (cmd.ConfigureAwait(false))
         {
-            cmd.CommandText = "SELECT Sku, Quantity, Price FROM OrderLines WHERE OrderId = $id;";
+            cmd.CommandText = "SELECT Sku, Quantity, Price FROM OrderLines WHERE OrderId = @id;";
             var pId = cmd.CreateParameter();
-            pId.ParameterName = "$id";
+            pId.ParameterName = "@id";
             pId.Value = orderId;
             cmd.Parameters.Add(pId);
 
