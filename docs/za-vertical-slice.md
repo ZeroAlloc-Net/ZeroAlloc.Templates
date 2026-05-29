@@ -159,6 +159,25 @@ The `nbomber-postgres-vs` job in `.github/workflows/benchmarks.yml` runs the rec
 - `nbomber-za-vertical-slice-postgres` — NBomber's HTML / CSV / Markdown reports.
 - `nbomber-sut-log` — the SUT's stdout/stderr (kept short, 7-day retention).
 
-### Numbers
+### Numbers — `Benchmarks (manual)` workflow run [26622051695](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/actions/runs/26622051695)
 
-> Filled in after the first post-merge CI run on `main`. Same flow as the BDN numbers above (PR #140 lands the harness; a follow-up commit on `main` pastes the numbers + a comparison-to-SQLite paragraph from the production-app side).
+500 concurrent VUs, 30s, scenario `read_order_by_id` (`GET /orders/{id}` against a seeded set of 1000 orders):
+
+| Metric | Value |
+|---|---:|
+| Total requests | 76,726 |
+| OK | 76,275 |
+| Fail | 451 (0.59%, all `operation timeout`) |
+| **RPS** | **2,542** |
+| Latency p50 / p95 / p99 | 165 ms / 308 ms / 387 ms |
+| Latency mean / max | ~200 ms / ~2 s |
+
+The SUT, NBomber, and Postgres all run on the same GHA Linux runner (AMD EPYC 7763, 4 logical cores, .NET SDK 10.0.300). The connection-string `Maximum Pool Size=500` matches the NBomber VU count and Postgres `max_connections=500`; aligning the three knobs prevents server-side rejection during steady-state.
+
+### Reading the numbers
+
+**vs. file-SQLite baseline.** The same scenario against file-backed SQLite was historically capped at ~470 RPS by SQLite's single-process file lock. Switching the SUT to Postgres (same scenario, same hardware) lifts the ceiling to **2,542 RPS — about 5×**. Postgres handles concurrent reads via MVCC; file-SQLite serializes them.
+
+**Latency-vs-throughput.** Looking at this section and the BDN `WritePipelineBench` numbers earlier on this page together: BDN-Postgres is *slower per request* than in-memory SQLite (1,217 μs vs 738 μs for the full pipeline) but NBomber-Postgres is *faster overall* than file-SQLite (2,542 RPS vs ~470 RPS). Both findings are consistent — in-memory SQLite "wins" single-threaded latency by skipping real I/O; Postgres "wins" throughput because it handles concurrency properly. The ZA framework cost itself is **provider-independent** in both directions (per-method allocations across backends differ by ≤1 KB, pipeline-layer deltas of ~300 μs and 65–93 μs hold across both providers).
+
+**The per-request budget.** SUT-log inspection of EF query timings under load shows a bi-modal distribution: ~half the queries return in **~1 ms** (uncontended-path SELECT against the primary key), the other half cluster at **~67–74 ms** (connection-pool acquire + MVCC transaction-snapshot setup under 500-VU pressure). The 67–74 ms × 500 concurrent VUs gives the ~190 ms mean request latency that Little's law predicts. Framework-layer optimizations (JWT validation cache, compiled queries, mediator dispatch tuning) are sub-millisecond against this budget — they would not move the RPS ceiling materially. Reaching higher throughput from this number requires architectural changes (HTTP-layer caching, larger Postgres host, or a different scenario shape), not framework tuning.
