@@ -181,7 +181,11 @@ static async Task ApplyEmbeddedSchemaAsync(AppDbContext db, string provider)
         await using (var check = conn.CreateCommand())
         {
             check.CommandText = isPostgres
-                ? "SELECT to_regclass('public.\"__EFMigrationsHistory\"');"
+                // `::text` cast forces Postgres to return text instead of the
+                // `regclass` type, which Npgsql refuses to map to System.Object
+                // for ExecuteScalarAsync. Returns NULL/DBNull if the table is
+                // missing, the literal table name if present.
+                ? "SELECT to_regclass('public.\"__EFMigrationsHistory\"')::text;"
                 : "SELECT name FROM sqlite_master WHERE type='table' AND name='__EFMigrationsHistory';";
             var exists = await check.ExecuteScalarAsync();
             var hasHistory = exists is not null && exists is not DBNull;
