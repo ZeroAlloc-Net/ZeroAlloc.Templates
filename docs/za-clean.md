@@ -827,3 +827,43 @@ The `OrdersRead` / `OrdersWrite` policies stay as-is — only the issuance and v
 - **Per-package depth** — every package in the table above links to its own docs site.
 - **The plan** — the template's design rationale lives in `docs/za-clean-template.md` at the repo root.
 - **Issues and contributions** — [github.com/ZeroAlloc-Net/ZeroAlloc.Templates](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates).
+
+## Load testing against Postgres
+
+NBomber's `MyApp.LoadTest` previously targeted in-memory SQLite via the production app — capped at ~470 RPS by SQLite's single-process file lock. That ceiling is the lock, not the framework. Running against Postgres reveals the real throughput.
+
+The SUT and NBomber run as separate processes. The SUT is configured for Postgres via env vars; NBomber's scenario code is unchanged. AOT-correct: the production startup applies `schema.postgres.sql` via `ApplyEmbeddedSchemaAsync` — zero EF reflection at runtime.
+
+### Local recipe
+
+```bash
+# 1. Start Postgres
+docker run --rm -d -p 5432:5432 \
+  -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=myapp_load \
+  --name myapp-load-pg postgres:17 \
+  -c max_connections=500
+
+# 2. Start the SUT
+Database__Provider=Postgres \
+Database__SchemaStrategy=EmbeddedScript \
+ConnectionStrings__Default="Host=localhost;Port=5432;Username=postgres;Password=postgres;Database=myapp_load;Maximum Pool Size=500" \
+dotnet run -c Release --project src/MyApp.Api &
+
+# 3. Wait for /healthz, then run NBomber
+until curl -fs http://localhost:5000/healthz; do sleep 0.5; done
+dotnet run -c Release --project benchmarks/MyApp.LoadTest
+
+# Cleanup
+kill %1; docker stop myapp-load-pg
+```
+
+### CI
+
+The `nbomber-postgres-clean` job in `.github/workflows/benchmarks.yml` runs the recipe above end-to-end on every manual workflow trigger. Artifacts:
+
+- `nbomber-za-clean-postgres` — NBomber's HTML / CSV / Markdown reports.
+- `nbomber-sut-log-clean` — the SUT's stdout/stderr (kept short, 7-day retention).
+
+### Numbers
+
+> Filled in after the first post-merge CI run on `main`. Same flow as the za-vertical-slice numbers (PR #140 lands the harness; a follow-up commit on `main` pastes the numbers).
