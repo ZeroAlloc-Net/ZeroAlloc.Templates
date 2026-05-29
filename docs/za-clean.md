@@ -177,11 +177,12 @@ BenchmarkDotNet v0.15.8, Linux Ubuntu 24.04.4 LTS
 AMD EPYC 7763, .NET SDK 10.0.300, .NET 10.0.8 X64 RyuJIT x86-64-v3
 ```
 
-| Method        | Mean     | Error     | StdDev    | Gen0    | Allocated |
-|-------------- |---------:|----------:|----------:|--------:|----------:|
-| WritePipeline | 1.050 ms | 0.0230 ms | 0.0649 ms | 15.6250 | 157.57 KB |
+| Method        | Backend  | Mean       | Error     | StdDev    | Allocated |
+|-------------- |--------- |-----------:|----------:|----------:|----------:|
+| WritePipeline | Sqlite   |   928.6 μs | 23.58 μs  | 63.36 μs  | 148.41 KB |
+| WritePipeline | Postgres | 1,729.7 μs | 33.83 μs  | 43.99 μs  | 147.43 KB |
 
-The 157.57 KB is dominated by ASP.NET Core's request pipeline (model binding, JSON deserialization, response shaping) and EF Core's tracking buffer — not the ZA framework cost. The handler-level allocation (mapping + Mediator dispatch + Result construction) is in the low hundreds of bytes; the rest is HTTP plumbing every endpoint pays. Use this as a regression baseline, not a capacity-planning number. A Postgres-backed bench profile is filed as a backlog item — SQLite's single-file lock dominates the wall-clock budget under the current setup.
+The ~148 KB per request is dominated by ASP.NET Core's request pipeline (model binding, JSON deserialization, response shaping) and EF Core's tracking buffer — not the ZA framework cost. The handler-level allocation (mapping + Mediator dispatch + Result construction) is in the low hundreds of bytes; the rest is HTTP plumbing every endpoint pays. **Allocations match within 1 KB across backends** — the framework cost is provider-independent. Postgres is ~85% slower per request than in-memory SQLite (real I/O + WAL + per-statement network), but the absolute allocation budget doesn't shift. Use the Sqlite row as a regression baseline; the Postgres row tells you what production-shaped per-request latency looks like.
 
 #### NBomber — read-RPS scenario (real Kestrel)
 
@@ -864,6 +865,27 @@ The `nbomber-postgres-clean` job in `.github/workflows/benchmarks.yml` runs the 
 - `nbomber-za-clean-postgres` — NBomber's HTML / CSV / Markdown reports.
 - `nbomber-sut-log-clean` — the SUT's stdout/stderr (kept short, 7-day retention).
 
-### Numbers
+### Numbers — `Benchmarks (manual)` workflow run [26644626697](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/actions/runs/26644626697)
 
-> Filled in after the first post-merge CI run on `main`. Same flow as the za-vertical-slice numbers (PR #140 lands the harness; a follow-up commit on `main` pastes the numbers).
+500 concurrent VUs, 30s, scenario `read_order_by_id` (`GET /orders/{id}` against a seeded set of 1000 orders):
+
+| Metric | Value |
+|---|---:|
+| Total requests | 84,748 |
+| OK | 84,265 |
+| Fail | 483 (0.57%, all `operation timeout`) |
+| **RPS** | **2,809** |
+| Latency p50 / p95 / p99 | 154 ms / 286 ms / 370 ms |
+| Latency mean / max | ~190 ms / ~2 s |
+
+The SUT, NBomber, and Postgres all run on the same GHA Linux runner (AMD EPYC 7763, .NET SDK 10.0.300). `Maximum Pool Size=500` matches the NBomber VU count and Postgres `max_connections=500`.
+
+### Reading the numbers
+
+**vs. file-SQLite baseline.** The same scenario against file-backed SQLite was historically capped at ~473 RPS (see the NBomber numbers earlier on this page) by SQLite's single-process file lock. Switching the SUT to Postgres (same scenario, same hardware) lifts the ceiling to **2,809 RPS — about 6×**. Postgres handles concurrent reads via MVCC; file-SQLite serializes them.
+
+**vs. za-vertical-slice.** za-vertical-slice's equivalent NBomber-Postgres run lands at ~2,540–2,630 RPS — within the same family. za-clean comes in slightly higher (~7%) because `OrderRepository.GetByIdAsync` uses raw ADO.NET (a deliberate AOT-compat choice, documented in that file) instead of EF Core's LINQ-to-SQL — saves a few hundred microseconds of EF query-translation per request. Both confirm: **the ZA framework cost itself is provider-independent**, and the data layer's choice of architecture (typed-ID + raw-SQL repository vs. typed-ID + EF Core) is what shifts the per-request budget.
+
+**Pipeline cost as a fraction of total request time.** ZA pipeline (mediator + validation + authorization) is well under 100 μs end-to-end. At 154 ms p50 / 286 ms p95, the budget is dominated by EF + Postgres + Kestrel — not by the framework hot path. For capacity planning, anchor on the Postgres row; for regression-detection of framework changes, the Sqlite row in the BDN table above is the tighter signal.
+
+**The 0.57% timeout failure rate** is consistent with the za-vertical-slice run — bounded by single-Postgres contention at 500 concurrent VUs. Production tuning would dial in `Maximum Pool Size`, `shared_buffers`, and possibly a Postgres read replica for the GET path.
