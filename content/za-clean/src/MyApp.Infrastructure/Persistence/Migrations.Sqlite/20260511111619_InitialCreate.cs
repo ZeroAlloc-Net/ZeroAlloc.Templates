@@ -2,7 +2,7 @@
 
 #nullable disable
 
-namespace MyApp.Infrastructure.Persistence.Migrations
+namespace MyApp.Infrastructure.Persistence.Migrations.Sqlite
 {
     /// <inheritdoc />
     public partial class InitialCreate : Migration
