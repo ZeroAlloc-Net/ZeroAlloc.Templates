@@ -40,17 +40,30 @@ public static class InfrastructureServiceCollectionExtensions
             {
                 opts.UseNpgsql(connectionString, npg =>
                     npg.MigrationsAssembly(typeof(AppDbContext).Assembly.GetName().Name));
+                // No UseModel for Postgres. The compiled model in
+                // Persistence/CompiledModel/ was generated via
+                // `dotnet ef dbcontext optimize` against the Sqlite provider —
+                // its type-mapping internals come from
+                // Microsoft.EntityFrameworkCore.Sqlite.Storage.Internal, so
+                // applying it to an Npgsql DbContext produces malformed SQL
+                // (e.g. 42601 "syntax error at or near $" on SELECT…WHERE
+                // queries). Production Postgres adopters wanting AOT publish
+                // should regenerate the compiled model against Npgsql:
+                //   dotnet ef dbcontext optimize \
+                //     --output-dir Persistence/CompiledModel.Postgres \
+                //     -- --provider Postgres
+                // then dispatch the right UseModel call from this branch.
             }
             else
             {
                 opts.UseSqlite(connectionString, sql =>
                     sql.MigrationsAssembly(typeof(AppDbContext).Assembly.GetName().Name));
+                // Compiled model required for AOT publish; bypasses the reflection-based
+                // design-time model pipeline. Regenerate via
+                // `dotnet ef dbcontext optimize --output-dir Persistence/CompiledModel`
+                // after any entity/mapping change.
+                opts.UseModel(AppDbContextModel.Instance);
             }
-            // Compiled model required for AOT publish; bypasses the reflection-based
-            // design-time model pipeline. Regenerate via
-            // `dotnet ef dbcontext optimize --output-dir Persistence/CompiledModel`
-            // after any entity/mapping change.
-            opts.UseModel(AppDbContextModel.Instance);
             // Owned-type snapshot diff produces a spurious "pending changes" warning on EF 9
             // against the existing InitialCreate migration. Tolerated for the template; a real
             // app should regenerate the migration when the snapshot legitimately drifts.
