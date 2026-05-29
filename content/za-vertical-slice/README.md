@@ -134,11 +134,12 @@ Violations fail CI.
 ## Extending
 
 - **AI agents**: [AGENTS.md](AGENTS.md) — orientation for Claude Code, Cursor, GitHub Copilot, Codex, Aider. Includes "how to add a slice" recipes and the ZA-specific gotchas.
-- **Swap SQLite → PostgreSQL**: set `Database:Provider=Postgres` and point `ConnectionStrings:Default` at your Postgres conn string. For load-testing or ad-hoc experimentation, also set `Database:SchemaStrategy=EnsureCreated` (creates the schema from the runtime model — bypasses migration history; not for long-lived production deployments). For production Postgres, scaffold proper migrations:
-    ```bash
-    dotnet ef migrations add InitialCreate --context AppDbContext --output-dir Persistence/Migrations.Postgres
-    ```
-    and leave `Database:SchemaStrategy` at its default (`Migrate`).
+- **Swap SQLite → PostgreSQL**: set `Database:Provider=Postgres` and point `ConnectionStrings:Default` at your Postgres conn string. Startup applies the embedded `schema.postgres.sql` via `ApplyEmbeddedSchemaAsync` — no EF reflection at runtime, so AOT publish stays clean (when the template's AOT opt-out lifts). After entity changes, regenerate both providers' migrations + schema scripts:
+  ```bash
+  tools/regen-schema.sh              # bash
+  pwsh tools/regen-schema.ps1        # PowerShell
+  ```
+  This produces fresh `Migrations.Sqlite/`, `Migrations.Postgres/`, `schema.sql`, and `schema.postgres.sql` so both providers stay in lockstep.
 
 ## License
 
