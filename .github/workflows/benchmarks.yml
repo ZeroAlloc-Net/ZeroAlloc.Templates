@@ -275,6 +275,12 @@ jobs:
           Database__SchemaStrategy: EmbeddedScript
           ConnectionStrings__Default: "Host=localhost;Port=5432;Username=postgres;Password=postgres;Database=${{ env.POSTGRES_DB_NAME }};Maximum Pool Size=500"
           ASPNETCORE_URLS: "http://localhost:5000"
+          # The production stack includes an Outbound HTTP call to
+          # `shipping.example` (the ZA.Rest typed shipping client). For load
+          # testing, swap in the in-memory stub via the existing
+          # `Shipping:UseStub` config knob — otherwise every POST /orders
+          # request hits a DNS resolution failure on `shipping.example:443`.
+          Shipping__UseStub: "true"
         run: |
           setsid nohup dotnet run -c Release --no-build --project src/MyApp.Api > sut.log 2>&1 &
           echo $! > sut.pid

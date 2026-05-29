@@ -148,14 +148,22 @@ var app = builder.Build();
 //                   AOT-compatible — no reflection.
 //   Skip            — startup does nothing. Used by WritePipelineBench's
 //                   [GlobalSetup] paths where the bench owns DB lifecycle.
-var schemaStrategy = builder.Configuration.GetValue<string>("Database:SchemaStrategy")
+var schemaStrategy = app.Configuration.GetValue<string>("Database:SchemaStrategy")
     ?? "EmbeddedScript";
 
 if (!string.Equals(schemaStrategy, "Skip", StringComparison.OrdinalIgnoreCase))
 {
+    // Re-read `Database:Provider` from app.Configuration here (NOT the
+    // `dbProvider` local captured before builder.Build()). Under WebApplicationFactory,
+    // ConfigureAppConfiguration overrides take effect during builder.Build();
+    // the top-level capture happens BEFORE Build and would see the default
+    // ("Sqlite"), routing the Postgres bench's idempotency check through the
+    // Sqlite branch (sqlite_master → "relation does not exist" against Postgres).
+    var schemaProvider = app.Configuration.GetValue<string>("Database:Provider") ?? "Sqlite";
+
     using var scope = app.Services.CreateScope();
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-    await ApplyEmbeddedSchemaAsync(db, dbProvider);
+    await ApplyEmbeddedSchemaAsync(db, schemaProvider);
 }
 
 static async Task ApplyEmbeddedSchemaAsync(AppDbContext db, string provider)
