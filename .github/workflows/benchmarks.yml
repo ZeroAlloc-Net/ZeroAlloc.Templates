@@ -4,17 +4,13 @@ name: Benchmarks (manual)
 # the GitHub Actions UI ("Run workflow"). Each leg uploads its artifacts —
 # bdn-* for BenchmarkDotNet, nbomber-* for NBomber.
 #
-# Two jobs:
+# Three jobs:
 #   - benchmark (matrix): BDN Primitives + WritePipeline for both templates.
 #     The za-vertical-slice/WritePipeline leg cross-products SQLite + Postgres
-#     via WritePipelineBench's [Params] DbBackend.
+#     via WritePipelineBench's [Params] DbBackend (3 methods × 2 = 6 rows).
+#     The za-clean/WritePipeline leg does the same with 1 method × 2 = 2 rows.
 #   - nbomber-postgres-vs: za-vertical-slice load test against real Postgres.
-#     Distinct from the BDN matrix because it spins up the SUT as a separate
-#     process. Postgres is the only sensible load-test target — SQLite's
-#     single-process file lock caps at ~470 RPS. The CI-fragility concern
-#     that originally kept NBomber out of CI is mitigated by colocation
-#     (SUT runs on the same runner as NBomber, no cross-host network).
-#     If the job becomes a frequent retry-magnet, demote to manual-only.
+#   - nbomber-postgres-clean: za-clean load test against real Postgres.
 #
 # Skipped intentionally:
 #   - AOT-published benchmarks (the existing aot-smoke job already proves
@@ -222,7 +218,115 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: nbomber-sut-log
+          name: nbomber-sut-log-vs
           path: content/za-vertical-slice/sut.log
+          if-no-files-found: warn
+          retention-days: 7
+
+  nbomber-postgres-clean:
+    name: za-clean / NBomber-Postgres
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      POSTGRES_DB_NAME: myapp_load
+    # Postgres runs as an explicit docker-run step (not a GHA service container)
+    # so we can pass `-c max_connections=500` to the postgres binary itself.
+    # Same pattern as nbomber-postgres-vs — see that job for the rationale.
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Start Postgres
+        run: |
+          docker run --rm -d --name postgres \
+            -p 5432:5432 \
+            -e POSTGRES_PASSWORD=postgres \
+            -e POSTGRES_DB=${{ env.POSTGRES_DB_NAME }} \
+            postgres:17 \
+            -c max_connections=500
+          for i in {1..30}; do
+            if docker exec postgres pg_isready -U postgres > /dev/null 2>&1; then
+              echo "Postgres ready after ${i}s"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "Postgres did not become ready in 30s"
+          docker logs postgres
+          exit 1
+
+      - name: Build SUT
+        working-directory: content/za-clean
+        run: dotnet build src/MyApp.Api -c Release
+
+      - name: Build LoadTest
+        working-directory: content/za-clean
+        run: dotnet build benchmarks/MyApp.LoadTest -c Release
+
+      - name: Start SUT against Postgres
+        working-directory: content/za-clean
+        env:
+          Database__Provider: Postgres
+          Database__SchemaStrategy: EmbeddedScript
+          ConnectionStrings__Default: "Host=localhost;Port=5432;Username=postgres;Password=postgres;Database=${{ env.POSTGRES_DB_NAME }};Maximum Pool Size=500"
+          ASPNETCORE_URLS: "http://localhost:5000"
+        run: |
+          setsid nohup dotnet run -c Release --no-build --project src/MyApp.Api > sut.log 2>&1 &
+          echo $! > sut.pid
+
+      - name: Wait for /healthz
+        run: |
+          for i in {1..60}; do
+            if curl -fsS http://localhost:5000/healthz > /dev/null; then
+              echo "SUT healthy after ${i}s"
+              exit 0
+            fi
+            if ! kill -0 "$(cat content/za-clean/sut.pid)" 2>/dev/null; then
+              echo "SUT process died before becoming healthy — dumping log"
+              cat content/za-clean/sut.log
+              exit 1
+            fi
+            sleep 1
+          done
+          echo "SUT did not become healthy in 60s — dumping log"
+          cat content/za-clean/sut.log
+          exit 1
+
+      - name: Run NBomber
+        working-directory: content/za-clean
+        run: dotnet run -c Release --no-build --project benchmarks/MyApp.LoadTest -- http://localhost:5000
+
+      - name: Stop SUT
+        if: always()
+        working-directory: content/za-clean
+        run: |
+          if [ -f sut.pid ]; then
+            kill -TERM -"$(cat sut.pid)" || true
+          fi
+
+      - name: Stop Postgres
+        if: always()
+        run: docker stop postgres || true
+
+      - name: Upload NBomber reports
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: nbomber-za-clean-postgres
+          path: content/za-clean/reports/**
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Upload SUT log
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: nbomber-sut-log-clean
+          path: content/za-clean/sut.log
           if-no-files-found: warn
           retention-days: 7
