@@ -143,33 +143,64 @@ var app = builder.Build();
 
 // Apply schema on startup. `Database:SchemaStrategy` controls how:
 //
-//   Migrate         (default) — `MigrateAsync()`. Production behavior; the
-//                   shipped Sqlite migrations apply. Postgres deployments
-//                   must scaffold their own Postgres-typed migrations first
-//                   (existing migrations declare Sqlite types).
-//   EnsureCreated   — runtime-model schema creation via `EnsureCreatedAsync()`.
-//                   Used by ad-hoc Postgres experimentation and the
-//                   NBomber-against-Postgres load test. Bypasses migrations
-//                   history; not appropriate for long-lived production
-//                   Postgres deployments.
+//   EmbeddedScript  (default) — load schema.sql (Sqlite) or schema.postgres.sql
+//                   (Postgres) from embedded resources and apply via raw ADO.NET.
+//                   AOT-compatible — no reflection.
 //   Skip            — startup does nothing. Used by WritePipelineBench's
-//                   Postgres branch, which owns schema creation in
-//                   [GlobalSetup].
+//                   [GlobalSetup] paths where the bench owns DB lifecycle.
 var schemaStrategy = builder.Configuration.GetValue<string>("Database:SchemaStrategy")
-    ?? "Migrate";
+    ?? "EmbeddedScript";
 
 if (!string.Equals(schemaStrategy, "Skip", StringComparison.OrdinalIgnoreCase))
 {
     using var scope = app.Services.CreateScope();
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    await ApplyEmbeddedSchemaAsync(db, dbProvider);
+}
 
-    if (string.Equals(schemaStrategy, "EnsureCreated", StringComparison.OrdinalIgnoreCase))
+static async Task ApplyEmbeddedSchemaAsync(AppDbContext db, string provider)
+{
+    var isPostgres = string.Equals(provider, "Postgres", StringComparison.OrdinalIgnoreCase);
+    var resourceSuffix = isPostgres ? "schema.postgres.sql" : "schema.sql";
+
+    var asm = typeof(AppDbContext).Assembly;
+    var resourceName = asm.GetManifestResourceNames()
+        .First(n => n.EndsWith(resourceSuffix, StringComparison.Ordinal));
+    using var stream = asm.GetManifestResourceStream(resourceName)!;
+    using var reader = new StreamReader(stream);
+    var script = await reader.ReadToEndAsync();
+
+    var conn = db.Database.GetDbConnection();
+    var openedHere = conn.State != System.Data.ConnectionState.Open;
+    if (openedHere)
     {
-        await db.Database.EnsureCreatedAsync();
+        await conn.OpenAsync();
     }
-    else
+    try
     {
-        await db.Database.MigrateAsync();
+        await using (var check = conn.CreateCommand())
+        {
+            check.CommandText = isPostgres
+                ? "SELECT to_regclass('public.\"__EFMigrationsHistory\"');"
+                : "SELECT name FROM sqlite_master WHERE type='table' AND name='__EFMigrationsHistory';";
+            var exists = await check.ExecuteScalarAsync();
+            var hasHistory = exists is not null && exists is not DBNull;
+            if (hasHistory)
+            {
+                return;
+            }
+        }
+
+        await using var cmd = conn.CreateCommand();
+        cmd.CommandText = script;
+        await cmd.ExecuteNonQueryAsync();
+    }
+    finally
+    {
+        if (openedHere)
+        {
+            await conn.CloseAsync();
+        }
     }
 }
 
