@@ -21,22 +21,31 @@ public static class InfrastructureServiceCollectionExtensions
 {
     public static IServiceCollection AddMyAppInfrastructure(
         this IServiceCollection services,
-        string sqliteConnectionString,
+        string provider,
+        string connectionString,
         string shippingBaseUrl)
     {
-        services.AddDbContext<AppDbContext>(opt =>
+        services.AddDbContextPool<AppDbContext>(opts =>
         {
-            opt.UseSqlite(sqliteConnectionString, sqlite =>
-                sqlite.MigrationsAssembly(typeof(AppDbContext).Assembly.GetName().Name));
+            if (string.Equals(provider, "Postgres", StringComparison.OrdinalIgnoreCase))
+            {
+                opts.UseNpgsql(connectionString, npg =>
+                    npg.MigrationsAssembly(typeof(AppDbContext).Assembly.GetName().Name));
+            }
+            else
+            {
+                opts.UseSqlite(connectionString, sql =>
+                    sql.MigrationsAssembly(typeof(AppDbContext).Assembly.GetName().Name));
+            }
             // Compiled model required for AOT publish; bypasses the reflection-based
             // design-time model pipeline. Regenerate via
             // `dotnet ef dbcontext optimize --output-dir Persistence/CompiledModel`
             // after any entity/mapping change.
-            opt.UseModel(AppDbContextModel.Instance);
+            opts.UseModel(AppDbContextModel.Instance);
             // Owned-type snapshot diff produces a spurious "pending changes" warning on EF 9
             // against the existing InitialCreate migration. Tolerated for the template; a real
             // app should regenerate the migration when the snapshot legitimately drifts.
-            opt.ConfigureWarnings(w =>
+            opts.ConfigureWarnings(w =>
                 w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning));
         });
 

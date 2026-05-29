@@ -23,8 +23,9 @@ var connectionString = builder.Configuration.GetConnectionString("Default")
     ?? "Data Source=app.db";
 var shippingBaseUrl = builder.Configuration["Shipping:BaseUrl"]
     ?? "https://shipping.example/";
+var dbProvider = builder.Configuration.GetValue<string>("Database:Provider") ?? "Sqlite";
 
-builder.Services.AddMyAppInfrastructure(connectionString, shippingBaseUrl);
+builder.Services.AddMyAppInfrastructure(dbProvider, connectionString, shippingBaseUrl);
 
 // Load-test / dev convenience: swap the ZA.Rest typed shipping client for an
 // in-memory stub when Shipping:UseStub=true. Override via the
