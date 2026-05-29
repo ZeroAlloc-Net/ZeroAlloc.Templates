@@ -1,14 +1,22 @@
 name: Benchmarks (manual)
 
-# Manual BenchmarkDotNet runs for both templates' Primitives + WritePipeline
-# suites. Triggered via the GitHub Actions UI ("Run workflow"). Each matrix
-# leg uploads its BenchmarkDotNet.Artifacts as a workflow artifact — download
-# the bdn-* artifacts to harvest the per-method tables and paste them into
-# docs/za-clean.md / docs/za-vertical-slice.md / READMEs.
+# Manual BenchmarkDotNet + NBomber runs for both templates. Triggered via
+# the GitHub Actions UI ("Run workflow"). Each leg uploads its artifacts —
+# bdn-* for BenchmarkDotNet, nbomber-* for NBomber.
+#
+# Two jobs:
+#   - benchmark (matrix): BDN Primitives + WritePipeline for both templates.
+#     The za-vertical-slice/WritePipeline leg cross-products SQLite + Postgres
+#     via WritePipelineBench's [Params] DbBackend.
+#   - nbomber-postgres-vs: za-vertical-slice load test against real Postgres.
+#     Distinct from the BDN matrix because it spins up the SUT as a separate
+#     process. Postgres is the only sensible load-test target — SQLite's
+#     single-process file lock caps at ~470 RPS. The CI-fragility concern
+#     that originally kept NBomber out of CI is mitigated by colocation
+#     (SUT runs on the same runner as NBomber, no cross-host network).
+#     If the job becomes a frequent retry-magnet, demote to manual-only.
 #
 # Skipped intentionally:
-#   - The NBomber MyApp.LoadTest scenario (500 VUs against real Kestrel; fine
-#     locally, fragile on shared CI runners).
 #   - AOT-published benchmarks (the existing aot-smoke job already proves
 #     AOT compatibility; JIT numbers are the regression net).
 
@@ -20,6 +28,25 @@ jobs:
     name: ${{ matrix.template }} / ${{ matrix.suite }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    # Postgres attaches at job level (GHA has no per-leg services syntax), so
+    # all 4 matrix legs receive the container. Only za-vertical-slice /
+    # WritePipeline actually consumes it via WritePipelineBench's [Params]
+    # DbBackend.Postgres profile. Cost: ~150MB cached image pull + ~3s startup
+    # per leg, negligible against the 30-min budget. See
+    # docs/plans/2026-05-28-postgres-bench-profile-design.md §CI workflow.
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: bench
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 5
     strategy:
       fail-fast: false
       matrix:
@@ -62,6 +89,12 @@ jobs:
 
       - name: Run BenchmarkDotNet
         working-directory: content/${{ matrix.template }}/${{ matrix.project }}
+        env:
+          POSTGRES_HOST: localhost
+          POSTGRES_PORT: "5432"
+          POSTGRES_DB: bench
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
         run: dotnet run -c Release --no-build -- --filter "${{ matrix.filter }}" --exporters github
 
       - name: Upload BDN artifacts
@@ -72,3 +105,124 @@ jobs:
           path: content/${{ matrix.template }}/${{ matrix.project }}/BenchmarkDotNet.Artifacts/**
           if-no-files-found: warn
           retention-days: 30
+
+  nbomber-postgres-vs:
+    name: za-vertical-slice / NBomber-Postgres
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      POSTGRES_DB_NAME: myapp_load
+    # Postgres runs as an explicit docker-run step (not a GHA service container)
+    # so we can pass `-c max_connections=500` to the postgres binary itself.
+    # GHA service containers only support Docker flags via `options:`, not
+    # arguments to the container's entrypoint. The 500 client-pool / 500
+    # server-side max_connections / 500 NBomber VUs all have to align — when
+    # the previous run set client pool to 500 but the server stayed at the
+    # default 100, Postgres threw `53300: sorry, too many clients already`
+    # and NBomber RPS collapsed from 2,329 to 154.
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Start Postgres
+        run: |
+          docker run --rm -d --name postgres \
+            -p 5432:5432 \
+            -e POSTGRES_PASSWORD=postgres \
+            -e POSTGRES_DB=${{ env.POSTGRES_DB_NAME }} \
+            postgres:17 \
+            -c max_connections=500
+          # Wait for readiness (matches the prior services-block health check).
+          for i in {1..30}; do
+            if docker exec postgres pg_isready -U postgres > /dev/null 2>&1; then
+              echo "Postgres ready after ${i}s"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "Postgres did not become ready in 30s"
+          docker logs postgres
+          exit 1
+
+      - name: Build SUT
+        working-directory: content/za-vertical-slice
+        run: dotnet build src/MyApp -c Release
+
+      - name: Build LoadTest
+        working-directory: content/za-vertical-slice
+        run: dotnet build benchmarks/MyApp.LoadTest -c Release
+
+      - name: Start SUT against Postgres
+        working-directory: content/za-vertical-slice
+        env:
+          Database__Provider: Postgres
+          Database__SchemaStrategy: EnsureCreated
+          # Maximum Pool Size=500 matches the NBomber scenario's VU count
+          # (Simulation.KeepConstant(copies: 500)). Default Npgsql pool is 100,
+          # which produced ~0.65% timeout failures under contention in the first
+          # NBomber-Postgres run.
+          ConnectionStrings__Default: "Host=localhost;Port=5432;Username=postgres;Password=postgres;Database=${{ env.POSTGRES_DB_NAME }};Maximum Pool Size=500"
+          ASPNETCORE_URLS: "http://localhost:5000"
+        run: |
+          setsid nohup dotnet run -c Release --no-build --project src/MyApp > sut.log 2>&1 &
+          echo $! > sut.pid
+
+      - name: Wait for /healthz
+        run: |
+          for i in {1..60}; do
+            if curl -fsS http://localhost:5000/healthz > /dev/null; then
+              echo "SUT healthy after ${i}s"
+              exit 0
+            fi
+            if ! kill -0 "$(cat content/za-vertical-slice/sut.pid)" 2>/dev/null; then
+              echo "SUT process died before becoming healthy — dumping log"
+              cat content/za-vertical-slice/sut.log
+              exit 1
+            fi
+            sleep 1
+          done
+          echo "SUT did not become healthy in 60s — dumping log"
+          cat content/za-vertical-slice/sut.log
+          exit 1
+
+      - name: Run NBomber
+        working-directory: content/za-vertical-slice
+        run: dotnet run -c Release --no-build --project benchmarks/MyApp.LoadTest -- http://localhost:5000
+
+      - name: Stop SUT
+        if: always()
+        working-directory: content/za-vertical-slice
+        run: |
+          if [ -f sut.pid ]; then
+            # `-PID` (negative PID) signals the entire process group — dotnet run may
+            # spawn the app as a child, and killing only the launcher would leave the
+            # SUT bound to port 5000 until container teardown.
+            kill -TERM -"$(cat sut.pid)" || true
+          fi
+
+      - name: Stop Postgres
+        if: always()
+        run: docker stop postgres || true
+
+      - name: Upload NBomber reports
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: nbomber-za-vertical-slice-postgres
+          path: content/za-vertical-slice/reports/**
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Upload SUT log
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: nbomber-sut-log
+          path: content/za-vertical-slice/sut.log
+          if-no-files-found: warn
+          retention-days: 7

@@ -26,8 +26,9 @@
     <!-- ASP.NET Core auth -->
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" />
 
-    <!-- EF Core -->
+    <!-- EF Core (provider selected by `Database:Provider` config; default Sqlite) -->
     <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" />
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>

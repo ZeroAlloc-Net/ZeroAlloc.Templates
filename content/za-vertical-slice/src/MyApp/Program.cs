@@ -36,14 +36,30 @@ builder.Services.AddMediator()
     .WithAuthorization(o => o.UseAccessor<HttpSecurityContextAccessor>());
 
 // ---------------------------------------------------------------------------
-// EF Core / SQLite.
+// EF Core — provider selected by `Database:Provider` config (Sqlite|Postgres).
+// Default is Sqlite so the zero-setup `dotnet run` quickstart still works
+// (`Data Source=app.db` flows into UseSqlite). To target Postgres, set
+// `Database:Provider=Postgres` and `ConnectionStrings:Default=Host=...;...`.
 // ---------------------------------------------------------------------------
+var dbProvider = builder.Configuration.GetValue<string>("Database:Provider") ?? "Sqlite";
 var connectionString = builder.Configuration.GetConnectionString("Default")
     ?? "Data Source=app.db";
 
-builder.Services.AddDbContext<AppDbContext>(opts =>
+// AddDbContextPool reuses DbContext instances across requests — skips the
+// constructor + service-resolution cost per call. Material at high RPS
+// (NBomber against Postgres saw ~30–50% read-path win in our load tests).
+// Requires AppDbContext's constructor to accept only DbContextOptions —
+// see AppDbContext.cs.
+builder.Services.AddDbContextPool<AppDbContext>(opts =>
 {
-    opts.UseSqlite(connectionString);
+    if (string.Equals(dbProvider, "Postgres", StringComparison.OrdinalIgnoreCase))
+    {
+        opts.UseNpgsql(connectionString);
+    }
+    else
+    {
+        opts.UseSqlite(connectionString);
+    }
     // EF Core 10 fires PendingModelChangesWarning by default when the runtime
     // model snapshot differs from the most recent migration's snapshot — and
     // produces false positives when the compiled-model path (UseModel) is in
@@ -125,13 +141,36 @@ builder.Services.AddEndpointsApiExplorer();
 
 var app = builder.Build();
 
-// Apply pending migrations on startup so a fresh dev box doesn't need a
-// separate `dotnet ef database update` step. Safe to re-run — Migrate()
-// is a no-op once the database is up to date.
-using (var scope = app.Services.CreateScope())
+// Apply schema on startup. `Database:SchemaStrategy` controls how:
+//
+//   Migrate         (default) — `MigrateAsync()`. Production behavior; the
+//                   shipped Sqlite migrations apply. Postgres deployments
+//                   must scaffold their own Postgres-typed migrations first
+//                   (existing migrations declare Sqlite types).
+//   EnsureCreated   — runtime-model schema creation via `EnsureCreatedAsync()`.
+//                   Used by ad-hoc Postgres experimentation and the
+//                   NBomber-against-Postgres load test. Bypasses migrations
+//                   history; not appropriate for long-lived production
+//                   Postgres deployments.
+//   Skip            — startup does nothing. Used by WritePipelineBench's
+//                   Postgres branch, which owns schema creation in
+//                   [GlobalSetup].
+var schemaStrategy = builder.Configuration.GetValue<string>("Database:SchemaStrategy")
+    ?? "Migrate";
+
+if (!string.Equals(schemaStrategy, "Skip", StringComparison.OrdinalIgnoreCase))
 {
+    using var scope = app.Services.CreateScope();
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-    await db.Database.MigrateAsync();
+
+    if (string.Equals(schemaStrategy, "EnsureCreated", StringComparison.OrdinalIgnoreCase))
+    {
+        await db.Database.EnsureCreatedAsync();
+    }
+    else
+    {
+        await db.Database.MigrateAsync();
+    }
 }
 
 app.UseAuthentication();
