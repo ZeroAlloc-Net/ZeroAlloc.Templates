@@ -115,20 +115,28 @@ public class WritePipelineBench
             b.ConfigureServices(s =>
             {
                 // Strip every EF Core registration the production AddDbContext
-                // left behind. Removing only DbContextOptions<AppDbContext>
-                // leaves provider-specific singletons (IDatabaseProvider,
-                // IRelationalConnection, etc.) from the original UseSqlite
-                // call in the container; re-adding AddDbContext with UseNpgsql
-                // then registers a second IDatabaseProvider and EF throws
-                // "Services for database providers '...Sqlite', '...Npgsql'
-                // have been registered". Removing the whole EF stack
-                // unconditionally is simpler than a per-provider strip and
-                // is correct for the Sqlite branch too (re-adds an identical
-                // stack).
+                // (or AddDbContextPool) left behind. Removing only
+                // DbContextOptions<AppDbContext> leaves provider-specific
+                // singletons (IDatabaseProvider, IRelationalConnection, etc.)
+                // from the original UseSqlite call in the container; re-adding
+                // AddDbContext with UseNpgsql then registers a second
+                // IDatabaseProvider and EF throws "Services for database
+                // providers '...Sqlite', '...Npgsql' have been registered".
+                //
+                // Also includes typeof(AppDbContext) explicitly — its FullName
+                // lives in MyApp.Persistence (not the EF namespace), but
+                // AddDbContextPool registers AppDbContext with a factory that
+                // resolves via IScopedDbContextLease<AppDbContext>. The
+                // namespace strip catches the lease but not the factory
+                // descriptor itself; if we re-AddDbContext without removing
+                // it, the host can still resolve AppDbContext through the
+                // pool-flavored factory and throw "No service for type
+                // 'Microsoft.EntityFrameworkCore.Internal.IScopedDbContextLease`1[AppDbContext]'".
                 var efDescriptors = s
-                    .Where(d => d.ServiceType.FullName is { } n
-                        && (n.StartsWith("Microsoft.EntityFrameworkCore", StringComparison.Ordinal)
-                            || n.StartsWith("Npgsql.EntityFrameworkCore", StringComparison.Ordinal)))
+                    .Where(d => d.ServiceType == typeof(AppDbContext)
+                        || (d.ServiceType.FullName is { } n
+                            && (n.StartsWith("Microsoft.EntityFrameworkCore", StringComparison.Ordinal)
+                                || n.StartsWith("Npgsql.EntityFrameworkCore", StringComparison.Ordinal))))
                     .ToList();
                 foreach (var d in efDescriptors)
                 {
