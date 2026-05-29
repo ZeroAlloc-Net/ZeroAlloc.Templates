@@ -138,7 +138,7 @@ docker run --rm -d -p 5432:5432 \
 # 2. Start the SUT
 Database__Provider=Postgres \
 Database__SchemaStrategy=EnsureCreated \
-ConnectionStrings__Default="Host=localhost;Port=5432;Username=postgres;Password=postgres;Database=myapp_load" \
+ConnectionStrings__Default="Host=localhost;Port=5432;Username=postgres;Password=postgres;Database=myapp_load;Maximum Pool Size=500" \
 dotnet run -c Release --project src/MyApp &
 
 # 3. Wait for /healthz, then run NBomber

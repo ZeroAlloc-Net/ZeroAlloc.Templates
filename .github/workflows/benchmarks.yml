@@ -147,7 +147,11 @@ jobs:
         env:
           Database__Provider: Postgres
           Database__SchemaStrategy: EnsureCreated
-          ConnectionStrings__Default: "Host=localhost;Port=5432;Username=postgres;Password=postgres;Database=${{ env.POSTGRES_DB_NAME }}"
+          # Maximum Pool Size=500 matches the NBomber scenario's VU count
+          # (Simulation.KeepConstant(copies: 500)). Default Npgsql pool is 100,
+          # which produced ~0.65% timeout failures under contention in the first
+          # NBomber-Postgres run.
+          ConnectionStrings__Default: "Host=localhost;Port=5432;Username=postgres;Password=postgres;Database=${{ env.POSTGRES_DB_NAME }};Maximum Pool Size=500"
           ASPNETCORE_URLS: "http://localhost:5000"
         run: |
           setsid nohup dotnet run -c Release --no-build --project src/MyApp > sut.log 2>&1 &

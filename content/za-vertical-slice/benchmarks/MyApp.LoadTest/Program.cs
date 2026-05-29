@@ -9,7 +9,7 @@
 //
 //   Database__Provider=Postgres \
 //   Database__SchemaStrategy=EnsureCreated \
-//   ConnectionStrings__Default="Host=localhost;Port=5432;Username=postgres;Password=postgres;Database=myapp_load" \
+//   ConnectionStrings__Default="Host=localhost;Port=5432;Username=postgres;Password=postgres;Database=myapp_load;Maximum Pool Size=500" \
 //   dotnet run -c Release --project src/MyApp &
 //
 //   until curl -fs http://localhost:5000/healthz; do sleep 0.5; done
