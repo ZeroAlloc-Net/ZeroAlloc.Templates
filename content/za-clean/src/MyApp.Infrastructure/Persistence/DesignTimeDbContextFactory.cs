@@ -25,6 +25,17 @@ internal sealed class DesignTimeDbContextFactory : IDesignTimeDbContextFactory<A
             ?? Environment.GetEnvironmentVariable("DOTNET_EF_PROVIDER")
             ?? "Sqlite";
 
+        // Validate explicitly: a typo (`--provider Postgrse`) would otherwise silently
+        // fall through to Sqlite and overwrite the wrong migration folder. Fail loudly
+        // at design time instead.
+        if (!string.Equals(provider, "Sqlite", StringComparison.OrdinalIgnoreCase)
+            && !string.Equals(provider, "Postgres", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new ArgumentException(
+                $"DesignTimeDbContextFactory: unknown provider '{provider}'. Expected 'Sqlite' or 'Postgres'.",
+                nameof(args));
+        }
+
         var builder = new DbContextOptionsBuilder<AppDbContext>();
         if (string.Equals(provider, "Postgres", StringComparison.OrdinalIgnoreCase))
         {
