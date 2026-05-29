@@ -5,7 +5,8 @@
 //
 //   docker run --rm -d -p 5432:5432 \
 //     -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=myapp_load \
-//     --name myapp-load-pg postgres:17
+//     --name myapp-load-pg postgres:17 \
+//     -c max_connections=500
 //
 //   Database__Provider=Postgres \
 //   Database__SchemaStrategy=EnsureCreated \

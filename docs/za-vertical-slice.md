@@ -133,7 +133,8 @@ The SUT and NBomber run as separate processes. The SUT is configured for Postgre
 # 1. Start Postgres
 docker run --rm -d -p 5432:5432 \
   -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=myapp_load \
-  --name myapp-load-pg postgres:17
+  --name myapp-load-pg postgres:17 \
+  -c max_connections=500
 
 # 2. Start the SUT
 Database__Provider=Postgres \

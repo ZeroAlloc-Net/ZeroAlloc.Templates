@@ -112,19 +112,14 @@ jobs:
     timeout-minutes: 30
     env:
       POSTGRES_DB_NAME: myapp_load
-    services:
-      postgres:
-        image: postgres:17
-        env:
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: ${{ env.POSTGRES_DB_NAME }}
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 5s
-          --health-timeout 3s
-          --health-retries 5
+    # Postgres runs as an explicit docker-run step (not a GHA service container)
+    # so we can pass `-c max_connections=500` to the postgres binary itself.
+    # GHA service containers only support Docker flags via `options:`, not
+    # arguments to the container's entrypoint. The 500 client-pool / 500
+    # server-side max_connections / 500 NBomber VUs all have to align — when
+    # the previous run set client pool to 500 but the server stayed at the
+    # default 100, Postgres threw `53300: sorry, too many clients already`
+    # and NBomber RPS collapsed from 2,329 to 154.
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -133,6 +128,26 @@ jobs:
         uses: actions/setup-dotnet@v5
         with:
           dotnet-version: 10.0.x
+
+      - name: Start Postgres
+        run: |
+          docker run --rm -d --name postgres \
+            -p 5432:5432 \
+            -e POSTGRES_PASSWORD=postgres \
+            -e POSTGRES_DB=${{ env.POSTGRES_DB_NAME }} \
+            postgres:17 \
+            -c max_connections=500
+          # Wait for readiness (matches the prior services-block health check).
+          for i in {1..30}; do
+            if docker exec postgres pg_isready -U postgres > /dev/null 2>&1; then
+              echo "Postgres ready after ${i}s"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "Postgres did not become ready in 30s"
+          docker logs postgres
+          exit 1
 
       - name: Build SUT
         working-directory: content/za-vertical-slice
@@ -189,6 +204,10 @@ jobs:
             # SUT bound to port 5000 until container teardown.
             kill -TERM -"$(cat sut.pid)" || true
           fi
+
+      - name: Stop Postgres
+        if: always()
+        run: docker stop postgres || true
 
       - name: Upload NBomber reports
         if: always()
