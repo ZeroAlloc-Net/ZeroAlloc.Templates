@@ -20,17 +20,29 @@ Candidate enhancements identified during real-world usage. Each item is independ
 
 ---
 
-## B3 — Postgres bench profile for za-clean (replication)
+## ~~B3 — Postgres bench profile for za-clean (replication)~~ — ✅ shipped 2026-05-29 (with cross-template sync)
 
-**What.** Replicate B2's `[Params]` DbBackend dispatch into `content/za-clean/benchmarks/MyApp.Benchmarks/WritePipelineBench.cs`. The mechanics are identical to B2; the bench class is simpler (1 method vs 3), so the diff is smaller.
+**Shipped:** Replicated PR #140's Postgres + NBomber work onto `za-clean` AND pulled `za-vertical-slice` up to the same AOT-friendly embedded-script schema pattern in the same PR. Both templates now ship:
 
-**Why.** If za-clean adopters care about the framework-cost narrative the way vertical-slice's now demonstrates, they'll want the same Postgres row. Until they do, this is speculative.
+- `schema.sql` (Sqlite DDL) + `schema.postgres.sql` (Npgsql DDL) as embedded resources alongside per-provider migrations (`Migrations.Sqlite/` + `Migrations.Postgres/`).
+- `Database:Provider` (Sqlite|Postgres) + `Database:SchemaStrategy` (EmbeddedScript|Skip, defaults EmbeddedScript) config keys. PR #140's 3-state SchemaStrategy enum collapsed to 2 — reflection-based runtime EF paths gone from both templates.
+- `tools/regen-schema.{sh,ps1}` wrappers that bundle the 4-line `dotnet ef migrations add` + `dotnet ef migrations script` recipe for both providers, including the `EfActiveProvider` env-var dance the MSBuild conditional needs.
+- `nbomber-postgres-clean` CI job alongside `nbomber-postgres-vs` (existing job's SUT log artifact renamed to `nbomber-sut-log-vs`).
+- za-clean's existing AOT-correctness (`<PublishAot>true</PublishAot>` in `MyApp.Api.csproj`) preserved — zero new EF reflection at runtime in either template.
 
-**Sketch.** Mirror PR #140's changes onto the za-clean tree: add Npgsql `PackageReference` to `MyApp.Benchmarks.csproj`, mirror the `Bench:SkipStartupMigrate` flag into za-clean's `Program.cs` startup-migration block, port the `WritePipelineBench.cs` refactor (including the EF-stack-strip from the B2 diagnosis), benchmarks.yml already has the services block from B2 so no workflow change needed. Fold numbers into `docs/za-clean.md`'s existing benchmarks section.
+**Diagnosis (durable record).** Two non-obvious EF Core behaviors bit us:
 
-**Tradeoff / risks.** ~1h of straightforward mirroring once B2 is merged. No new architectural decisions — every choice is "what B2 did". Risk: za-clean's bench is also part of the published numbers in `docs/za-clean.md`, so doubling the row count needs a small narrative adjustment in that doc.
+1. **Same-assembly migration discovery.** With both `Migrations.Sqlite/<timestamp>_InitialCreate.cs` and `Migrations.Postgres/<timestamp>_InitialCreate.cs` in the same `MigrationsAssembly`, `dotnet ef migrations script -- --provider Sqlite` emitted DDL for BOTH migrations (the Sqlite generator translated the Postgres-typed annotations literally, producing duplicate-table CREATE statements). Resolution: MSBuild conditional `<Compile Remove>` in the csproj keyed on `EfActiveProvider`. When the property is set at design-time (`EfActiveProvider=Sqlite dotnet ef ...`), the OTHER provider's migration classes are excluded from compilation; the EF tool sees only one provider's `[Migration]` classes. At runtime in production (property unset), both compile in — harmless because runtime uses `ApplyEmbeddedSchemaAsync`, not `MigrateAsync`.
 
-**Graduation signal.** First za-clean adopter who asks "what's the Postgres delta?" — *or* proactive when the next za-clean perf-related PR lands and would benefit from the apples-to-apples Postgres baseline.
+2. **`dotnet ef -p` aliases to `--project`.** Setting `EfActiveProvider` via `dotnet ef ... -p:EfActiveProvider=X` doesn't work — the EF tool interprets `-p:...` as a project path. Resolution: pass via env var: `EfActiveProvider=X dotnet ef ...`. The `tools/regen-schema.{sh,ps1}` wrappers bake this in.
+
+3. **Snapshot clobber on parallel scaffold.** `dotnet ef migrations add ... --output-dir Migrations.Postgres/` overwrote the existing `Migrations.Sqlite/AppDbContextModelSnapshot.cs` because EF locates the snapshot by class name (`AppDbContextModelSnapshot`) in the migrations assembly, not by folder. Resolution: `git mv` the overwritten file into the right folder + recreate the Sqlite snapshot at its original path with `namespace MyApp.Persistence.Migrations.Sqlite` (or `.Postgres`). The committed state has each folder owning its own correctly-namespaced snapshot.
+
+---
+
+## ~~B4 — NBomber-Postgres mirror to za-clean~~ — ✅ superseded by B3 (same PR)
+
+Bundled into B3's same PR — the underlying SchemaStrategy + embedded-script refactor unified cleanly across both templates, so the NBomber-Postgres work for za-clean shipped alongside B3 rather than as a separate workstream.
 
 ---
 
