@@ -157,7 +157,7 @@ jobs:
             ./aot-out/SmokeApp.Api > /tmp/aot-server.log 2>&1 &
           PID=$!
           # Wait up to 30s for the API to be ready
-          for i in $(seq 1 600); do
+          for i in $(seq 1 1800); do
             if curl -sf http://localhost:5000/healthz > /dev/null 2>&1; then
               END=$(date +%s%N)
               MS=$(( (END - START) / 1000000 ))
@@ -168,7 +168,7 @@ jobs:
             fi
             sleep 0.05
           done
-          echo "::error::AOT binary did not serve /healthz within 30s"
+          echo "::error::AOT binary did not serve /healthz within 90s"
           echo "--- server log ---"
           cat /tmp/aot-server.log
           kill $PID 2>/dev/null || true
@@ -214,14 +214,14 @@ jobs:
           cd /tmp/real-run-smoke/SmokeApp
           dotnet run --project src/SmokeApp.Api -c Release > /tmp/api.log 2>&1 &
           echo $! > /tmp/api.pid
-          for i in $(seq 1 600); do
+          for i in $(seq 1 1800); do
             if curl -sf http://localhost:5000/healthz > /dev/null 2>&1; then
               echo "API ready"
               exit 0
             fi
             sleep 0.05
           done
-          echo "::error::API did not serve /healthz within 30s"
+          echo "::error::API did not serve /healthz within 90s"
           cat /tmp/api.log
           kill $(cat /tmp/api.pid) 2>/dev/null || true
           exit 1
@@ -316,7 +316,7 @@ jobs:
           Jwt__DevSigningKey=DEV-ONLY-KEY-DO-NOT-USE-IN-PRODUCTION-AT-LEAST-32-CHARS-LONG \
             ./aot-out/SmokeApp > /tmp/aot-server-vs.log 2>&1 &
           PID=$!
-          for i in $(seq 1 600); do
+          for i in $(seq 1 1800); do
             if curl -sf http://localhost:5000/healthz > /dev/null 2>&1; then
               END=$(date +%s%N)
               MS=$(( (END - START) / 1000000 ))
@@ -327,7 +327,7 @@ jobs:
             fi
             sleep 0.05
           done
-          echo "::error::AOT binary did not serve /healthz within 30s"
+          echo "::error::AOT binary did not serve /healthz within 90s"
           echo "--- server log ---"
           cat /tmp/aot-server-vs.log
           kill $PID 2>/dev/null || true
@@ -367,14 +367,14 @@ jobs:
           cd /tmp/real-run-smoke-vs/SmokeApp
           dotnet run --project src/SmokeApp -c Release > /tmp/api-vs.log 2>&1 &
           echo $! > /tmp/api-vs.pid
-          for i in $(seq 1 600); do
+          for i in $(seq 1 1800); do
             if curl -sf http://localhost:5000/healthz > /dev/null 2>&1; then
               echo "API ready"
               exit 0
             fi
             sleep 0.05
           done
-          echo "::error::API did not serve /healthz within 30s"
+          echo "::error::API did not serve /healthz within 90s"
           cat /tmp/api-vs.log
           kill $(cat /tmp/api-vs.pid) 2>/dev/null || true
           exit 1

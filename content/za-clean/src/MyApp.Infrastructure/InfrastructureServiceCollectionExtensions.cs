@@ -19,24 +19,55 @@ namespace MyApp.Infrastructure;
 /// </summary>
 public static class InfrastructureServiceCollectionExtensions
 {
+    /// <summary>
+    /// Wires the EF Core <see cref="AppDbContext"/>, ZA.Inject-emitted services, and
+    /// the ZA.Rest + ZA.Resilience composition into the host services container.
+    /// </summary>
+    /// <param name="provider">Database provider selector. <c>"Postgres"</c> (case-insensitive)
+    /// dispatches to <c>UseNpgsql</c>; any other value falls through to <c>UseSqlite</c>.</param>
+    /// <param name="connectionString">Provider-specific connection string. Sqlite: <c>Data Source=...</c>.
+    /// Postgres: <c>Host=...;Port=...;Username=...;Password=...;Database=...</c>.</param>
+    /// <param name="shippingBaseUrl">Base URL for the ZA.Rest typed shipping client.</param>
     public static IServiceCollection AddMyAppInfrastructure(
         this IServiceCollection services,
-        string sqliteConnectionString,
+        string provider,
+        string connectionString,
         string shippingBaseUrl)
     {
-        services.AddDbContext<AppDbContext>(opt =>
+        services.AddDbContextPool<AppDbContext>(opts =>
         {
-            opt.UseSqlite(sqliteConnectionString, sqlite =>
-                sqlite.MigrationsAssembly(typeof(AppDbContext).Assembly.GetName().Name));
-            // Compiled model required for AOT publish; bypasses the reflection-based
-            // design-time model pipeline. Regenerate via
-            // `dotnet ef dbcontext optimize --output-dir Persistence/CompiledModel`
-            // after any entity/mapping change.
-            opt.UseModel(AppDbContextModel.Instance);
+            if (string.Equals(provider, "Postgres", StringComparison.OrdinalIgnoreCase))
+            {
+                opts.UseNpgsql(connectionString, npg =>
+                    npg.MigrationsAssembly(typeof(AppDbContext).Assembly.GetName().Name));
+                // No UseModel for Postgres. The compiled model in
+                // Persistence/CompiledModel/ was generated via
+                // `dotnet ef dbcontext optimize` against the Sqlite provider —
+                // its type-mapping internals come from
+                // Microsoft.EntityFrameworkCore.Sqlite.Storage.Internal, so
+                // applying it to an Npgsql DbContext produces malformed SQL
+                // (e.g. 42601 "syntax error at or near $" on SELECT…WHERE
+                // queries). Production Postgres adopters wanting AOT publish
+                // should regenerate the compiled model against Npgsql:
+                //   dotnet ef dbcontext optimize \
+                //     --output-dir Persistence/CompiledModel.Postgres \
+                //     -- --provider Postgres
+                // then dispatch the right UseModel call from this branch.
+            }
+            else
+            {
+                opts.UseSqlite(connectionString, sql =>
+                    sql.MigrationsAssembly(typeof(AppDbContext).Assembly.GetName().Name));
+                // Compiled model required for AOT publish; bypasses the reflection-based
+                // design-time model pipeline. Regenerate via
+                // `dotnet ef dbcontext optimize --output-dir Persistence/CompiledModel`
+                // after any entity/mapping change.
+                opts.UseModel(AppDbContextModel.Instance);
+            }
             // Owned-type snapshot diff produces a spurious "pending changes" warning on EF 9
             // against the existing InitialCreate migration. Tolerated for the template; a real
             // app should regenerate the migration when the snapshot legitimately drifts.
-            opt.ConfigureWarnings(w =>
+            opts.ConfigureWarnings(w =>
                 w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning));
         });
 

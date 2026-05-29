@@ -2,7 +2,7 @@ using System.Linq;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
 
-namespace MyApp.Infrastructure.Persistence;
+namespace MyApp.Persistence;
 
 /// <summary>
 /// Used exclusively by the EF Core tooling (`dotnet ef migrations add`,
@@ -17,17 +17,12 @@ internal sealed class DesignTimeDbContextFactory : IDesignTimeDbContextFactory<A
 {
     public AppDbContext CreateDbContext(string[] args)
     {
-        // Handle both "--provider Postgres" (space-separated) and
-        // "--provider=Postgres" (equals-separated) forms.
         var provider = args.FirstOrDefault(a => a.StartsWith("--provider=", StringComparison.Ordinal))
             ?.Split('=', 2).Skip(1).FirstOrDefault()
             ?? args.SkipWhile(a => !string.Equals(a, "--provider", StringComparison.Ordinal)).Skip(1).FirstOrDefault()
             ?? Environment.GetEnvironmentVariable("DOTNET_EF_PROVIDER")
             ?? "Sqlite";
 
-        // Validate explicitly: a typo (`--provider Postgrse`) would otherwise silently
-        // fall through to Sqlite and overwrite the wrong migration folder. Fail loudly
-        // at design time instead.
         if (!string.Equals(provider, "Sqlite", StringComparison.OrdinalIgnoreCase)
             && !string.Equals(provider, "Postgres", StringComparison.OrdinalIgnoreCase))
         {

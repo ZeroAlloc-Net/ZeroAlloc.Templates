@@ -87,7 +87,12 @@ Full methodology + per-package comparisons (ZA.Mapping vs Mapperly/AutoMapper, e
 
 - **AI agents**: [AGENTS.md](AGENTS.md) — orientation for Claude Code, Cursor, GitHub Copilot, Codex, Aider. Includes "how to add a command/query/endpoint/value object" recipes and the ZA-specific gotchas.
 - **Boundary rules**: enforced by `tests/MyApp.ArchitectureTests/CleanArchitectureRules.cs`. Five NetArchTest rules covering Clean dependency direction.
-- **Swap SQLite → PostgreSQL**: change `UseSqlite` to `UseNpgsql` in `Program.cs`, add the EF provider, regenerate migrations. See the template docs for the recipe.
+- **Swap SQLite → PostgreSQL**: set `Database:Provider=Postgres` and point `ConnectionStrings:Default` at your Postgres conn string. AOT-correct: production startup applies the embedded `schema.postgres.sql` via `ApplyEmbeddedSchemaAsync` — no EF reflection at runtime. For load-testing or ad-hoc experimentation, set `Database:SchemaStrategy=EmbeddedScript` (the default). After entity changes, regenerate both providers' migrations + schema scripts:
+  ```bash
+  tools/regen-schema.sh              # bash
+  pwsh tools/regen-schema.ps1        # PowerShell
+  ```
+  This produces fresh `Migrations.Sqlite/`, `Migrations.Postgres/`, `schema.sql`, and `schema.postgres.sql` so both providers stay in lockstep.
 
 ## License
 

@@ -92,4 +92,23 @@
     <InternalsVisibleTo Include="MyApp.IntegrationTests" />
     <InternalsVisibleTo Include="MyApp.ConventionTests" />
   </ItemGroup>
+  <!-- Design-time EF migration scripting: pass /p:EfActiveProvider=Sqlite or
+       /p:EfActiveProvider=Postgres to exclude the OTHER provider's migration
+       classes from the compiled assembly, so `dotnet ef migrations script`
+       sees only the active provider's [Migration]-attributed classes.
+       Runtime production builds leave this property unset; both providers'
+       migrations compile in, which is fine because runtime uses
+       ApplyEmbeddedSchemaAsync (added in Task 10), not EF's migration runner. -->
+  <ItemGroup>
+    <Compile Remove="Persistence/Migrations.Postgres/**/*.cs" Condition="'$(EfActiveProvider)' == 'Sqlite'" />
+    <Compile Remove="Persistence/Migrations.Sqlite/**/*.cs" Condition="'$(EfActiveProvider)' == 'Postgres'" />
+  </ItemGroup>
+
+  <!-- Embedded schema scripts applied at startup by ApplyEmbeddedSchemaAsync.
+       Generated via `dotnet ef migrations script` with the provider flag.
+       Regenerate via tools/regen-schema.{sh,ps1} after entity changes. -->
+  <ItemGroup>
+    <EmbeddedResource Include="Persistence/schema.sql" />
+    <EmbeddedResource Include="Persistence/schema.postgres.sql" />
+  </ItemGroup>
 </Project>

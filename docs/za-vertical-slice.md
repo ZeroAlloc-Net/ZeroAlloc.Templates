@@ -46,8 +46,8 @@ The bench has three methods, each removing one layer:
 
 **Setup notes:**
 
-- **SQLite** profile uses an in-memory connection (`DataSource=:memory:`); schema applied via the production `Program.cs` `MigrateAsync()` path.
-- **Postgres** profile creates a fresh per-process database (`bench_<guid8>`) and applies the EF runtime model via `EnsureCreated()`. The bench sets `Database:SchemaStrategy=Skip` so `Program.cs`'s startup migration is bypassed (existing Sqlite-typed migrations don't translate to Postgres DDL).
+- **SQLite** profile uses an in-memory connection (`DataSource=:memory:`); schema applied via the production `Program.cs` `ApplyEmbeddedSchemaAsync` path reading `schema.sql`.
+- **Postgres** profile creates a fresh per-process database (`bench_<guid8>`) and applies `schema.postgres.sql` via the same production path. AOT-friendly — no reflection. The bench sets `Database:Provider=Postgres`; Program.cs picks the right embedded resource.
 
 ### Numbers — `Benchmarks (manual)` workflow run [26592448470](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/actions/runs/26592448470)
 
@@ -138,7 +138,6 @@ docker run --rm -d -p 5432:5432 \
 
 # 2. Start the SUT
 Database__Provider=Postgres \
-Database__SchemaStrategy=EnsureCreated \
 ConnectionStrings__Default="Host=localhost;Port=5432;Username=postgres;Password=postgres;Database=myapp_load;Maximum Pool Size=500" \
 dotnet run -c Release --project src/MyApp &
 
@@ -150,7 +149,7 @@ dotnet run -c Release --project benchmarks/MyApp.LoadTest
 kill %1; docker stop myapp-load-pg
 ```
 
-`Database__SchemaStrategy=EnsureCreated` bypasses migrations history — the SUT creates the schema directly from the EF runtime model. That's fine for load-testing (ephemeral DB, throwaway state). Production deployments should scaffold Postgres-typed migrations and switch back to the default `Migrate` strategy.
+Startup applies the embedded `schema.postgres.sql` via `ApplyEmbeddedSchemaAsync` — no EF reflection at runtime. The script is idempotent (checks `__EFMigrationsHistory` before applying), so re-runs against an existing load-test database are safe. After entity changes, regenerate both providers' migrations + schema scripts via `tools/regen-schema.sh` (or `tools/regen-schema.ps1`).
 
 ### CI
 

@@ -35,11 +35,12 @@ namespace MyApp.Benchmarks;
 /// </para>
 /// <para>
 /// <b>Backends:</b> <c>[Params]</c> dispatches each method against both
-/// in-memory SQLite and a localhost Postgres. Sqlite uses the production
-/// schema path (<c>Program.cs</c>'s <c>MigrateAsync</c>). Postgres uses
-/// <c>EnsureCreated()</c> against a fresh per-process database
-/// (<c>bench_&lt;guid8&gt;</c>) — existing Sqlite-typed migrations don't
-/// translate, and the bench profile owns its schema path exclusively.
+/// in-memory SQLite and a localhost Postgres. Both branches use the
+/// production <c>Program.cs</c> <c>ApplyEmbeddedSchemaAsync</c> path, reading
+/// <c>schema.sql</c> (Sqlite) or <c>schema.postgres.sql</c> (Postgres) from
+/// embedded resources. Postgres targets a fresh per-process database
+/// (<c>bench_&lt;guid8&gt;</c>) created by [GlobalSetup]; the WAF host then
+/// applies the embedded Postgres script to it on startup.
 /// </para>
 /// <para>
 /// <b>Local dev — Postgres profile only:</b>
@@ -70,7 +71,6 @@ public class WritePipelineBench
     [GlobalSetup]
     public void Setup()
     {
-        var skipMigrate = Backend == DbBackend.Postgres;
         NpgsqlConnectionStringBuilder? csb = null;
 
         if (Backend == DbBackend.Sqlite)
@@ -110,7 +110,8 @@ public class WritePipelineBench
             b.ConfigureAppConfiguration((_, cfg) => cfg.AddInMemoryCollection(new Dictionary<string, string?>
             {
                 ["Jwt:DevSigningKey"] = TestJwt.DevKey,
-                ["Database:SchemaStrategy"] = skipMigrate ? "Skip" : "Migrate",
+                ["Database:Provider"] = Backend == DbBackend.Postgres ? "Postgres" : "Sqlite",
+                ["Database:SchemaStrategy"] = "EmbeddedScript",
             }));
             b.ConfigureServices(s =>
             {
@@ -166,13 +167,6 @@ public class WritePipelineBench
                 }
             });
         });
-
-        if (Backend == DbBackend.Postgres)
-        {
-            using var scope = _factory.Services.CreateScope();
-            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-            db.Database.EnsureCreated();
-        }
 
         _client = _factory.CreateClient();
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue(

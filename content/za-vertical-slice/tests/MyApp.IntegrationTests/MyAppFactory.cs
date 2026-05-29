@@ -54,9 +54,11 @@ public sealed class MyAppFactory : WebApplicationFactory<Program>
                     Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning));
             });
 
-            // Schema creation happens via Program.cs's startup MigrateAsync()
-            // call against the kept-alive in-memory connection — no separate
-            // EnsureCreated() step needed (and would double-create otherwise).
+            // Schema creation happens via Program.cs's startup
+            // ApplyEmbeddedSchemaAsync call (reads schema.sql from embedded
+            // resources) against the kept-alive in-memory connection — no
+            // separate EnsureCreated() step needed (and would double-create
+            // otherwise).
         });
     }
 

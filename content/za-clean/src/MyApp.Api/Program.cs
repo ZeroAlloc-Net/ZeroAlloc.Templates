@@ -23,8 +23,9 @@ var connectionString = builder.Configuration.GetConnectionString("Default")
     ?? "Data Source=app.db";
 var shippingBaseUrl = builder.Configuration["Shipping:BaseUrl"]
     ?? "https://shipping.example/";
+var dbProvider = builder.Configuration.GetValue<string>("Database:Provider") ?? "Sqlite";
 
-builder.Services.AddMyAppInfrastructure(connectionString, shippingBaseUrl);
+builder.Services.AddMyAppInfrastructure(dbProvider, connectionString, shippingBaseUrl);
 
 // Load-test / dev convenience: swap the ZA.Rest typed shipping client for an
 // in-memory stub when Shipping:UseStub=true. Override via the
@@ -126,28 +127,47 @@ var app = builder.Build();
 // migration change. The script is idempotent for the migrations history
 // table; ordinary CREATE TABLE statements are guarded by checking if the
 // migrations history table is empty before applying.
-using (var scope = app.Services.CreateScope())
+// Apply schema on startup. `Database:SchemaStrategy` controls how:
+//
+//   EmbeddedScript  (default) — load schema.sql (Sqlite) or schema.postgres.sql
+//                   (Postgres) from embedded resources and apply via raw ADO.NET.
+//                   AOT-compatible — no reflection.
+//   Skip            — startup does nothing. Used by WritePipelineBench's
+//                   [GlobalSetup] paths where the bench owns DB lifecycle.
+var schemaStrategy = app.Configuration.GetValue<string>("Database:SchemaStrategy")
+    ?? "EmbeddedScript";
+
+if (!string.Equals(schemaStrategy, "Skip", StringComparison.OrdinalIgnoreCase))
 {
+    // Re-read `Database:Provider` from app.Configuration here (NOT the
+    // `dbProvider` local captured before builder.Build()). Under WebApplicationFactory,
+    // ConfigureAppConfiguration overrides take effect during builder.Build();
+    // the top-level capture happens BEFORE Build and would see the default
+    // ("Sqlite"), routing the Postgres bench's idempotency check through the
+    // Sqlite branch (sqlite_master → "relation does not exist" against Postgres).
+    var schemaProvider = app.Configuration.GetValue<string>("Database:Provider") ?? "Sqlite";
+
+    using var scope = app.Services.CreateScope();
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-    await ApplyEmbeddedSchemaAsync(db);
+    await ApplyEmbeddedSchemaAsync(db, schemaProvider);
     if (app.Environment.IsDevelopment())
     {
         await SeedData.SeedAsync(db);
     }
 }
 
-static async Task ApplyEmbeddedSchemaAsync(AppDbContext db)
+static async Task ApplyEmbeddedSchemaAsync(AppDbContext db, string provider)
 {
-    var asm = typeof(Program).Assembly;
+    var isPostgres = string.Equals(provider, "Postgres", StringComparison.OrdinalIgnoreCase);
+    var resourceSuffix = isPostgres ? "schema.postgres.sql" : "schema.sql";
+
+    var asm = typeof(AppDbContext).Assembly;
     var resourceName = asm.GetManifestResourceNames()
-        .First(n => n.EndsWith("schema.sql", StringComparison.Ordinal));
+        .First(n => n.EndsWith(resourceSuffix, StringComparison.Ordinal));
     using var stream = asm.GetManifestResourceStream(resourceName)!;
     using var reader = new StreamReader(stream);
     var script = await reader.ReadToEndAsync();
 
-    // Check whether the schema has already been applied by querying the
-    // migrations history table. If the table doesn't exist yet, sqlite_master
-    // returns no rows and we proceed with the full script.
     var conn = db.Database.GetDbConnection();
     // Track whether we opened the connection ourselves; do not close a
     // pre-existing connection (e.g. integration tests share a kept-alive
@@ -159,11 +179,21 @@ static async Task ApplyEmbeddedSchemaAsync(AppDbContext db)
     }
     try
     {
+        // Idempotency check — provider-specific.
         await using (var check = conn.CreateCommand())
         {
-            check.CommandText = "SELECT name FROM sqlite_master WHERE type='table' AND name='__EFMigrationsHistory';";
+            check.CommandText = isPostgres
+                // `::text` cast forces Postgres to return text instead of the
+                // `regclass` type, which Npgsql refuses to map to System.Object
+                // for ExecuteScalarAsync. Returns NULL/DBNull if the table is
+                // missing, the literal table name if present.
+                ? "SELECT to_regclass('public.\"__EFMigrationsHistory\"')::text;"
+                : "SELECT name FROM sqlite_master WHERE type='table' AND name='__EFMigrationsHistory';";
             var exists = await check.ExecuteScalarAsync();
-            if (exists is not null)
+            // Sqlite returns the table name or null; Postgres returns the table
+            // name string (cast from regclass) or DBNull when missing.
+            var hasHistory = exists is not null && exists is not DBNull;
+            if (hasHistory)
             {
                 // Already applied — skip.
                 return;
