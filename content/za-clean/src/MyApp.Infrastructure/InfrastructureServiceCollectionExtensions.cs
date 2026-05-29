@@ -19,6 +19,15 @@ namespace MyApp.Infrastructure;
 /// </summary>
 public static class InfrastructureServiceCollectionExtensions
 {
+    /// <summary>
+    /// Wires the EF Core <see cref="AppDbContext"/>, ZA.Inject-emitted services, and
+    /// the ZA.Rest + ZA.Resilience composition into the host services container.
+    /// </summary>
+    /// <param name="provider">Database provider selector. <c>"Postgres"</c> (case-insensitive)
+    /// dispatches to <c>UseNpgsql</c>; any other value falls through to <c>UseSqlite</c>.</param>
+    /// <param name="connectionString">Provider-specific connection string. Sqlite: <c>Data Source=...</c>.
+    /// Postgres: <c>Host=...;Port=...;Username=...;Password=...;Database=...</c>.</param>
+    /// <param name="shippingBaseUrl">Base URL for the ZA.Rest typed shipping client.</param>
     public static IServiceCollection AddMyAppInfrastructure(
         this IServiceCollection services,
         string provider,
