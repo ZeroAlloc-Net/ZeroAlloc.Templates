@@ -7,9 +7,20 @@ namespace MyApp.LoadTest;
 
 internal static class ReadHotPathScenario
 {
-    public static ScenarioProps Build(string baseUrl, string token)
+    public static ScenarioProps Build(string baseUrl, string token, int targetRps, int durationSeconds)
     {
-        var http = new HttpClient { BaseAddress = new Uri(baseUrl) };
+        // Open-model injection fans out far more concurrent requests than the old
+        // closed-loop (KeepConstant copies) did, so the default HttpClient
+        // connection cap would itself become the bottleneck. Lift the per-server
+        // limit and recycle pooled connections so the load generator can sustain
+        // the target arrival rate.
+        var handler = new SocketsHttpHandler
+        {
+            MaxConnectionsPerServer = 4096,
+            PooledConnectionLifetime = TimeSpan.FromMinutes(5),
+            EnableMultipleHttp2Connections = true,
+        };
+        var http = new HttpClient(handler) { BaseAddress = new Uri(baseUrl) };
         http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
         var seededIds = new List<int>(1000);
@@ -54,6 +65,18 @@ internal static class ReadHotPathScenario
                 }
             }
         })
-        .WithLoadSimulations(Simulation.KeepConstant(copies: 500, during: TimeSpan.FromSeconds(30)));
+        // Open model: inject a fixed arrival rate independent of response time, so
+        // measured RPS reflects server capacity rather than the closed-loop
+        // `copies / latency` ceiling. Ramp first to avoid a cold-start cliff, then
+        // sustain at the target rate. Tune via LOADTEST_TARGET_RPS / LOADTEST_DURATION_S.
+        .WithLoadSimulations(
+            Simulation.RampingInject(
+                rate: targetRps,
+                interval: TimeSpan.FromSeconds(1),
+                during: TimeSpan.FromSeconds(10)),
+            Simulation.Inject(
+                rate: targetRps,
+                interval: TimeSpan.FromSeconds(1),
+                during: TimeSpan.FromSeconds(durationSeconds)));
     }
 }
