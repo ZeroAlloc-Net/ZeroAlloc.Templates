@@ -72,6 +72,28 @@ Bundled into B3's same PR — the underlying SchemaStrategy + embedded-script re
 
 ---
 
+## B6 — Drop the manual `db.Database.GetDbConnection() + OpenAsync` idiom in raw-SQL read paths
+
+**What.** Replace the `var conn = db.Database.GetDbConnection(); await conn.OpenAsync(...); ... await conn.CloseAsync();` pattern in `content/za-clean/src/MyApp.Infrastructure/Persistence/OrderRepository.cs:31-51` with a connection-lifecycle approach that opens-on-execute and closes-on-reader-dispose — mirroring how EF Core's own command pipeline manages connections. Vertical-slice will inherit the same idiom once B5 lands and its read path moves from EF LINQ to raw ADO.NET, so the fix needs to be template-agnostic.
+
+**Why.** The investigation on PR #145 ([comment 4582084724](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/pull/145#issuecomment-4582084724)) showed the current pattern is the dominant reason za-clean's read p50 is 44× higher than za-vertical-slice's (2,146ms vs 48ms) under 5K RPS open-model injection. EF's `IRelationalConnection` opens just-in-time per command and releases the moment the reader disposes — the Npgsql pool slot is held only for the network round-trip. The manual pattern grabs the slot at method entry and holds it across `CreateCommand → ExecuteReaderAsync → ReadAsync → NextResultAsync → ReadAsync → Dispose → CloseAsync` — a 2-3× longer residency. Under open-model load that compounds linearly into queue depth: clean's effective ceiling on a co-located 2-vCPU runner sits around ~2,500 RPS, builds a ~10K in-flight queue at 5K injection, and ~9,780 requests get NBomber-cancelled at scenario end (status code `-100`). vs measured p50 48ms with **zero** failures purely because EF was managing the connection lifecycle for it.
+
+**Sketch.** Three approaches, in recommended order:
+
+1. **(Preferred) Let EF own the connection via `db.Database.OpenConnectionAsync()` + `Database.CloseConnectionAsync()`.** Those wrappers go through `IRelationalConnection`, so the ref-counted open-on-execute / release-on-dispose contract activates. Minimum diff — same `var conn = db.Database.GetDbConnection()`, but `OpenConnectionAsync` instead of `conn.OpenAsync`. Verify the contract on Npgsql 10's `IRelationalConnection` (the ref-count needs to actually hand the slot back to the pool when the reader disposes; a quick BDN micro-bench against the current pattern proves it).
+
+2. **Scoped `NpgsqlConnection` factory, registered as `IDbConnectionFactory`.** Each scoped request rents directly from Npgsql's pool. Cleaner separation from EF (no shared `DbContext.Database` state), and lets the EF context stay narrow to its own command stream. Slightly more wiring (DI registration, factory interface, AOT-trim hint).
+
+3. **`NpgsqlBatch` native batching.** Npgsql 10 supports `NpgsqlBatchCommand` natively, which would also let us drop the hand-built `";"`-joined SQL in `ReadOrderAsync`. Bigger refactor — worth pairing with (2) if we go that direction.
+
+Validate with a re-run of `nbomber-postgres-clean` after the change. Expected outcome: clean's read p50 drops to within 2× of vs's (the residual gap is the actual extra-row materialization work — the manual-acquire delta is the easy 80%).
+
+**Tradeoff.** Approach (1) is a near-zero-risk swap that should claw back most of the latency gap with ~5 lines of code change. (2) and (3) are more idiomatic but a larger surface — premature if (1) closes the gap. Going straight to (3) without measuring (1) first violates YAGNI.
+
+**Graduation signal.** Pick this up **after B5 lands** (so the fix lands in both templates' read paths in the same PR — they'll share the raw-ADO.NET shape post-B5). Block B6 on B5 to avoid a half-state where only za-clean has the fix.
+
+---
+
 ## How items get added here
 
 Open a PR adding a new section in this file. Use the same `What / Why / Sketch / Tradeoff / Graduation signal` structure. Items remain open until a follow-up PR strikes them through with a `✅ shipped X.Y.Z` marker and links the release.
