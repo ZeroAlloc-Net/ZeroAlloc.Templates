@@ -40,25 +40,7 @@ public sealed class OrderRepository(AppDbContext db) : IOrderRepository
 
         try
         {
-            var head = await ReadOrderHeadAsync(conn, id.Value, ct).ConfigureAwait(false);
-            if (head is null)
-            {
-                return null;
-            }
-
-            var lines = await ReadOrderLinesAsync(conn, id.Value, ct).ConfigureAwait(false);
-
-            var (customerId, statusText, totalText) = head.Value;
-            // Status round-trip mirrors the EF converter (HasConversion<string>()).
-            var status = Enum.Parse<OrderStatus>(statusText);
-            var total = MoneyConverter.FromStorage(totalText);
-
-            return Order.Materialize(
-                id,
-                new CustomerId(customerId),
-                status,
-                total,
-                lines);
+            return await ReadOrderAsync(conn, id, ct).ConfigureAwait(false);
         }
         finally
         {
@@ -69,63 +51,67 @@ public sealed class OrderRepository(AppDbContext db) : IOrderRepository
         }
     }
 
-    private static async Task<(int CustomerId, string Status, string Total)?> ReadOrderHeadAsync(
-        DbConnection conn, int orderId, CancellationToken ct)
+    private static async Task<Order?> ReadOrderAsync(DbConnection conn, OrderId id, CancellationToken ct)
     {
         var cmd = conn.CreateCommand();
         await using (cmd.ConfigureAwait(false))
         {
+            // Single round-trip: head + lines are batched into one command and
+            // walked via NextResultAsync. Both Microsoft.Data.Sqlite and Npgsql
+            // send the two statements in one network exchange, so this halves the
+            // per-read DB latency versus issuing two separate commands.
+            //
             // ADO.NET parameter prefix: `@` is accepted by both Microsoft.Data.Sqlite
             // (which also accepts `$` and `:`) AND Npgsql (which rejects `$` because
             // Postgres uses `$1`/`$2` for positional parameters in raw SQL). Using
-            // `@id` keeps this raw-SQL repository provider-agnostic.
+            // `@id` keeps this raw-SQL repository provider-agnostic. A single named
+            // parameter reused across both statements binds correctly on both
+            // providers.
             // Double-quoted identifiers preserve casing across providers. Postgres
             // folds unquoted identifiers to lowercase (so `Orders` becomes `orders`,
             // which won't match the schema.postgres.sql-created `"Orders"` table).
             // Sqlite accepts double-quoted identifiers in SELECT lists transparently.
-            cmd.CommandText = "SELECT \"CustomerId\", \"Status\", \"Total\" FROM \"Orders\" WHERE \"Id\" = @id;";
+            cmd.CommandText =
+                "SELECT \"CustomerId\", \"Status\", \"Total\" FROM \"Orders\" WHERE \"Id\" = @id;" +
+                "SELECT \"Sku\", \"Quantity\", \"Price\" FROM \"OrderLines\" WHERE \"OrderId\" = @id;";
             var pId = cmd.CreateParameter();
             pId.ParameterName = "@id";
-            pId.Value = orderId;
+            pId.Value = id.Value;
             cmd.Parameters.Add(pId);
 
             var reader = await cmd.ExecuteReaderAsync(ct).ConfigureAwait(false);
             await using (reader.ConfigureAwait(false))
             {
+                // Result set 1 — order head.
                 if (!await reader.ReadAsync(ct).ConfigureAwait(false))
                 {
                     return null;
                 }
-                return (reader.GetInt32(0), reader.GetString(1), reader.GetString(2));
-            }
-        }
-    }
+                var customerId = reader.GetInt32(0);
+                // Status round-trip mirrors the EF converter (HasConversion<string>()).
+                var status = Enum.Parse<OrderStatus>(reader.GetString(1));
+                var total = MoneyConverter.FromStorage(reader.GetString(2));
 
-    private static async Task<List<OrderLine>> ReadOrderLinesAsync(
-        DbConnection conn, int orderId, CancellationToken ct)
-    {
-        var lines = new List<OrderLine>();
-        var cmd = conn.CreateCommand();
-        await using (cmd.ConfigureAwait(false))
-        {
-            cmd.CommandText = "SELECT \"Sku\", \"Quantity\", \"Price\" FROM \"OrderLines\" WHERE \"OrderId\" = @id;";
-            var pId = cmd.CreateParameter();
-            pId.ParameterName = "@id";
-            pId.Value = orderId;
-            cmd.Parameters.Add(pId);
-
-            var reader = await cmd.ExecuteReaderAsync(ct).ConfigureAwait(false);
-            await using (reader.ConfigureAwait(false))
-            {
-                while (await reader.ReadAsync(ct).ConfigureAwait(false))
+                // Result set 2 — order lines.
+                var lines = new List<OrderLine>();
+                if (await reader.NextResultAsync(ct).ConfigureAwait(false))
                 {
-                    var sku = reader.GetString(0);
-                    var quantity = reader.GetInt32(1);
-                    var price = MoneyConverter.FromStorage(reader.GetString(2));
-                    lines.Add(new OrderLine(sku, quantity, price));
+                    while (await reader.ReadAsync(ct).ConfigureAwait(false))
+                    {
+                        var sku = reader.GetString(0);
+                        var quantity = reader.GetInt32(1);
+                        var price = MoneyConverter.FromStorage(reader.GetString(2));
+                        lines.Add(new OrderLine(sku, quantity, price));
+                    }
                 }
+
+                return Order.Materialize(
+                    id,
+                    new CustomerId(customerId),
+                    status,
+                    total,
+                    lines);
             }
         }
-        return lines;
     }
 }

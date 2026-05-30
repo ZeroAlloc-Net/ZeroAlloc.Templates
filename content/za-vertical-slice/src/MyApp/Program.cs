@@ -101,23 +101,62 @@ builder.Services.AddAuthorizationBuilder()
     .AddPolicy("CustomersWrite", p => p.RequireAuthenticatedUser().RequireClaim("scope", "customers.write"));
 
 // ---------------------------------------------------------------------------
-// OpenTelemetry — traces + metrics with console exporter (dev default). Use
-// OTEL_EXPORTER_OTLP_ENDPOINT in deployment to fan traces out to a collector.
+// OpenTelemetry — traces + metrics.
+//
+// Exporter selection is environment-gated, and it matters for throughput. The
+// console exporter is registered with a SimpleActivityExportProcessor: every
+// span is written to stdout SYNCHRONOUSLY, inline on the request thread, under
+// the global Console.Out lock. Great for eyeballing traces in dev; under load
+// it serialises every request on that lock and dominates tail latency. So:
+//
+//   Development → console exporter (immediate, human-readable, low volume).
+//   otherwise   → OTLP exporter, which uses a BatchActivityExportProcessor:
+//                 spans are queued and drained on a background thread, off the
+//                 request hot path. Honours OTEL_EXPORTER_OTLP_ENDPOINT
+//                 (defaults to localhost:4317).
+//
+// Trace sampling is config-gated. `Telemetry:TraceSampleRatio` (default 1.0 =
+// sample everything) feeds a parent-based ratio sampler. Under sustained high
+// RPS, dial this down (e.g. 0.05) so you stop minting a span per request
+// regardless of which exporter is attached.
+//
 // ZA.Telemetry's [Trace]/[Count]/[Histogram] attributes target methods/types
 // and feed into the same ActivitySource/Meter pipeline registered here.
 // ---------------------------------------------------------------------------
+var traceSampleRatio = builder.Configuration.GetValue<double?>("Telemetry:TraceSampleRatio") ?? 1.0;
+var consoleTelemetry = builder.Environment.IsDevelopment();
+
 builder.Services.AddOpenTelemetry()
-    .WithTracing(t => t
-        .AddAspNetCoreInstrumentation()
-        .AddHttpClientInstrumentation()
-        .AddEntityFrameworkCoreInstrumentation()
-        .AddSource("ZeroAlloc.Mediator")
-        .AddSource("MyApp")
-        .AddConsoleExporter())
-    .WithMetrics(m => m
-        .AddAspNetCoreInstrumentation()
-        .AddMeter("MyApp")
-        .AddConsoleExporter());
+    .WithTracing(t =>
+    {
+        t.SetSampler(new ParentBasedSampler(new TraceIdRatioBasedSampler(traceSampleRatio)))
+            .AddAspNetCoreInstrumentation()
+            .AddHttpClientInstrumentation()
+            .AddEntityFrameworkCoreInstrumentation()
+            .AddSource("ZeroAlloc.Mediator")
+            .AddSource("MyApp");
+        if (consoleTelemetry)
+        {
+            t.AddConsoleExporter();
+        }
+        else
+        {
+            t.AddOtlpExporter();
+        }
+    })
+    .WithMetrics(m =>
+    {
+        m.AddAspNetCoreInstrumentation()
+            .AddMeter("MyApp");
+        if (consoleTelemetry)
+        {
+            m.AddConsoleExporter();
+        }
+        else
+        {
+            m.AddOtlpExporter();
+        }
+    });
 
 // AOT: source-generated JSON metadata for every type that crosses the HTTP
 // boundary. With PublishAot=true ASP.NET drops the reflection-based default
