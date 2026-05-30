@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.9.1](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/compare/ZeroAlloc.Templates-v0.9.0...ZeroAlloc.Templates-v0.9.1) (2026-05-30)
+
+
+### Performance Improvements
+
+* **telemetry:** gate console exporter to Development, OTLP + sampler under load ([#145](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/issues/145)) ([4a2cf22](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/commit/4a2cf2210608e0d7ec372d2e2847ccfeee7ae850))
+
+
+### Documentation
+
+* **backlog:** add B5 — AOT-ify za-vertical-slice ([#146](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/issues/146)) ([7b53b20](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/commit/7b53b209518290d16c3f0718864b52127461a7d5))
+
 ## [0.9.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/compare/ZeroAlloc.Templates-v0.8.1...ZeroAlloc.Templates-v0.9.0) (2026-05-29)
 
 
