@@ -46,6 +46,32 @@ Bundled into B3's same PR — the underlying SchemaStrategy + embedded-script re
 
 ---
 
+## B5 — AOT-ify za-vertical-slice (`<PublishAot>true</PublishAot>`)
+
+**What.** Turn on `<PublishAot>true</PublishAot>` in `content/za-vertical-slice/src/MyApp/MyApp.csproj` and resolve the three reflection blockers the csproj's own comment (lines 9-18) currently defers. End state: both shipped templates publish NativeAOT in production, mirroring `za-clean`'s posture.
+
+**Why.** NativeAOT is the product thesis for `ZeroAlloc.Templates`. Having one template ship JIT-only is an architectural inconsistency, not a deliberate variant — the vs csproj comment already frames it as deferred debt ("A future iteration can opt into AOT by source-generating the endpoint registry…"). PR #145's open-model benchmark made the cost of leaving it deferred concrete: vs's apparent throughput win over za-clean (4,312 vs 4,068 RPS, p50 48ms vs 2,146ms) was JIT-vs-AOT, not framework-vs-framework — once vs goes AOT it'll regress toward clean's shape, which is the honest comparison adopters need to see.
+
+**Sketch.**
+
+1. **Endpoint discovery.** Replace `Program.cs`'s assembly-walk-for-static-`Map`-methods with a source-generated `_Generated.EndpointRegistrations.Map(app)` call. The ZA.Rest source-gen pattern is the template — emit one `Map` invocation per `*Endpoint` static class found at compile time. Falls back gracefully when no endpoints exist (empty generated method, no crash).
+
+2. **Mediator handler registration.** Drop `services.AddMediator().RegisterHandlersFromAssembly(typeof(Program).Assembly)`. Either (a) hand-write per-slice `services.AddScoped<IRequestHandler<TReq, TResp>, THandler>()` calls (mechanical — slices already exist as discrete files), or (b) source-generate the registry the same way as (1). Recommend (b) so adding a slice doesn't require a DI-wiring edit.
+
+3. **EF Core compiled model.** Copy za-clean's pattern: `opts.UseModel(AppDbContextModel.Instance)` for the Sqlite branch; **skip `UseModel` on the Postgres branch** (the compiled model is Sqlite-flavored — see B3 diagnosis iteration 4 and `InfrastructureServiceCollectionExtensions.cs` for the rationale comment). Regenerate the compiled model via `dotnet ef dbcontext optimize` whenever the schema changes; gate the regeneration step in `tools/regen-schema.{sh,ps1}`.
+
+4. **EF LINQ-to-SQL read path.** Replace `GetOrderHandler`'s `db.Orders.AsNoTracking().FirstOrDefaultAsync(...)` with raw ADO.NET, matching `OrderRepository.GetByIdAsync` in za-clean (head + lines in one batched command, `@id` parameter, double-quoted identifiers for Postgres case-fold compat). Vertical-slice doesn't have a repository layer, so the raw SQL lives directly in the handler. INSERT path (`AddAsync` + `SaveChangesAsync`) stays — EF inserts work under AOT once the compiled model is in place.
+
+5. **Validate.** AOT-publish the bench's SUT and run NBomber-Postgres against it. Expected: vs converges toward za-clean's read profile (~4K RPS at high p50). Update `docs/za-vertical-slice.md` with the post-AOT numbers and remove any "JIT-only / faster reads" claims that the current docs may still carry.
+
+**Tradeoff.** The vs read-throughput "win" we just measured disappears. That's the point — leaving it JIT-only let vs cheat on the comparison. The win in cold-start (typical AOT 30-100ms vs JIT 500-1500ms for a CRUD API) and trimmed-binary size more than offsets the per-request hit for the NativeAOT use case the product targets. Adopters who genuinely want JIT-mode (better LINQ ergonomics, easier debugging) can still flip `PublishAot` off — but the **default ships AOT**.
+
+**Connection-hold side effect.** The `db.Database.GetDbConnection() + OpenAsync` pattern that both AOT'd templates will share has a known throughput cost under open-model load (longer Npgsql pool-slot hold than EF's open-on-execute). This becomes a both-templates concern post-B5, so the natural follow-up is **B6 (TBD): drop the manual connection-acquire idiom in favor of a scoped `NpgsqlConnection` factory** — pays dividends in both templates simultaneously. Not blocking B5; just call out the relationship.
+
+**Graduation signal.** Open the PR when source-generators for endpoint discovery + handler registration are designed (a brainstorming session worth its own pass — the ZA.Rest pattern is the prior art but the registration shape differs).
+
+---
+
 ## How items get added here
 
 Open a PR adding a new section in this file. Use the same `What / Why / Sketch / Tradeoff / Graduation signal` structure. Items remain open until a follow-up PR strikes them through with a `✅ shipped X.Y.Z` marker and links the release.
