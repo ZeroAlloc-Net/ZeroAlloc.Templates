@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.9.2](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/compare/ZeroAlloc.Templates-v0.9.1...ZeroAlloc.Templates-v0.9.2) (2026-05-31)
+
+
+### Documentation
+
+* **design:** commit ZeroAlloc.ORM v1.0 design + working backlog ([#149](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/issues/149)) ([9ba3ef3](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/commit/9ba3ef3790d4c13b2a3033653f60167183239ddf))
+
 ## [0.9.1](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/compare/ZeroAlloc.Templates-v0.9.0...ZeroAlloc.Templates-v0.9.1) (2026-05-30)
 
 
