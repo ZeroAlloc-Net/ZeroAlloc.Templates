@@ -1,5 +1,5 @@
-using System.Data;
 using System.Data.Async;
+using System.Runtime.CompilerServices;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Routing;
@@ -39,7 +39,12 @@ public sealed partial class ListOrdersHandler(IAsyncDbConnection conn)
     {
         var total = await CountOrdersAsync(ct).ConfigureAwait(false);
         var skip = (query.Page - 1) * query.PageSize;
-        var items = await ListOrdersAsync(query.PageSize, skip, ct).ConfigureAwait(false);
+
+        var items = new List<OrderListItem>(query.PageSize);
+        await foreach (var row in ListOrdersAsync(query.PageSize, skip, ct).ConfigureAwait(false))
+        {
+            items.Add(new OrderListItem(new OrderId(row.Id), new CustomerId(row.CustomerId), row.Total));
+        }
 
         return Result<OrderPage, Error>.Success(new OrderPage(query.Page, query.PageSize, total, items));
     }
@@ -47,51 +52,10 @@ public sealed partial class ListOrdersHandler(IAsyncDbConnection conn)
     [Query("SELECT COUNT(*) FROM \"Orders\"")]
     public partial Task<int> CountOrdersAsync(CancellationToken ct);
 
-    // ZA.ORM 1.1.0's generator does not yet emit list-returning [Query] partials
-    // (TODO marker in OrmGenerator.g.cs). Hand-roll the read until v1.2 lands.
-    // The query uses the IAsyncDbConnection ctor-injected as `conn`; opening
-    // here is idempotent — connection lifetime is owned by the DI scope.
-    private async Task<IReadOnlyList<OrderListItem>> ListOrdersAsync(int limit, int offset, CancellationToken ct)
-    {
-        var openedHere = conn.State != ConnectionState.Open;
-        if (openedHere)
-        {
-            await conn.OpenAsync(ct).ConfigureAwait(false);
-        }
-        try
-        {
-            await using var cmd = conn.CreateCommand();
-            cmd.CommandText = "SELECT \"Id\", \"CustomerId\", \"Total\" FROM \"Orders\" ORDER BY \"Id\" LIMIT @limit OFFSET @offset";
+    [Query("SELECT \"Id\", \"CustomerId\", \"Total\" FROM \"Orders\" ORDER BY \"Id\" LIMIT @limit OFFSET @offset")]
+    public partial IAsyncEnumerable<OrderListRow> ListOrdersAsync(int limit, int offset, [EnumeratorCancellation] CancellationToken ct);
 
-            var limitParam = cmd.CreateParameter();
-            limitParam.ParameterName = "@limit";
-            limitParam.Value = limit;
-            cmd.Parameters.Add(limitParam);
-
-            var offsetParam = cmd.CreateParameter();
-            offsetParam.ParameterName = "@offset";
-            offsetParam.Value = offset;
-            cmd.Parameters.Add(offsetParam);
-
-            await using var reader = await cmd.ExecuteReaderAsync(ct).ConfigureAwait(false);
-            var items = new List<OrderListItem>();
-            while (await reader.ReadAsync(ct).ConfigureAwait(false))
-            {
-                var id = reader.GetInt32(0);
-                var customerId = reader.GetInt32(1);
-                var total = reader.GetDecimal(2);
-                items.Add(new OrderListItem(new OrderId(id), new CustomerId(customerId), total));
-            }
-            return items;
-        }
-        finally
-        {
-            if (openedHere)
-            {
-                await conn.CloseAsync().ConfigureAwait(false);
-            }
-        }
-    }
+    public sealed record OrderListRow(int Id, int CustomerId, decimal Total);
 }
 
 public static class ListOrdersEndpoint
