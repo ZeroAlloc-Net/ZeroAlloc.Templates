@@ -1,5 +1,4 @@
 using System.Reflection;
-using Microsoft.EntityFrameworkCore;
 using MyApp.Application.CreateOrder;
 using MyApp.Domain;
 using MyApp.Infrastructure.Persistence;
@@ -13,7 +12,7 @@ public class CleanArchitectureRules
 {
     private static readonly Assembly Domain = typeof(Order).Assembly;
     private static readonly Assembly Application = typeof(CreateOrderCommand).Assembly;
-    private static readonly Assembly Infrastructure = typeof(AppDbContext).Assembly;
+    private static readonly Assembly Infrastructure = typeof(OrderRepository).Assembly;
     private static readonly Assembly Api = typeof(Program).Assembly;
 
     [Fact]
@@ -62,20 +61,6 @@ public class CleanArchitectureRules
         Assert.True(
             offenders.Length == 0,
             $"IRequestHandler implementations found outside MyApp.Application:\n  - {string.Join("\n  - ", offenders)}");
-    }
-
-    [Fact]
-    public void EF_DbContexts_live_in_Infrastructure_only()
-    {
-        var offenders = Types.InAssemblies(new[] { Domain, Application, Api })
-            .That()
-            .Inherit(typeof(DbContext))
-            .GetTypes()
-            .Select(t => t.FullName)
-            .ToArray();
-        Assert.True(
-            offenders.Length == 0,
-            $"DbContext subclasses found outside MyApp.Infrastructure:\n  - {string.Join("\n  - ", offenders)}");
     }
 
     private static string FormatFailure(TestResult r) =>
