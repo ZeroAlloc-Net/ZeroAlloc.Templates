@@ -72,6 +72,44 @@ Bundled into B3's same PR — the underlying SchemaStrategy + embedded-script re
 
 ---
 
+## ~~B6 — EF Core → ZA.ORM 1.1 swap~~ — ✅ shipped 2026-06-01
+
+**Shipped:** Both templates now use [ZeroAlloc.ORM](https://github.com/MarcelRoozekrans/ZeroAlloc.ORM) 1.1.0 + [AdoNet.Async](https://github.com/MarcelRoozekrans/AdoNet.Async) 1.3.0 + raw `Microsoft.Data.Sqlite` / `Npgsql` providers in place of EF Core 10. Zero `Microsoft.EntityFrameworkCore.*` references remain in either template's source tree. `dotnet new za-clean` + `dotnet new za-vertical-slice` both pack, scaffold, build, and test green end-to-end (48 tests passing across both scaffolded outputs).
+
+Headline changes:
+
+- `Persistence/AppDbContext.cs`, `Persistence/CompiledModel/`, `Persistence/Configurations/`, `Persistence/Migrations.{Sqlite,Postgres}/`, `DesignTimeDbContextFactory.cs` — all deleted across both templates.
+- Repositories become source-generated `public sealed partial class XxxRepository(IAsyncDbConnection conn)` with inline `[Query]` / `[Command]` partials. za-clean's `OrderRepository.cs` dropped from 117 lines of hand-rolled hold-the-slot ADO.NET to 70 lines of declarative SQL annotations. za-vertical-slice's 6 feature handlers each became `public sealed partial class XxxHandler(IAsyncDbConnection conn)` with co-located `[Query]` / `[Command]` partials — perfect vertical-slice fit.
+- Schema is now folder-scoped embedded SQL: `Persistence/Migrations/Sqlite/NNN_description.sql` + `Persistence/Migrations/Postgres/NNN_description.sql`. ZA.ORM's `MigrationRunner` applies them at startup against the `__zaorm_migrations` history table. The custom `ApplyEmbeddedSchemaAsync` helpers in both `Program.cs` files are gone. `tools/regen-schema.{sh,ps1}` removed.
+- Lifetime: production wiring registers `IAsyncDbConnection` per scope. Test fixtures register a kept-alive singleton wrapping an open `:memory:` Sqlite connection. Migration apply happens once in each test fixture's ctor.
+
+**Supersedes B5 (AOT-ify za-vertical-slice).** Two of B5's four blockers evaporate under the ZA.ORM swap:
+- *EF Core compiled model* (B5 step 3) — N/A; no DbContext to model.
+- *EF LINQ-to-SQL read path* (B5 step 4) — already in ZA.ORM-emitted code. ListOrders uses `IAsyncEnumerable<T>`.
+
+vs's path to AOT now needs only B5's source-generated endpoint discovery (step 1) and handler registration (step 2).
+
+**Supersedes the deferred B6 (drop manual connection-acquire idiom).** ZA.ORM's generator-emitted ref-counted lifecycle (open-on-execute, close-on-reader-dispose) replaces the hold-the-slot pattern entirely. The Npgsql pool-slot-hold concern B5 surfaced as a follow-up is structurally resolved.
+
+**Lessons captured (durable record):**
+
+1. **ZA.ORM 1.1 partial-method accessibility.** The generator emits implementations as `public`, so `[Query]` / `[Command]` declarations must be `public partial`, never `private`. Nested row records must match (CS0050 fires if a `public` method references a `private` record type). Worth filing upstream — either a generator fix (emit matching accessibility) or a cookbook note.
+2. **`CommandKind.Identity` does NOT auto-append the provider's identity syntax.** User-authored SQL must include `RETURNING "Id"` (or `SCOPE_IDENTITY()` / `LAST_INSERT_ROWID()` per provider). ZA.ORM 1.1's README quick-start implies auto-append; cookbook (`docs/cookbook/commands.md`) correctly states the contract. README needs a one-line correction upstream.
+3. **`Task<IReadOnlyList<T>>` is NOT supported as a bare top-level partial return.** Only inside a tuple for multi-result-set queries. For paginated list reads, use `partial IAsyncEnumerable<XxxRow> ListAsync(int limit, int offset, [EnumeratorCancellation] CancellationToken ct)` and drain into a `List` in the handler. Worth a feature request for bare-list support upstream.
+4. **DI scope-disposal trap for shared `IAsyncDbConnection` in test fixtures.** Registering a kept-alive wrapper as **scoped** (via factory delegate) makes `Microsoft.Extensions.DependencyInjection` add it to the scope's disposable list. End of the first request scope calls `DisposeAsync` on the wrapper, which closes the underlying `SqliteConnection` and evaporates the `:memory:` database. Second request fails with "no such table". Fix: register as **singleton** in test fixtures — singleton-by-factory still tracks for disposal, but only at host shutdown. `SqliteConnection` tolerates the resulting double-dispose.
+5. **`IAsyncDbConnection.CreateCommand()` returns `IAsyncDbCommand`, not `System.Data.Common.DbCommand`.** Tests asserting against the database directly should match the async surface.
+
+**Carry-forward items (deferred — not blocking 0.10.0):**
+
+- **B6-CLN1 — Benchmark refresh.** Both templates' README benchmark tables were captured pre-swap. Numbers should move (ZA.ORM has no change tracker). Marked inline with a footnote across all three READMEs.
+- **B6-CLN2 — AOT publish smoke verification.** za-clean's AOT pipeline ran ILC trim + native-code-generation cleanly; the final native-link step failed locally because `vswhere.exe` (VS 2022 Build Tools' lookup hook) wasn't installed. Code is AOT-clean; CI can confirm.
+- **B6-CLN3 — AGENTS.md refresh.** Both `content/za-clean/AGENTS.md` and `content/za-vertical-slice/AGENTS.md` contain substantial EF-Core-specific recipes (entity-modeling, "Add a DbSet<T>" instructions, AOT gotchas keyed to EF Core 10's compiled-model bugs). Need rewriting against the ZA.ORM stack. Separate PR.
+- **B6-CLN4 — JsonContext SYSLIB1220 / SYSLIB1030 warnings.** Pre-existing warnings on `CustomerId` / `OrderId` JSON converter wiring surfaced during the smoke build but are unrelated to the swap. Tracked for cleanup.
+
+**Diagnosis (the real root cause).** The pre-swap `OrderRepository.cs` in za-clean was the canonical example of the **manual hold-the-slot pattern** the swap was meant to cure: 17 lines of `var openedHere = conn.State != ConnectionState.Open; if (openedHere) await conn.OpenAsync(...); try { ... } finally { if (openedHere) await conn.CloseAsync(); }` surrounding 30 lines of hand-rolled ADO.NET. PR #145's open-model load test quantified the cost of that pattern, but the fix wasn't "tweak the manual code" — it was "stop writing it by hand." ZA.ORM's source generator emits the EF-style ref-counted lifecycle as a side effect of materializing the query, and the entire `openedHere` dance becomes dead code in a generated file.
+
+---
+
 ## How items get added here
 
 Open a PR adding a new section in this file. Use the same `What / Why / Sketch / Tradeoff / Graduation signal` structure. Items remain open until a follow-up PR strikes them through with a `✅ shipped X.Y.Z` marker and links the release.
