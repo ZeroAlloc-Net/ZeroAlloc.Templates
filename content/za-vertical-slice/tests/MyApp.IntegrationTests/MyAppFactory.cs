@@ -1,28 +1,47 @@
+using System.Data.Async;
+using System.Data.Async.Adapters;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Data.Sqlite;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using MyApp.Persistence;
+using MyApp.Features.Orders.PlaceOrder;
+using ZeroAlloc.ORM.Migrations;
 
 namespace MyApp.IntegrationTests;
 
 /// <summary>
-/// Hosts the API with the EF DbContext rebound to a kept-alive in-memory SQLite
-/// connection so every integration test runs against a clean, isolated schema
-/// without needing a file on disk. Slices that need additional service
-/// overrides extend this fixture via <c>WithWebHostBuilder(...)</c>.
+/// Hosts the API with the scoped <see cref="IAsyncDbConnection"/> registration
+/// rebound to a kept-alive in-memory SQLite connection so every integration
+/// test runs against a clean, isolated schema without needing a file on disk.
+/// ZA.ORM migrations from <c>MyApp.Persistence.Migrations.Sqlite</c> are applied
+/// once against the in-memory database during fixture construction. The startup
+/// MigrationRunner block in Program.cs is short-circuited via
+/// <c>Database:SchemaStrategy=Skip</c> so it does not try to apply migrations
+/// against a transient connection. Slices that need additional service overrides
+/// extend this fixture via <c>WithWebHostBuilder(...)</c>.
 /// </summary>
 public sealed class MyAppFactory : WebApplicationFactory<Program>
 {
     // Connection opened once per fixture and kept alive for the test session;
     // SQLite's :memory: database is bound to the connection's lifetime.
     private readonly SqliteConnection _connection = new("DataSource=:memory:");
+    private readonly IAsyncDbConnection _asyncConn;
 
     public MyAppFactory()
     {
         _connection.Open();
+        _asyncConn = _connection.AsAsync();
+
+        // Apply ZA.ORM migrations once against the kept-alive in-memory DB.
+        // The connection is already open; MigrationRunner's ref-counted
+        // lifecycle respects the "don't close what we didn't open" contract.
+        var source = new EmbeddedResourceMigrationSource(
+            typeof(PlaceOrderHandler).Assembly,
+            "MyApp.Persistence.Migrations.Sqlite.");
+        var dialect = new SqliteMigrationDialect();
+        var runner = new MigrationRunner(_asyncConn, source, dialect);
+        runner.RunAsync().GetAwaiter().GetResult();
     }
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
@@ -34,31 +53,36 @@ public sealed class MyAppFactory : WebApplicationFactory<Program>
             cfg.AddInMemoryCollection(new Dictionary<string, string?>
             {
                 ["Jwt:DevSigningKey"] = TestJwt.DevKey,
+                // Migrations were applied in the fixture ctor against the
+                // kept-alive connection. Tell Program.cs's startup block to
+                // skip its own migration apply (which would otherwise build a
+                // transient connection against the configured string and miss
+                // the in-memory database entirely).
+                ["Database:SchemaStrategy"] = "Skip",
             });
         });
 
         builder.ConfigureServices(services =>
         {
+            // Replace the scoped IAsyncDbConnection registration with a
+            // singleton that always returns the kept-alive in-memory connection
+            // wrapper. The ZA.ORM generator's ref-counted lifecycle checks
+            // conn.State before opening — since _connection is already open,
+            // the generated code neither opens nor closes it, so sharing a
+            // single wrapper across request scopes is safe. Singleton lifetime
+            // is important: a scoped registration would cause DI to dispose
+            // the wrapper at the end of each request scope, which closes the
+            // underlying SqliteConnection and drops the :memory: schema, so
+            // the second test in the class would see "no such table" errors.
+            // Disposal of the underlying connection is owned by this fixture
+            // (see Dispose(bool) below).
             var dbDescriptor = services.SingleOrDefault(
-                d => d.ServiceType == typeof(DbContextOptions<AppDbContext>));
+                d => d.ServiceType == typeof(IAsyncDbConnection));
             if (dbDescriptor is not null)
             {
                 services.Remove(dbDescriptor);
             }
-
-            services.AddDbContext<AppDbContext>(opt =>
-            {
-                opt.UseSqlite(_connection, sqlite =>
-                    sqlite.MigrationsAssembly(typeof(AppDbContext).Assembly.GetName().Name));
-                opt.ConfigureWarnings(w => w.Ignore(
-                    Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning));
-            });
-
-            // Schema creation happens via Program.cs's startup
-            // ApplyEmbeddedSchemaAsync call (reads schema.sql from embedded
-            // resources) against the kept-alive in-memory connection — no
-            // separate EnsureCreated() step needed (and would double-create
-            // otherwise).
+            services.AddSingleton<IAsyncDbConnection>(_ => _asyncConn);
         });
     }
 
