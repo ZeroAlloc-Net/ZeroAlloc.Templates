@@ -4,12 +4,13 @@
     <RootNamespace>MyApp.Infrastructure</RootNamespace>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" />
-    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Design">
-      <PrivateAssets>all</PrivateAssets>
-      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-    </PackageReference>
+    <PackageReference Include="ZeroAlloc.ORM" />
+    <PackageReference Include="ZeroAlloc.ORM.Abstractions" />
+    <PackageReference Include="ZeroAlloc.ORM.Generator" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+    <PackageReference Include="AdoNet.Async" />
+    <PackageReference Include="AdoNet.Async.Adapters" />
+    <PackageReference Include="Microsoft.Data.Sqlite" />
+    <PackageReference Include="Npgsql" />
     <PackageReference Include="ZeroAlloc.Resilience" />
     <PackageReference Include="ZeroAlloc.Rest" />
     <PackageReference Include="ZeroAlloc.Rest.SystemTextJson" />
