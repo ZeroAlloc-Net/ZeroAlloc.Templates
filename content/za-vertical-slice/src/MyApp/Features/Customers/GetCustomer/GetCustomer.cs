@@ -1,11 +1,10 @@
+using System.Data.Async;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
-using Microsoft.EntityFrameworkCore;
 using MyApp.Common;
-using MyApp.Features.Customers.CreateCustomer;
-using MyApp.Persistence;
 using ZeroAlloc.Authorization;
 using ZeroAlloc.Mediator;
+using ZeroAlloc.ORM;
 using ZeroAlloc.Results;
 using ZeroAlloc.Validation;
 
@@ -25,25 +24,26 @@ public readonly record struct GetCustomerQuery(CustomerId Id)
 
 public sealed record CustomerDto(CustomerId Id, string Name, string Email);
 
-public sealed class GetCustomerHandler(AppDbContext db)
+public sealed partial class GetCustomerHandler(IAsyncDbConnection conn)
     : IRequestHandler<GetCustomerQuery, Result<CustomerDto, Error>>
 {
     public async ValueTask<Result<CustomerDto, Error>> Handle(GetCustomerQuery query, CancellationToken ct)
     {
-        var customer = await db.Customers
-            .AsNoTracking()
-            .FirstOrDefaultAsync(c => c.Id == query.Id, ct)
-            .ConfigureAwait(false);
-
-        return customer is null
+        var row = await ReadCustomerAsync(query.Id.Value, ct).ConfigureAwait(false);
+        return row is null
             ? Result<CustomerDto, Error>.Failure(Error.NotFound(
                 "customer.not_found",
                 $"Customer {query.Id.Value} not found"))
             : Result<CustomerDto, Error>.Success(new CustomerDto(
-                customer.Id,
-                customer.Name,
-                customer.Email));
+                new CustomerId(row.Id),
+                row.Name,
+                row.Email));
     }
+
+    [Query("SELECT \"Id\", \"Name\", \"Email\" FROM \"Customers\" WHERE \"Id\" = @id")]
+    public partial Task<CustomerRow?> ReadCustomerAsync(int id, CancellationToken ct);
+
+    public sealed record CustomerRow(int Id, string Name, string Email);
 }
 
 public static class GetCustomerEndpoint

@@ -1,9 +1,10 @@
+using System.Data.Async;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using MyApp.Common;
-using MyApp.Persistence;
 using ZeroAlloc.Authorization;
 using ZeroAlloc.Mediator;
+using ZeroAlloc.ORM;
 using ZeroAlloc.Results;
 using ZeroAlloc.Validation;
 
@@ -25,16 +26,19 @@ public readonly record struct CreateCustomerCommand(
     [property: NotEmpty, EmailAddress] string Email)
     : IRequest<Result<CustomerId, Error>>;
 
-public sealed class CreateCustomerHandler(AppDbContext db)
+public sealed partial class CreateCustomerHandler(IAsyncDbConnection conn)
     : IRequestHandler<CreateCustomerCommand, Result<CustomerId, Error>>
 {
     public async ValueTask<Result<CustomerId, Error>> Handle(CreateCustomerCommand cmd, CancellationToken ct)
     {
-        var customer = new Customer(cmd.Name, cmd.Email);
-        await db.Customers.AddAsync(customer, ct).ConfigureAwait(false);
-        await db.SaveChangesAsync(ct).ConfigureAwait(false);
-        return Result<CustomerId, Error>.Success(customer.Id);
+        var id = await InsertCustomerAsync(cmd.Name, cmd.Email, ct).ConfigureAwait(false);
+        return Result<CustomerId, Error>.Success(new CustomerId(id));
     }
+
+    [Command(
+        "INSERT INTO \"Customers\" (\"Name\", \"Email\") VALUES (@name, @email) RETURNING \"Id\"",
+        Kind = CommandKind.Identity)]
+    public partial Task<int> InsertCustomerAsync(string name, string email, CancellationToken ct);
 }
 
 public static class CreateCustomerEndpoint
@@ -51,17 +55,13 @@ public static class CreateCustomerEndpoint
 }
 
 /// <summary>
-/// Persistence entity owned by this slice. EF Core assigns <see cref="Id"/> on
-/// INSERT via the <see cref="CustomerId"/> value-converter configured in
-/// <see cref="AppDbContext.OnModelCreating"/>. Public so read-side slices
+/// Persistence entity owned by this slice. Public so read-side slices
 /// (GetCustomer) can project from it; handlers and validators stay internal.
+/// Post the ZA.ORM swap, persistence is hand-rolled SQL in the handler — this
+/// type is now a plain DTO/domain object; no EF materialisation ctor is needed.
 /// </summary>
 public sealed class Customer
 {
-    private Customer()
-    {
-    }
-
     public Customer(string name, string email)
     {
         Id = new CustomerId(0);
