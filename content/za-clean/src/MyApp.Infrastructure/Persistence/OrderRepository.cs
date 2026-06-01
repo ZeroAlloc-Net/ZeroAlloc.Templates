@@ -18,6 +18,8 @@ public sealed partial class OrderRepository(IAsyncDbConnection conn) : IOrderRep
             MoneyConverter.ToStorage(order.Total),
             ct).ConfigureAwait(false);
 
+        order.AssignPersistenceId(new OrderId(orderId));
+
         foreach (var line in order.Lines)
         {
             await InsertOrderLineAsync(
