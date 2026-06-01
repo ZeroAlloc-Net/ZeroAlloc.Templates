@@ -7,15 +7,12 @@
          (services.AddMediator().RegisterHandlersFromAssembly), not via the static Mediator API. -->
     <NoWarn>$(NoWarn);ZAM003;ZAM008</NoWarn>
     <!-- AOT publish intentionally NOT enabled (cf. za-clean which does opt in).
-         The vertical-slice template uses reflection in three places that don't
-         AOT-compile cleanly under EF 10.0.8: assembly-walk endpoint discovery
-         in Program.cs, RegisterHandlersFromAssembly() in the mediator wiring,
-         and EF Core's runtime model materialisation (which throws even with a
-         compiled model when PublishAot=true is set globally). A future
-         iteration can opt into AOT by source-generating the endpoint registry,
-         using explicit per-slice AddScoped<IRequestHandler<,>>, and resolving
-         the EF compiled-model issue upstream. For now, JIT-only matches the
-         design doc's deferred-AOT decision. -->
+         Two reflection sites in this template still block AOT: assembly-walk
+         endpoint discovery in Program.cs and RegisterHandlersFromAssembly()
+         in the mediator wiring. Persistence is no longer a blocker post the
+         ZA.ORM swap. A future iteration can opt into AOT by source-generating
+         the endpoint registry and using explicit per-slice
+         AddScoped<IRequestHandler<,>>. -->
     <InvariantGlobalization>true</InvariantGlobalization>
     <!-- This project declares [Policy] / [RequirePolicy]. The vertical-slice
          layout has only one src project, so it owns policies (no sibling src
@@ -26,13 +23,15 @@
     <!-- ASP.NET Core auth -->
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" />
 
-    <!-- EF Core (provider selected by `Database:Provider` config; default Sqlite) -->
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" />
-    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Design">
-      <PrivateAssets>all</PrivateAssets>
-      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-    </PackageReference>
+    <!-- ZeroAlloc.ORM 1.1 + AdoNet.Async substrate (provider selected by
+         `Database:Provider` config; default Sqlite). -->
+    <PackageReference Include="ZeroAlloc.ORM" />
+    <PackageReference Include="ZeroAlloc.ORM.Abstractions" />
+    <PackageReference Include="ZeroAlloc.ORM.Generator" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+    <PackageReference Include="AdoNet.Async" />
+    <PackageReference Include="AdoNet.Async.Adapters" />
+    <PackageReference Include="Microsoft.Data.Sqlite" />
+    <PackageReference Include="Npgsql" />
 
     <!-- OpenTelemetry -->
     <PackageReference Include="OpenTelemetry.Exporter.Console" />
@@ -40,7 +39,6 @@
     <PackageReference Include="OpenTelemetry.Extensions.Hosting" />
     <PackageReference Include="OpenTelemetry.Instrumentation.AspNetCore" />
     <PackageReference Include="OpenTelemetry.Instrumentation.Http" />
-    <PackageReference Include="OpenTelemetry.Instrumentation.EntityFrameworkCore" />
 
     <!-- ZeroAlloc: Mediator + Validation + Authorization -->
     <PackageReference Include="ZeroAlloc.Mediator" />
@@ -92,23 +90,12 @@
     <InternalsVisibleTo Include="MyApp.IntegrationTests" />
     <InternalsVisibleTo Include="MyApp.ConventionTests" />
   </ItemGroup>
-  <!-- Design-time EF migration scripting: pass /p:EfActiveProvider=Sqlite or
-       /p:EfActiveProvider=Postgres to exclude the OTHER provider's migration
-       classes from the compiled assembly, so `dotnet ef migrations script`
-       sees only the active provider's [Migration]-attributed classes.
-       Runtime production builds leave this property unset; both providers'
-       migrations compile in, which is fine because runtime uses
-       ApplyEmbeddedSchemaAsync (added in Task 10), not EF's migration runner. -->
+  <!-- Embedded SQL migrations applied at startup by ZA.ORM's MigrationRunner.
+       Folder-scoped per provider: Migrations/Sqlite/*.sql for Sqlite,
+       Migrations/Postgres/*.sql for Postgres. Resource names embed the
+       folder name, which the runner uses as a namespace prefix to filter
+       by active provider. -->
   <ItemGroup>
-    <Compile Remove="Persistence/Migrations.Postgres/**/*.cs" Condition="'$(EfActiveProvider)' == 'Sqlite'" />
-    <Compile Remove="Persistence/Migrations.Sqlite/**/*.cs" Condition="'$(EfActiveProvider)' == 'Postgres'" />
-  </ItemGroup>
-
-  <!-- Embedded schema scripts applied at startup by ApplyEmbeddedSchemaAsync.
-       Generated via `dotnet ef migrations script` with the provider flag.
-       Regenerate via tools/regen-schema.{sh,ps1} after entity changes. -->
-  <ItemGroup>
-    <EmbeddedResource Include="Persistence/schema.sql" />
-    <EmbeddedResource Include="Persistence/schema.postgres.sql" />
+    <EmbeddedResource Include="Persistence/Migrations/**/*.sql" />
   </ItemGroup>
 </Project>
