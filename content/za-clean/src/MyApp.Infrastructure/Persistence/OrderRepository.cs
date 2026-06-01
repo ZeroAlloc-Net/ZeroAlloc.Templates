@@ -53,7 +53,7 @@ public sealed partial class OrderRepository(IAsyncDbConnection conn) : IOrderRep
     public partial Task<int> CountAsync(CancellationToken ct);
 
     [Command(
-        "INSERT INTO \"Orders\" (\"CustomerId\", \"Status\", \"Total\") VALUES (@customerId, @status, @total)",
+        "INSERT INTO \"Orders\" (\"CustomerId\", \"Status\", \"Total\") VALUES (@customerId, @status, @total) RETURNING \"Id\"",
         Kind = CommandKind.Identity)]
     public partial Task<int> InsertOrderAsync(int customerId, string status, string total, CancellationToken ct);
 
