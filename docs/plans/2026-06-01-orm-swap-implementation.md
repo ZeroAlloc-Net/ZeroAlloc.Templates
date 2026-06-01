@@ -43,11 +43,10 @@ Add (under the ZeroAlloc.* block):
 <PackageVersion Include="ZeroAlloc.ORM" Version="1.1.0" />
 <PackageVersion Include="ZeroAlloc.ORM.Abstractions" Version="1.1.0" />
 <PackageVersion Include="ZeroAlloc.ORM.Generator" Version="1.1.0" />
-<PackageVersion Include="AdoNet.Async" Version="1.0.0" />
-<PackageVersion Include="AdoNet.Async.Sqlite" Version="1.0.0" />
-<PackageVersion Include="AdoNet.Async.Npgsql" Version="1.0.0" />
-<PackageVersion Include="Microsoft.Data.Sqlite" Version="10.0.0" />
-<PackageVersion Include="Npgsql" Version="9.0.0" />
+<PackageVersion Include="AdoNet.Async" Version="1.3.0" />
+<PackageVersion Include="AdoNet.Async.Adapters" Version="1.3.0" />
+<PackageVersion Include="Microsoft.Data.Sqlite" Version="10.0.8" />
+<PackageVersion Include="Npgsql" Version="10.0.3" />
 ```
 
 (Pin the exact Npgsql / AdoNet.Async / Microsoft.Data.Sqlite versions to whatever the ZA.ORM 1.1.0 nuspec declares — check `dotnet add package --dry-run` first.)
@@ -56,7 +55,7 @@ Add (under the ZeroAlloc.* block):
 
 Remove `Microsoft.EntityFrameworkCore.Sqlite`, `Npgsql.EntityFrameworkCore.PostgreSQL`, `Microsoft.EntityFrameworkCore.Design`, `OpenTelemetry.Instrumentation.EntityFrameworkCore`.
 
-Add `ZeroAlloc.ORM`, `ZeroAlloc.ORM.Abstractions`, `ZeroAlloc.ORM.Generator` (with `OutputItemType="Analyzer" ReferenceOutputAssembly="false"`), `AdoNet.Async`, `AdoNet.Async.Sqlite`, `AdoNet.Async.Npgsql`, `Microsoft.Data.Sqlite`, `Npgsql`.
+Add `ZeroAlloc.ORM`, `ZeroAlloc.ORM.Abstractions`, `ZeroAlloc.ORM.Generator` (with `OutputItemType="Analyzer" ReferenceOutputAssembly="false"`), `AdoNet.Async`, `AdoNet.Async.Adapters`, `Microsoft.Data.Sqlite`, `Npgsql`. (`AdoNet.Async.Adapters` is provider-agnostic — `.AsAsync()` wraps any `DbConnection`. There are no provider-specific AdoNet.Async sub-packages.)
 
 **Step 3: Confirm `dotnet restore` succeeds**
 
@@ -335,6 +334,7 @@ git commit -m "feat(za-clean): rewrite OrderRepository as ZA.ORM partial (ref-co
 
 ```csharp
 using System.Data.Async;
+using System.Data.Async.Adapters;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.DependencyInjection;
 using MyApp.Infrastructure.External;
