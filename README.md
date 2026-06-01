@@ -9,7 +9,7 @@
 | `za-clean` | Clean Architecture — four layered projects (Domain / Application / Infrastructure / Api) with NetArchTest boundary rules | Conservative shape; familiar to teams already running layered architectures; horizontal boundaries lock concerns in place |
 | `za-vertical-slice` | Vertical Slice Architecture — one src project, one folder per use case, one file per slice (request + validator + handler + endpoint + entity co-located) | Lower-ceremony shape; each feature reads top-to-bottom in one ~50–100 line file; sharper A/B comparison against `za-clean` on the same domain |
 
-Both templates ship the same 10-package showcase (Mediator, Validation, Authorization, Mapping, ValueObjects, Inject, Telemetry, Resilience, Rest, Results), same EF Core 10 + SQLite persistence, same xUnit + BenchmarkDotNet + NBomber test/bench fan-out. They differ in **arrangement**, not in functional scope — pick on team comfort, not capability.
+Both templates ship the same 11-package showcase (Mediator, Validation, Authorization, Mapping, ValueObjects, Inject, Telemetry, Resilience, Rest, Results, ORM), same ZA.ORM 1.1 + SQLite persistence (raw `Microsoft.Data.Sqlite` provider, no DbContext), same xUnit + BenchmarkDotNet + NBomber test/bench fan-out. They differ in **arrangement**, not in functional scope — pick on team comfort, not capability.
 
 ## Install
 
@@ -60,6 +60,7 @@ Full tour and rationale: [docs/za-clean.md](https://github.com/ZeroAlloc-Net/Zer
 | Resilience | ZA.Resilience + ZA.Rest.Resilience | Bridged into the shipping client |
 | Smart-ctor IDs/money | ZA.ValueObjects | `MyApp.Domain/ValueObjects/` |
 | `Result<T, Error>` | ZA.Results | Across Domain + Application boundaries |
+| Source-generated persistence | ZA.ORM 1.1 + ZA.AdoNet.Async | `[Command]`/`[Query]` partials over `IAsyncDbConnection`; embedded SQL migrations under `Persistence/Migrations/` |
 
 ## License
 
