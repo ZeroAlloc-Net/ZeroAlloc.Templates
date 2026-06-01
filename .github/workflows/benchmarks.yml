@@ -157,7 +157,11 @@ jobs:
         working-directory: content/za-vertical-slice
         env:
           Database__Provider: Postgres
-          Database__SchemaStrategy: EnsureCreated
+          # EmbeddedScript = run ZA.ORM's MigrationRunner over the embedded SQL
+          # resources at startup. (Pre-swap this slot read "EnsureCreated" which
+          # was an EF-era value; the new code recognizes Skip or anything else
+          # falls through to the runner — corrected to the current vocabulary.)
+          Database__SchemaStrategy: EmbeddedScript
           # Maximum Pool Size=500 matches the NBomber scenario's VU count
           # (Simulation.KeepConstant(copies: 500)). Default Npgsql pool is 100,
           # which produced ~0.65% timeout failures under contention in the first
