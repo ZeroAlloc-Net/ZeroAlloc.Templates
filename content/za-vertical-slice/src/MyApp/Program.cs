@@ -1,17 +1,20 @@
+using System.Data.Async;
+using System.Data.Async.Adapters;
 using System.Reflection;
 using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.EntityFrameworkCore;
+using Microsoft.Data.Sqlite;
 using Microsoft.IdentityModel.Tokens;
-using MyApp.Persistence;
 using MyApp;
 using MyApp.Authorization;
+using Npgsql;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
 using ZeroAlloc.Authorization.Generated;
 using ZeroAlloc.Mediator;
 using ZeroAlloc.Mediator.Authorization;
 using ZeroAlloc.Mediator.Validation;
+using ZeroAlloc.ORM.Migrations;
 using ZeroAlloc.Serialisation.SystemTextJson;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -36,37 +39,27 @@ builder.Services.AddMediator()
     .WithAuthorization(o => o.UseAccessor<HttpSecurityContextAccessor>());
 
 // ---------------------------------------------------------------------------
-// EF Core — provider selected by `Database:Provider` config (Sqlite|Postgres).
-// Default is Sqlite so the zero-setup `dotnet run` quickstart still works
-// (`Data Source=app.db` flows into UseSqlite). To target Postgres, set
+// ZA.ORM substrate — provider selected by `Database:Provider` config
+// (Sqlite|Postgres). Default is Sqlite so the zero-setup `dotnet run`
+// quickstart still works (`Data Source=app.db`). To target Postgres, set
 // `Database:Provider=Postgres` and `ConnectionStrings:Default=Host=...;...`.
+//
+// Handlers receive IAsyncDbConnection via constructor injection. ZA.ORM's
+// source generator emits the SQL execution code for [Query]/[Command] partials
+// from that connection — no DbContext, no change-tracker, no reflection.
+// Scoped lifetime matches request boundaries.
 // ---------------------------------------------------------------------------
 var dbProvider = builder.Configuration.GetValue<string>("Database:Provider") ?? "Sqlite";
 var connectionString = builder.Configuration.GetConnectionString("Default")
     ?? "Data Source=app.db";
 
-// AddDbContextPool reuses DbContext instances across requests — skips the
-// constructor + service-resolution cost per call. Material at high RPS
-// (NBomber against Postgres saw ~30–50% read-path win in our load tests).
-// Requires AppDbContext's constructor to accept only DbContextOptions —
-// see AppDbContext.cs.
-builder.Services.AddDbContextPool<AppDbContext>(opts =>
+builder.Services.AddScoped<IAsyncDbConnection>(_ =>
 {
     if (string.Equals(dbProvider, "Postgres", StringComparison.OrdinalIgnoreCase))
     {
-        opts.UseNpgsql(connectionString);
+        return new NpgsqlConnection(connectionString).AsAsync();
     }
-    else
-    {
-        opts.UseSqlite(connectionString);
-    }
-    // EF Core 10 fires PendingModelChangesWarning by default when the runtime
-    // model snapshot differs from the most recent migration's snapshot — and
-    // produces false positives when the compiled-model path (UseModel) is in
-    // use alongside committed migrations. Suppressed because regenerating
-    // migrations on every CI run isn't a viable workflow for a template.
-    opts.ConfigureWarnings(w => w.Ignore(
-        Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning));
+    return new SqliteConnection(connectionString).AsAsync();
 });
 
 // ---------------------------------------------------------------------------
@@ -132,7 +125,6 @@ builder.Services.AddOpenTelemetry()
         t.SetSampler(new ParentBasedSampler(new TraceIdRatioBasedSampler(traceSampleRatio)))
             .AddAspNetCoreInstrumentation()
             .AddHttpClientInstrumentation()
-            .AddEntityFrameworkCoreInstrumentation()
             .AddSource("ZeroAlloc.Mediator")
             .AddSource("MyApp");
         if (consoleTelemetry)
@@ -182,9 +174,9 @@ var app = builder.Build();
 
 // Apply schema on startup. `Database:SchemaStrategy` controls how:
 //
-//   EmbeddedScript  (default) — load schema.sql (Sqlite) or schema.postgres.sql
-//                   (Postgres) from embedded resources and apply via raw ADO.NET.
-//                   AOT-compatible — no reflection.
+//   EmbeddedScript  (default) — run ZA.ORM's MigrationRunner over the
+//                   Persistence/Migrations/{Sqlite,Postgres}/*.sql resources.
+//                   AOT-compatible — no reflection-based ORM.
 //   Skip            — startup does nothing. Used by WritePipelineBench's
 //                   [GlobalSetup] paths where the bench owns DB lifecycle.
 var schemaStrategy = app.Configuration.GetValue<string>("Database:SchemaStrategy")
@@ -197,61 +189,37 @@ if (!string.Equals(schemaStrategy, "Skip", StringComparison.OrdinalIgnoreCase))
     // ConfigureAppConfiguration overrides take effect during builder.Build();
     // the top-level capture happens BEFORE Build and would see the default
     // ("Sqlite"), routing the Postgres bench's idempotency check through the
-    // Sqlite branch (sqlite_master → "relation does not exist" against Postgres).
+    // Sqlite branch.
     var schemaProvider = app.Configuration.GetValue<string>("Database:Provider") ?? "Sqlite";
+    var isPostgresSchema = string.Equals(schemaProvider, "Postgres", StringComparison.OrdinalIgnoreCase);
 
-    using var scope = app.Services.CreateScope();
-    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-    await ApplyEmbeddedSchemaAsync(db, schemaProvider);
-}
+    // Build the connection locally here — do NOT resolve IAsyncDbConnection from
+    // DI (it's scoped; resolving from the root provider triggers a lifetime
+    // captive-dependency exception, and resolving from a scope would tie the
+    // migration to the request-scope lifetime).
+    System.Data.Common.DbConnection raw = isPostgresSchema
+        ? new NpgsqlConnection(connectionString)
+        : new SqliteConnection(connectionString);
 
-static async Task ApplyEmbeddedSchemaAsync(AppDbContext db, string provider)
-{
-    var isPostgres = string.Equals(provider, "Postgres", StringComparison.OrdinalIgnoreCase);
-    var resourceSuffix = isPostgres ? "schema.postgres.sql" : "schema.sql";
-
-    var asm = typeof(AppDbContext).Assembly;
-    var resourceName = asm.GetManifestResourceNames()
-        .First(n => n.EndsWith(resourceSuffix, StringComparison.Ordinal));
-    using var stream = asm.GetManifestResourceStream(resourceName)!;
-    using var reader = new StreamReader(stream);
-    var script = await reader.ReadToEndAsync();
-
-    var conn = db.Database.GetDbConnection();
-    var openedHere = conn.State != System.Data.ConnectionState.Open;
-    if (openedHere)
+    await using (raw.ConfigureAwait(false))
     {
-        await conn.OpenAsync();
-    }
-    try
-    {
-        await using (var check = conn.CreateCommand())
-        {
-            check.CommandText = isPostgres
-                // `::text` cast forces Postgres to return text instead of the
-                // `regclass` type, which Npgsql refuses to map to System.Object
-                // for ExecuteScalarAsync. Returns NULL/DBNull if the table is
-                // missing, the literal table name if present.
-                ? "SELECT to_regclass('public.\"__EFMigrationsHistory\"')::text;"
-                : "SELECT name FROM sqlite_master WHERE type='table' AND name='__EFMigrationsHistory';";
-            var exists = await check.ExecuteScalarAsync();
-            var hasHistory = exists is not null && exists is not DBNull;
-            if (hasHistory)
-            {
-                return;
-            }
-        }
+        var asyncConn = raw.AsAsync();
+        await asyncConn.OpenAsync().ConfigureAwait(false);
 
-        await using var cmd = conn.CreateCommand();
-        cmd.CommandText = script;
-        await cmd.ExecuteNonQueryAsync();
-    }
-    finally
-    {
-        if (openedHere)
-        {
-            await conn.CloseAsync();
-        }
+        var source = new EmbeddedResourceMigrationSource(
+            typeof(Program).Assembly,
+            isPostgresSchema
+                ? "MyApp.Persistence.Migrations.Postgres."
+                : "MyApp.Persistence.Migrations.Sqlite.");
+        IMigrationDialect dialect = isPostgresSchema
+            ? new PostgresMigrationDialect()
+            : new SqliteMigrationDialect();
+
+        var runner = new MigrationRunner(asyncConn, source, dialect);
+        var applied = await runner.RunAsync().ConfigureAwait(false);
+        app.Logger.LogInformation("Applied {Count} ZA.ORM migrations on startup", applied.Count);
+
+        await asyncConn.CloseAsync().ConfigureAwait(false);
     }
 }
 
