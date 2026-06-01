@@ -11,7 +11,9 @@ Clean Architecture Web API. **Publishes as a 35.8 MB Native AOT single-file bina
 | **Mediator dispatch alone** | ~37 ns / 0 B |
 | **Validator (hand-rolled, regex zip)** | ~40 ns / 0 B |
 | **ValueObject `TryCreate`** | ~13 ns / 0 B |
-| **End-to-end pipeline** (with ASP.NET + EF) | 156 KB / 2 ms — mostly platform overhead, not ZA |
+| **End-to-end pipeline** (ASP.NET + ZA.ORM) \* | 156 KB / 2 ms — mostly platform overhead, not ZA |
+
+\* Numbers captured pre-ZA.ORM-swap; re-capture pending.
 
 Measured on a 2022 i9-12900HK / Windows 11 / .NET 10.0.7. The decisive datapoint: `EndToEndPrimitives` matches `Mapping_RequestToCommand` byte-for-byte — the validator + Mediator dispatch through the chain allocate **zero bytes**. The 200 B is the `CreateOrderCommand` record + nested `OrderItem[]` array, a caller cost every framework pays.
 
@@ -21,7 +23,7 @@ Measured on a 2022 i9-12900HK / Windows 11 / .NET 10.0.7. The decisive datapoint
 # Framework primitives (zero-alloc, ns/op — what ZA is)
 dotnet run -c Release --project benchmarks/MyApp.Benchmarks.Primitives -- --filter "*"
 
-# Full pipeline (ASP.NET + EF — what the platform costs)
+# Full pipeline (ASP.NET + ZA.ORM — what the platform costs)
 dotnet run -c Release --project benchmarks/MyApp.Benchmarks -- --filter "*WritePipelineBench*"
 
 # AOT publish + cold-start
@@ -38,7 +40,7 @@ curl http://localhost:5000/healthz
 # → {"status":"ok"}
 ```
 
-The API boots, applies its EF Core SQLite migrations, seeds a sample order in `Development`, and listens on the Kestrel default. OpenTelemetry traces stream to the console.
+The API boots, applies its ZA.ORM-managed embedded SQL migrations, seeds a sample order in `Development`, and listens on the Kestrel default. OpenTelemetry traces stream to the console.
 
 ## Layout
 
@@ -46,7 +48,7 @@ The API boots, applies its EF Core SQLite migrations, seeds a sample order in `D
 src/
 ├── MyApp.Domain/            Entities, value objects, domain events
 ├── MyApp.Application/       Commands, queries, handlers, validators (CQRS via ZA.Mediator)
-├── MyApp.Infrastructure/    EF Core SQLite, ZA.Rest typed HTTP client + ZA.Resilience
+├── MyApp.Infrastructure/    ZA.ORM partial repositories over IAsyncDbConnection, ZA.Rest typed HTTP client + ZA.Resilience
 └── MyApp.Api/               Minimal API endpoints, DTOs, JWT auth, OpenTelemetry
 
 tests/
@@ -56,7 +58,7 @@ tests/
 
 benchmarks/
 ├── MyApp.Benchmarks.Primitives/ BenchmarkDotNet — ZA primitives in isolation (0 B framework cost)
-├── MyApp.Benchmarks/            BenchmarkDotNet — full ASP.NET + EF pipeline cost
+├── MyApp.Benchmarks/            BenchmarkDotNet — full ASP.NET + ZA.ORM pipeline cost
 └── MyApp.LoadTest/              NBomber — RPS under sustained concurrency
 ```
 
@@ -68,7 +70,9 @@ The NBomber load test scenario (read RPS, 500 VUs for 30s against real Kestrel):
 |---:|---:|---:|---:|---|
 | 1009 ms | 2138 ms | 2634 ms | **473** | 14,207 OK / 370 timeouts. SQLite read-bound. |
 
-Latency under 500-VU load reflects SQLite's single-file lock + EF Core's tracking-context allocation per request. PostgreSQL + EF `AsNoTracking()` on reads + response caching dramatically improve both throughput and p99 — the harness is shipped so adopters measure on *their* data layer choice.
+> Numbers captured pre-ZA.ORM-swap; refresh tracked in backlog.
+
+Latency under 500-VU load reflects SQLite's single-file lock. ZA.ORM has no change tracker — reads materialise straight from `IAsyncDbConnection` with zero overhead. PostgreSQL + response caching dramatically improve both throughput and p99 — the harness is shipped so adopters measure on *their* data layer choice.
 
 **Reproduce:**
 
@@ -87,12 +91,12 @@ Full methodology + per-package comparisons (ZA.Mapping vs Mapperly/AutoMapper, e
 
 - **AI agents**: [AGENTS.md](AGENTS.md) — orientation for Claude Code, Cursor, GitHub Copilot, Codex, Aider. Includes "how to add a command/query/endpoint/value object" recipes and the ZA-specific gotchas.
 - **Boundary rules**: enforced by `tests/MyApp.ArchitectureTests/CleanArchitectureRules.cs`. Five NetArchTest rules covering Clean dependency direction.
-- **Swap SQLite → PostgreSQL**: set `Database:Provider=Postgres` and point `ConnectionStrings:Default` at your Postgres conn string. AOT-correct: production startup applies the embedded `schema.postgres.sql` via `ApplyEmbeddedSchemaAsync` — no EF reflection at runtime. For load-testing or ad-hoc experimentation, set `Database:SchemaStrategy=EmbeddedScript` (the default). After entity changes, regenerate both providers' migrations + schema scripts:
-  ```bash
-  tools/regen-schema.sh              # bash
-  pwsh tools/regen-schema.ps1        # PowerShell
+- **Swap SQLite → PostgreSQL**: set `Database:Provider=Postgres` and point `ConnectionStrings:Default` at your Postgres conn string. AOT-correct: ZA.ORM's `MigrationRunner` picks up the embedded SQL files under `src/MyApp.Infrastructure/Persistence/Migrations/Postgres/` on startup — no reflection, no design-time tooling. After entity or schema changes, hand-author a new migration file under both providers:
   ```
-  This produces fresh `Migrations.Sqlite/`, `Migrations.Postgres/`, `schema.sql`, and `schema.postgres.sql` so both providers stay in lockstep.
+  src/MyApp.Infrastructure/Persistence/Migrations/Sqlite/002_add_customer_email.sql
+  src/MyApp.Infrastructure/Persistence/Migrations/Postgres/002_add_customer_email.sql
+  ```
+  File-naming convention: `NNN_description.sql` — a 3+ digit zero-padded version prefix (strictly increasing) plus a snake_case description. `MigrationRunner` orders by the prefix and applies anything newer than the recorded high-water mark on next startup.
 
 ## License
 
