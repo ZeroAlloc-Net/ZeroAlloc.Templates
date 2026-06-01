@@ -76,7 +76,14 @@ public sealed class MyAppFactory : WebApplicationFactory<Program>
             {
                 services.Remove(dbDescriptor);
             }
-            services.AddScoped<IAsyncDbConnection>(_ => _asyncConn);
+            // Singleton (not scoped) — MS.Extensions.DependencyInjection adds any
+            // IAsyncDisposable resolved via a scoped factory to the scope's disposal
+            // list, so end-of-request would dispose the shared wrapper and close
+            // the underlying SqliteConnection (and its `:memory:` database).
+            // Singleton-by-factory still tracks for disposal, but only at host
+            // shutdown — i.e. fixture teardown, where `_connection.Dispose()`
+            // already runs. SqliteConnection tolerates the double-dispose.
+            services.AddSingleton<IAsyncDbConnection>(_ => _asyncConn);
 
             var shippingDescriptor = services.SingleOrDefault(
                 d => d.ServiceType == typeof(IShippingQuoteClient));
