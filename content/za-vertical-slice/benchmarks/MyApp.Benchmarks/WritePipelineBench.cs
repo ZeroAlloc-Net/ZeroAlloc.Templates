@@ -126,7 +126,11 @@ public class WritePipelineBench
 
                 if (Backend == DbBackend.Sqlite)
                 {
-                    s.AddScoped<IAsyncDbConnection>(_ => _sqliteAsync!);
+                    // Singleton (not scoped) — MS.Extensions.DependencyInjection
+                    // would otherwise add the shared wrapper to each request scope's
+                    // disposal list, closing the underlying :memory: SqliteConnection
+                    // after the first request and evaporating the database.
+                    s.AddSingleton<IAsyncDbConnection>(_ => _sqliteAsync!);
                 }
                 else
                 {
