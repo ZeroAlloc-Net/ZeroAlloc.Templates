@@ -23,18 +23,6 @@
     <ProjectReference Include="../MyApp.Application/MyApp.Application.csproj" />
   </ItemGroup>
 
-  <!-- Design-time EF migration scripting: pass /p:EfActiveProvider=Sqlite or
-       /p:EfActiveProvider=Postgres to exclude the OTHER provider's migration
-       classes from the compiled assembly, so `dotnet ef migrations script`
-       sees only the active provider's [Migration]-attributed classes.
-       Runtime production builds leave this property unset; both providers'
-       migrations compile in, which is fine because runtime uses
-       ApplyEmbeddedSchemaAsync, not EF's migration runner. -->
-  <ItemGroup>
-    <Compile Remove="Persistence/Migrations.Postgres/**/*.cs" Condition="'$(EfActiveProvider)' == 'Sqlite'" />
-    <Compile Remove="Persistence/Migrations.Sqlite/**/*.cs" Condition="'$(EfActiveProvider)' == 'Postgres'" />
-  </ItemGroup>
-
   <!-- Embedded SQL migrations applied at startup by ZA.ORM's MigrationRunner.
        Folder-scoped per provider: Migrations/Sqlite/*.sql for Sqlite,
        Migrations/Postgres/*.sql for Postgres. Resource names embed the
