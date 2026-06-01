@@ -35,12 +35,13 @@
     <Compile Remove="Persistence/Migrations.Sqlite/**/*.cs" Condition="'$(EfActiveProvider)' == 'Postgres'" />
   </ItemGroup>
 
-  <!-- Embedded schema scripts applied at startup by ApplyEmbeddedSchemaAsync.
-       Generated via dotnet ef migrations script (idempotent for Postgres).
-       Regenerate via tools/regen-schema.{sh,ps1} after entity changes. -->
+  <!-- Embedded SQL migrations applied at startup by ZA.ORM's MigrationRunner.
+       Folder-scoped per provider: Migrations/Sqlite/*.sql for Sqlite,
+       Migrations/Postgres/*.sql for Postgres. Resource names embed the
+       folder name, which the runner uses as a namespace prefix to filter
+       by active provider. -->
   <ItemGroup>
-    <EmbeddedResource Include="Persistence/schema.sql" />
-    <EmbeddedResource Include="Persistence/schema.postgres.sql" />
+    <EmbeddedResource Include="Persistence/Migrations/**/*.sql" />
   </ItemGroup>
 
   <ItemGroup>
