@@ -1,6 +1,4 @@
-using Microsoft.EntityFrameworkCore;
 using MyApp.Features.Customers.CreateCustomer;
-using MyApp.Persistence;
 using Xunit;
 
 namespace MyApp.UnitTests.Features.Customers.CreateCustomer;
@@ -10,16 +8,21 @@ public sealed class CreateCustomerHandlerTests
     [Fact]
     public async Task CreateCustomer_WithValidInput_PersistsAndReturnsCustomerId()
     {
-        await using var db = NewInMemoryDb();
-        var handler = new CreateCustomerHandler(db);
+        await using var db = new TestDb();
+        var handler = new CreateCustomerHandler(db.Connection);
         var cmd = new CreateCustomerCommand(Name: "Acme Ltd.", Email: "billing@acme.example");
 
         var result = await handler.Handle(cmd, CancellationToken.None);
 
         Assert.True(result.IsSuccess);
-        var persisted = await db.Customers.SingleAsync();
-        Assert.Equal("Acme Ltd.", persisted.Name);
-        Assert.Equal("billing@acme.example", persisted.Email);
+
+        var readCmd = db.Connection.CreateCommand();
+        readCmd.CommandText = "SELECT \"Name\", \"Email\" FROM \"Customers\"";
+        await using var reader = await readCmd.ExecuteReaderAsync();
+        Assert.True(await reader.ReadAsync());
+        Assert.Equal("Acme Ltd.", reader.GetString(0));
+        Assert.Equal("billing@acme.example", reader.GetString(1));
+        Assert.False(await reader.ReadAsync());
     }
 
     [Fact]
@@ -51,16 +54,5 @@ public sealed class CreateCustomerHandlerTests
         }
 
         return false;
-    }
-
-    private static AppDbContext NewInMemoryDb()
-    {
-        var opts = new DbContextOptionsBuilder<AppDbContext>()
-            .UseSqlite("Data Source=:memory:")
-            .Options;
-        var db = new AppDbContext(opts);
-        db.Database.OpenConnection();
-        db.Database.EnsureCreated();
-        return db;
     }
 }

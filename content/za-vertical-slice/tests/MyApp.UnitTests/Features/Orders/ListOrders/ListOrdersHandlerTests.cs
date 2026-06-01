@@ -1,8 +1,7 @@
-using Microsoft.EntityFrameworkCore;
+using System.Data.Async;
 using MyApp.Common;
 using MyApp.Features.Orders.ListOrders;
 using MyApp.Features.Orders.PlaceOrder;
-using MyApp.Persistence;
 using Xunit;
 
 namespace MyApp.UnitTests.Features.Orders.ListOrders;
@@ -12,14 +11,13 @@ public sealed class ListOrdersHandlerTests
     [Fact]
     public async Task ListOrders_ReturnsPageOfItemsWithTotalCount()
     {
-        await using var db = NewInMemoryDb();
+        await using var db = new TestDb();
         for (var i = 1; i <= 5; i++)
         {
-            await db.Orders.AddAsync(new Order(new CustomerId(i), i * 10m));
+            await InsertOrderAsync(db.Connection, customerId: i, total: i * 10m);
         }
-        await db.SaveChangesAsync();
 
-        var handler = new ListOrdersHandler(db);
+        var handler = new ListOrdersHandler(db.Connection);
         var result = await handler.Handle(new ListOrdersQuery(Page: 1, PageSize: 3), CancellationToken.None);
 
         Assert.True(result.IsSuccess);
@@ -32,14 +30,13 @@ public sealed class ListOrdersHandlerTests
     [Fact]
     public async Task ListOrders_SecondPage_ReturnsRemainder()
     {
-        await using var db = NewInMemoryDb();
+        await using var db = new TestDb();
         for (var i = 1; i <= 5; i++)
         {
-            await db.Orders.AddAsync(new Order(new CustomerId(i), i * 10m));
+            await InsertOrderAsync(db.Connection, customerId: i, total: i * 10m);
         }
-        await db.SaveChangesAsync();
 
-        var handler = new ListOrdersHandler(db);
+        var handler = new ListOrdersHandler(db.Connection);
         var result = await handler.Handle(new ListOrdersQuery(Page: 2, PageSize: 3), CancellationToken.None);
 
         Assert.True(result.IsSuccess);
@@ -64,14 +61,23 @@ public sealed class ListOrdersHandlerTests
         Assert.True(found);
     }
 
-    private static AppDbContext NewInMemoryDb()
+    private static async Task<int> InsertOrderAsync(IAsyncDbConnection conn, int customerId, decimal total)
     {
-        var opts = new DbContextOptionsBuilder<AppDbContext>()
-            .UseSqlite("Data Source=:memory:")
-            .Options;
-        var db = new AppDbContext(opts);
-        db.Database.OpenConnection();
-        db.Database.EnsureCreated();
-        return db;
+        await using var cmd = conn.CreateCommand();
+        cmd.CommandText =
+            "INSERT INTO \"Orders\" (\"CustomerId\", \"Total\", \"Status\") VALUES (@customerId, @total, @status) RETURNING \"Id\"";
+        AddParam(cmd, "@customerId", customerId);
+        AddParam(cmd, "@total", total);
+        AddParam(cmd, "@status", nameof(OrderStatus.Pending));
+        var id = await cmd.ExecuteScalarAsync().ConfigureAwait(false);
+        return Convert.ToInt32(id);
+    }
+
+    private static void AddParam(IAsyncDbCommand cmd, string name, object value)
+    {
+        var p = cmd.CreateParameter();
+        p.ParameterName = name;
+        p.Value = value;
+        cmd.Parameters.Add(p);
     }
 }

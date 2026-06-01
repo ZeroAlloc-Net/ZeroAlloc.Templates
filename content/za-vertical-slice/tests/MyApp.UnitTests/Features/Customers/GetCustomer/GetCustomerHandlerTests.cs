@@ -1,8 +1,6 @@
-using Microsoft.EntityFrameworkCore;
+using System.Data.Async;
 using MyApp.Common;
-using MyApp.Features.Customers.CreateCustomer;
 using MyApp.Features.Customers.GetCustomer;
-using MyApp.Persistence;
 using Xunit;
 
 namespace MyApp.UnitTests.Features.Customers.GetCustomer;
@@ -12,16 +10,14 @@ public sealed class GetCustomerHandlerTests
     [Fact]
     public async Task GetCustomer_WithKnownId_ReturnsDto()
     {
-        await using var db = NewInMemoryDb();
-        var seeded = new Customer("Acme Ltd.", "billing@acme.example");
-        await db.Customers.AddAsync(seeded);
-        await db.SaveChangesAsync();
+        await using var db = new TestDb();
+        var customerId = await InsertCustomerAsync(db.Connection, "Acme Ltd.", "billing@acme.example");
 
-        var handler = new GetCustomerHandler(db);
-        var result = await handler.Handle(new GetCustomerQuery(seeded.Id), CancellationToken.None);
+        var handler = new GetCustomerHandler(db.Connection);
+        var result = await handler.Handle(new GetCustomerQuery(new CustomerId(customerId)), CancellationToken.None);
 
         Assert.True(result.IsSuccess);
-        Assert.Equal(seeded.Id, result.Value.Id);
+        Assert.Equal(new CustomerId(customerId), result.Value.Id);
         Assert.Equal("Acme Ltd.", result.Value.Name);
         Assert.Equal("billing@acme.example", result.Value.Email);
     }
@@ -29,8 +25,8 @@ public sealed class GetCustomerHandlerTests
     [Fact]
     public async Task GetCustomer_WithUnknownId_ReturnsNotFoundError()
     {
-        await using var db = NewInMemoryDb();
-        var handler = new GetCustomerHandler(db);
+        await using var db = new TestDb();
+        var handler = new GetCustomerHandler(db.Connection);
 
         var result = await handler.Handle(new GetCustomerQuery(new CustomerId(9999)), CancellationToken.None);
 
@@ -39,14 +35,22 @@ public sealed class GetCustomerHandlerTests
         Assert.Equal("customer.not_found", result.Error.Code);
     }
 
-    private static AppDbContext NewInMemoryDb()
+    private static async Task<int> InsertCustomerAsync(IAsyncDbConnection conn, string name, string email)
     {
-        var opts = new DbContextOptionsBuilder<AppDbContext>()
-            .UseSqlite("Data Source=:memory:")
-            .Options;
-        var db = new AppDbContext(opts);
-        db.Database.OpenConnection();
-        db.Database.EnsureCreated();
-        return db;
+        await using var cmd = conn.CreateCommand();
+        cmd.CommandText =
+            "INSERT INTO \"Customers\" (\"Name\", \"Email\") VALUES (@name, @email) RETURNING \"Id\"";
+        AddParam(cmd, "@name", name);
+        AddParam(cmd, "@email", email);
+        var id = await cmd.ExecuteScalarAsync().ConfigureAwait(false);
+        return Convert.ToInt32(id);
+    }
+
+    private static void AddParam(IAsyncDbCommand cmd, string name, object value)
+    {
+        var p = cmd.CreateParameter();
+        p.ParameterName = name;
+        p.Value = value;
+        cmd.Parameters.Add(p);
     }
 }
