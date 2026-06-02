@@ -1,19 +1,19 @@
 # MyApp
 
-Clean Architecture Web API. **Publishes as a 35.8 MB Native AOT single-file binary; cold-starts in ~1.0 s** (vs ~2.2 s under JIT — ~2.2× faster). Source-generated, zero-allocation through the framework hot path. Built on the [ZeroAlloc.\*](https://github.com/ZeroAlloc-Net) ecosystem.
+Clean Architecture Web API. **Publishes as a ~27 MB Native AOT binary; cold-starts in ~540 ms** (vs ~1.2 s under JIT — ~2.2× faster, ~75% smaller deploy). Source-generated, zero-allocation through the framework hot path. Built on the [ZeroAlloc.\*](https://github.com/ZeroAlloc-Net) ecosystem.
 
 | | Value |
 |---|---:|
-| **AOT binary size** | 35.8 MB single-file, self-contained (win-x64) |
-| **AOT cold start** | ~1.0 s (process → `/healthz` 200, best of 3) |
-| **JIT cold start** (comparison) | ~2.2 s (same scenario) |
+| **AOT binary size** | ~27 MB (`MyApp.Api.exe`) + ~2 MB native deps (win-x64, self-contained) |
+| **AOT cold start** | ~540 ms (process → `/healthz` 200, best of 3 on warm disk) |
+| **JIT cold start** (comparison) | ~1.2 s, 110 MB total deploy (same scenario) |
 | **Framework primitives end-to-end** | ~125 ns / 160 B (= mapping cost alone; chain adds 0 B) |
 | **Mediator dispatch alone** | ~31 ns / 0 B |
 | **Validator (source-generated, regex zip)** | ~57 ns / 0 B |
 | **ValueObject `TryCreate`** | ~3 ns / 0 B |
 | **End-to-end pipeline** (ASP.NET + ZA.ORM, Postgres) | ~1.3 ms / 36 KB — mostly platform overhead, not ZA |
 
-AOT figures measured on a 2022 i9-12900HK / Windows 11 / .NET 10.0.7. Pipeline + primitive numbers measured in CI on Ubuntu 24.04 / AMD EPYC / .NET 10.0.8 via [`Benchmarks (manual)` run 26778623747](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/actions/runs/26778623747). The decisive datapoint: the validator + Mediator dispatch through the chain allocate **zero bytes**. The 160 B is the `CreateOrderCommand` record + nested `OrderItem[]` array, a caller cost every framework pays.
+AOT figures re-measured 2026-06-02 post-ZA.ORM-swap (#152) on i9-12900HK / Windows 11 / .NET 10.0.8. Pipeline + primitive numbers measured in CI on Ubuntu 24.04 / AMD EPYC / .NET 10.0.8 via [`Benchmarks (manual)` run 26778623747](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/actions/runs/26778623747). The decisive datapoint: the validator + Mediator dispatch through the chain allocate **zero bytes**. The 160 B is the `CreateOrderCommand` record + nested `OrderItem[]` array, a caller cost every framework pays.
 
 **Reproduce:**
 
