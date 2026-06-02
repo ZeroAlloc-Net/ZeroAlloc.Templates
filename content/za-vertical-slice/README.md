@@ -6,14 +6,16 @@ Where Clean Architecture splits the codebase by *technical layer* (Domain / Appl
 
 | | Value |
 |---|---:|
-| **AOT binary size** | ~36 MB single-file, self-contained (win-x64) |
-| **AOT cold start** | ~1.0 s (process → `/healthz` 200, best of 3) |
+| **AOT binary size** | ~27 MB (`MyApp.exe`) + ~2 MB native deps (win-x64, self-contained) |
+| **AOT cold start** | ~540 ms (process → `/healthz` 200, best of 3 on warm disk) |
 | **ValueObject `TryCreate` (Money)** | ~3 ns / 0 B |
 | **TypedId construct** | ~0 ns / 0 B (inlined away) |
 | **Validator (source-generated)** | ~4 ns / 0 B |
 | **`Result<T, Error>` (success path)** | ~7 ns / 0 B |
 | **WritePipeline (ASP.NET + ZA.ORM, Postgres)** | ~659 μs / 32 KB per request |
 | **WritePipeline (ASP.NET + ZA.ORM, Sqlite)** | ~186 μs / 29 KB per request |
+
+AOT figures measured on i9-12900HK / Windows 11 / .NET 10.0.8 post-B5 (PR #161 — the swap from JIT to NativeAOT). Pipeline + primitive numbers measured in CI on Ubuntu 24.04 / AMD EPYC / .NET 10.0.8 via [`Benchmarks (manual)` run 26778623747](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/actions/runs/26778623747).
 
 **Reproduce:**
 
