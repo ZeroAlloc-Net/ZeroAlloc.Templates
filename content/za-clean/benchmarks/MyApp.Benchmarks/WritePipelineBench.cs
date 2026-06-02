@@ -1,16 +1,18 @@
+using System.Data.Async;
+using System.Data.Async.Adapters;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using BenchmarkDotNet.Attributes;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Data.Sqlite;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using MyApp.Application;
 using MyApp.Domain.ValueObjects;
 using MyApp.Infrastructure.Persistence;
 using Npgsql;
+using ZeroAlloc.ORM.Migrations;
 using ZeroAlloc.Results;
 
 namespace MyApp.Benchmarks;
@@ -19,15 +21,15 @@ namespace MyApp.Benchmarks;
 /// Single-method WritePipeline benchmark for the za-clean Clean Architecture
 /// template. Hosts the API via WebApplicationFactory&lt;Program&gt; and runs
 /// POST /orders end-to-end through ASP.NET middleware, mediator dispatch,
-/// validation, EF Core SaveChanges, and a stubbed shipping client.
+/// validation, ZA.ORM-generated repository writes, and a stubbed shipping client.
 ///
 /// <para>
 /// <b>Backends:</b> <c>[Params]</c> dispatches the benchmark against both
-/// in-memory SQLite and a localhost Postgres. Sqlite uses the production
-/// schema path (<c>Program.cs</c>'s <c>ApplyEmbeddedSchemaAsync</c> reading
-/// <c>schema.sql</c>); Postgres creates a fresh per-process database
-/// (<c>bench_&lt;guid8&gt;</c>) and applies <c>schema.postgres.sql</c> via
-/// the same path. Both code paths are AOT-correct (no EF reflection at runtime).
+/// in-memory SQLite and a localhost Postgres. Migrations apply once per [GlobalSetup]
+/// via ZA.ORM's MigrationRunner against folder-scoped embedded SQL resources
+/// (<c>Persistence/Migrations/{Sqlite,Postgres}/*.sql</c>). Postgres creates a
+/// fresh per-process database (<c>bench_&lt;guid8&gt;</c>) and applies the
+/// Postgres-prefixed migration set.
 /// </para>
 ///
 /// <para>
@@ -51,20 +53,22 @@ public class WritePipelineBench
 
     private WebApplicationFactory<Program>? _factory;
     private HttpClient? _client;
-    private SqliteConnection? _connection;
+    private SqliteConnection? _sqliteConn;
+    private IAsyncDbConnection? _sqliteAsync;
     private string? _postgresAdminConnString;
+    private string? _postgresWorkerConnString;
     private string? _postgresDbName;
     private object? _request;
 
     [GlobalSetup]
     public void Setup()
     {
-        NpgsqlConnectionStringBuilder? csb = null;
-
         if (Backend == DbBackend.Sqlite)
         {
-            _connection = new SqliteConnection("DataSource=:memory:");
-            _connection.Open();
+            _sqliteConn = new SqliteConnection("DataSource=:memory:");
+            _sqliteConn.Open();
+            _sqliteAsync = _sqliteConn.AsAsync();
+            ApplyMigrations(_sqliteAsync, isPostgres: false);
         }
         else
         {
@@ -74,7 +78,7 @@ public class WritePipelineBench
             var pwd = Environment.GetEnvironmentVariable("POSTGRES_PASSWORD") ?? "postgres";
             var adminDb = Environment.GetEnvironmentVariable("POSTGRES_DB") ?? "bench";
 
-            csb = new NpgsqlConnectionStringBuilder
+            var csb = new NpgsqlConnectionStringBuilder
             {
                 Host = host,
                 Port = int.Parse(port, System.Globalization.CultureInfo.InvariantCulture),
@@ -85,11 +89,21 @@ public class WritePipelineBench
             _postgresAdminConnString = csb.ConnectionString;
             _postgresDbName = "bench_" + Guid.NewGuid().ToString("N")[..8];
 
-            using var admin = new NpgsqlConnection(_postgresAdminConnString);
-            admin.Open();
-            using var cmd = admin.CreateCommand();
-            cmd.CommandText = $"CREATE DATABASE \"{_postgresDbName}\"";
-            cmd.ExecuteNonQuery();
+            using (var admin = new NpgsqlConnection(_postgresAdminConnString))
+            {
+                admin.Open();
+                using var cmd = admin.CreateCommand();
+                cmd.CommandText = $"CREATE DATABASE \"{_postgresDbName}\"";
+                cmd.ExecuteNonQuery();
+            }
+
+            csb.Database = _postgresDbName;
+            _postgresWorkerConnString = csb.ConnectionString;
+
+            using var worker = new NpgsqlConnection(_postgresWorkerConnString);
+            worker.Open();
+            var workerAsync = worker.AsAsync();
+            ApplyMigrations(workerAsync, isPostgres: true);
         }
 
         _factory = new WebApplicationFactory<Program>().WithWebHostBuilder(b =>
@@ -99,46 +113,31 @@ public class WritePipelineBench
             {
                 ["Jwt:DevSigningKey"] = TestJwt.DevKey,
                 ["Database:Provider"] = Backend == DbBackend.Postgres ? "Postgres" : "Sqlite",
-                ["Database:SchemaStrategy"] = "EmbeddedScript",
+                ["Database:SchemaStrategy"] = "Skip",
+                ["ConnectionStrings:Default"] = Backend == DbBackend.Postgres
+                    ? _postgresWorkerConnString
+                    : "DataSource=:memory:",
             }));
             b.ConfigureServices(s =>
             {
-                // Strip all EF Core registrations the production AddDbContextPool
-                // left behind. typeof(AppDbContext) catches the pool-flavored
-                // factory descriptor (lives in MyApp.Infrastructure.Persistence
-                // namespace, not Microsoft.EntityFrameworkCore.*). Per the
-                // 4e0615f lesson from PR #140.
-                var efDescriptors = s
-                    .Where(d => d.ServiceType == typeof(AppDbContext)
-                        || (d.ServiceType.FullName is { } n
-                            && (n.StartsWith("Microsoft.EntityFrameworkCore", StringComparison.Ordinal)
-                                || n.StartsWith("Npgsql.EntityFrameworkCore", StringComparison.Ordinal))))
-                    .ToList();
-                foreach (var d in efDescriptors)
+                var existing = s.SingleOrDefault(d => d.ServiceType == typeof(IAsyncDbConnection));
+                if (existing is not null)
                 {
-                    s.Remove(d);
+                    s.Remove(existing);
                 }
 
                 if (Backend == DbBackend.Sqlite)
                 {
-                    s.AddDbContext<AppDbContext>(opt =>
-                    {
-                        opt.UseSqlite(_connection!, sqlite =>
-                            sqlite.MigrationsAssembly(typeof(AppDbContext).Assembly.GetName().Name));
-                        opt.ConfigureWarnings(w => w.Ignore(
-                            Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning));
-                    });
+                    // Singleton (not scoped) — MS.Extensions.DependencyInjection
+                    // would otherwise add the shared wrapper to each request scope's
+                    // disposal list, closing the underlying :memory: SqliteConnection
+                    // after the first request and evaporating the database.
+                    s.AddSingleton<IAsyncDbConnection>(_ => _sqliteAsync!);
                 }
                 else
                 {
-                    csb!.Database = _postgresDbName;
-                    var workerConnString = csb.ConnectionString;
-                    s.AddDbContext<AppDbContext>(opt =>
-                    {
-                        opt.UseNpgsql(workerConnString);
-                        opt.ConfigureWarnings(w => w.Ignore(
-                            Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning));
-                    });
+                    var workerConnString = _postgresWorkerConnString!;
+                    s.AddScoped<IAsyncDbConnection>(_ => new NpgsqlConnection(workerConnString).AsAsync());
                 }
 
                 var shippingDescriptor = s.SingleOrDefault(d => d.ServiceType == typeof(IShippingQuoteClient));
@@ -171,7 +170,7 @@ public class WritePipelineBench
     {
         _client?.Dispose();
         _factory?.Dispose();
-        _connection?.Dispose();
+        _sqliteConn?.Dispose();
 
         if (Backend == DbBackend.Postgres && _postgresAdminConnString is not null && _postgresDbName is not null)
         {
@@ -189,6 +188,20 @@ public class WritePipelineBench
                 // can drop stale bench_* databases manually if a process crashes.
             }
         }
+    }
+
+    private static void ApplyMigrations(IAsyncDbConnection conn, bool isPostgres)
+    {
+        var source = new EmbeddedResourceMigrationSource(
+            typeof(OrderRepository).Assembly,
+            isPostgres
+                ? "MyApp.Infrastructure.Persistence.Migrations.Postgres."
+                : "MyApp.Infrastructure.Persistence.Migrations.Sqlite.");
+        IMigrationDialect dialect = isPostgres
+            ? new PostgresMigrationDialect()
+            : new SqliteMigrationDialect();
+        var runner = new MigrationRunner(conn, source, dialect);
+        runner.RunAsync().GetAwaiter().GetResult();
     }
 }
 

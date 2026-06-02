@@ -24,13 +24,15 @@
     <PackageVersion Include="ZeroAlloc.Mediator.Authorization" Version="4.1.4" />
     <PackageVersion Include="ZeroAlloc.Mediator.Generator" Version="4.1.4" />
     <PackageVersion Include="ZeroAlloc.Inject.Generator" Version="1.7.1" />
-    <!-- Microsoft / ASP.NET Core (latest stable for net9). -->
-    <!-- EF Core 10 ships the AOT-friendly compiled-model runtime path. EF 9
-         still calls Expression.Compile from RuntimeEntityType which breaks
-         AOT at first DbContext use. -->
-    <PackageVersion Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.8" />
-    <PackageVersion Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.2" />
-    <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.8" />
+    <!-- ZeroAlloc.ORM 1.1.0 + AdoNet.Async substrate (replaces EF Core 10). -->
+    <PackageVersion Include="ZeroAlloc.ORM" Version="1.1.0" />
+    <PackageVersion Include="ZeroAlloc.ORM.Abstractions" Version="1.1.0" />
+    <PackageVersion Include="ZeroAlloc.ORM.Generator" Version="1.1.0" />
+    <PackageVersion Include="AdoNet.Async" Version="1.3.0" />
+    <PackageVersion Include="AdoNet.Async.Adapters" Version="1.3.0" />
+    <PackageVersion Include="Microsoft.Data.Sqlite" Version="10.0.8" />
+    <PackageVersion Include="Npgsql" Version="10.0.3" />
+    <!-- Microsoft / ASP.NET Core (latest stable for net10). -->
     <PackageVersion Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.8" />
     <PackageVersion Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.0.8" />
     <PackageVersion Include="System.IdentityModel.Tokens.Jwt" Version="8.18.0" />
@@ -40,7 +42,6 @@
     <PackageVersion Include="OpenTelemetry.Extensions.Hosting" Version="1.15.3" />
     <PackageVersion Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.15.2" />
     <PackageVersion Include="OpenTelemetry.Instrumentation.Http" Version="1.15.1" />
-    <PackageVersion Include="OpenTelemetry.Instrumentation.EntityFrameworkCore" Version="1.12.0-beta.2" />
     <!-- Test stack. -->
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.6.0" />
     <PackageVersion Include="xunit" Version="2.9.3" />

@@ -1,11 +1,12 @@
+using System.Data.Async;
+using System.Runtime.CompilerServices;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Routing;
-using Microsoft.EntityFrameworkCore;
 using MyApp.Common;
-using MyApp.Persistence;
 using ZeroAlloc.Authorization;
 using ZeroAlloc.Mediator;
+using ZeroAlloc.ORM;
 using ZeroAlloc.Results;
 using ZeroAlloc.Validation;
 
@@ -31,24 +32,30 @@ public sealed record OrderListItem(OrderId Id, CustomerId CustomerId, decimal To
 
 public sealed record OrderPage(int Page, int PageSize, int Total, IReadOnlyList<OrderListItem> Items);
 
-public sealed class ListOrdersHandler(AppDbContext db)
+public sealed partial class ListOrdersHandler(IAsyncDbConnection conn)
     : IRequestHandler<ListOrdersQuery, Result<OrderPage, Error>>
 {
     public async ValueTask<Result<OrderPage, Error>> Handle(ListOrdersQuery query, CancellationToken ct)
     {
-        var total = await db.Orders.CountAsync(ct).ConfigureAwait(false);
+        var total = await CountOrdersAsync(ct).ConfigureAwait(false);
+        var skip = (query.Page - 1) * query.PageSize;
 
-        var items = await db.Orders
-            .AsNoTracking()
-            .OrderBy(o => o.Id)
-            .Skip((query.Page - 1) * query.PageSize)
-            .Take(query.PageSize)
-            .Select(o => new OrderListItem(o.Id, o.CustomerId, o.Total))
-            .ToListAsync(ct)
-            .ConfigureAwait(false);
+        var items = new List<OrderListItem>(query.PageSize);
+        await foreach (var row in ListOrdersAsync(query.PageSize, skip, ct).ConfigureAwait(false))
+        {
+            items.Add(new OrderListItem(new OrderId(row.Id), new CustomerId(row.CustomerId), row.Total));
+        }
 
         return Result<OrderPage, Error>.Success(new OrderPage(query.Page, query.PageSize, total, items));
     }
+
+    [Query("SELECT COUNT(*) FROM \"Orders\"")]
+    public partial Task<int> CountOrdersAsync(CancellationToken ct);
+
+    [Query("SELECT \"Id\", \"CustomerId\", \"Total\" FROM \"Orders\" ORDER BY \"Id\" LIMIT @limit OFFSET @offset")]
+    public partial IAsyncEnumerable<OrderListRow> ListOrdersAsync(int limit, int offset, [EnumeratorCancellation] CancellationToken ct);
+
+    public sealed record OrderListRow(int Id, int CustomerId, decimal Total);
 }
 
 public static class ListOrdersEndpoint

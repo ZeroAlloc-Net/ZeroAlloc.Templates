@@ -1,9 +1,3 @@
-﻿CREATE TABLE IF NOT EXISTS "__EFMigrationsHistory" (
-    "MigrationId" TEXT NOT NULL CONSTRAINT "PK___EFMigrationsHistory" PRIMARY KEY,
-    "ProductVersion" TEXT NOT NULL
-);
-
-BEGIN TRANSACTION;
 CREATE TABLE "Orders" (
     "Id" INTEGER NOT NULL CONSTRAINT "PK_Orders" PRIMARY KEY,
     "CustomerId" INTEGER NOT NULL,
@@ -21,9 +15,3 @@ CREATE TABLE "OrderLines" (
 );
 
 CREATE INDEX "IX_OrderLines_OrderId" ON "OrderLines" ("OrderId");
-
-INSERT INTO "__EFMigrationsHistory" ("MigrationId", "ProductVersion")
-VALUES ('20260511111619_InitialCreate', '10.0.8');
-
-COMMIT;
-

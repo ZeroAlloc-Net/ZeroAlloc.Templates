@@ -5,16 +5,9 @@ namespace MyApp.Infrastructure.Persistence;
 
 /// <summary>
 /// Round-trip helpers for the <see cref="Money"/> value object's TEXT storage
-/// format <c>"&lt;amount&gt;|&lt;currency&gt;"</c>. Used by both the EF Core
-/// <c>ValueConverter</c> in <see cref="Configurations.OrderConfiguration"/> and
-/// the raw-SQL read path in <see cref="OrderRepository"/>.
+/// format <c>"&lt;amount&gt;|&lt;currency&gt;"</c>. Used by the ZA.ORM-emitted
+/// read/write paths in <see cref="OrderRepository"/>.
 /// </summary>
-/// <remarks>
-/// Centralised here (rather than left as a private helper on
-/// <c>OrderConfiguration</c>) because the raw-SQL materialisation in
-/// <see cref="OrderRepository.GetByIdAsync"/> hand-hydrates Money columns and
-/// must use the exact same parse rules the converter uses for storage.
-/// </remarks>
 public static class MoneyConverter
 {
     public static string ToStorage(Money m)
@@ -22,10 +15,6 @@ public static class MoneyConverter
 
     public static Money FromStorage(string s)
     {
-        // EF Core probes the converter with the property's sentinel value (the
-        // default string, i.e. empty) during model initialisation to compute
-        // a sentinel for the converted CLR type. Return a zero Money for that
-        // case rather than throwing.
         if (string.IsNullOrEmpty(s))
         {
             return Money.TryCreate(0m, "USD").Value;

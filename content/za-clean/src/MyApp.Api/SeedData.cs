@@ -1,7 +1,6 @@
-using Microsoft.EntityFrameworkCore;
+using MyApp.Application;
 using MyApp.Domain;
 using MyApp.Domain.ValueObjects;
-using MyApp.Infrastructure.Persistence;
 
 namespace MyApp.Api;
 
@@ -11,16 +10,15 @@ namespace MyApp.Api;
 /// </summary>
 internal static class SeedData
 {
-    public static async Task SeedAsync(AppDbContext db, CancellationToken ct = default)
+    public static async Task SeedAsync(IOrderRepository repo, CancellationToken ct = default)
     {
-        if (await db.Orders.AnyAsync(ct).ConfigureAwait(false))
+        if (await repo.CountAsync(ct).ConfigureAwait(false) > 0)
             return;
 
         var price = Money.TryCreate(19.99m, "EUR").Value;
         var order = Order.Create(new CustomerId(1));
         order.AddLine("SKU-DEMO", 2, price);
 
-        await db.Orders.AddAsync(order, ct).ConfigureAwait(false);
-        await db.SaveChangesAsync(ct).ConfigureAwait(false);
+        await repo.AddAsync(order, ct).ConfigureAwait(false);
     }
 }

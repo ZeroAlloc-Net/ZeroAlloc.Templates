@@ -22,9 +22,23 @@ public sealed class Order
     {
     }
 
-    // Setter is private because EF assigns Id on INSERT via its value-converter;
-    // domain code must not mutate it after creation.
+    // Setter is private — only AssignPersistenceId can mutate Id, and only from
+    // its sentinel-zero pre-insert state. Domain code must not touch this.
     public OrderId Id { get; private set; }
+
+    /// <summary>
+    /// Persistence-layer hook for assigning the database-generated identity
+    /// after a successful INSERT...RETURNING. Throws if the id has already
+    /// been assigned — orders are immutable once persisted.
+    /// </summary>
+    public void AssignPersistenceId(OrderId id)
+    {
+        if (Id.Value != 0)
+        {
+            throw new InvalidOperationException("Order Id is already assigned");
+        }
+        Id = id;
+    }
 
     public CustomerId CustomerId { get; }
 

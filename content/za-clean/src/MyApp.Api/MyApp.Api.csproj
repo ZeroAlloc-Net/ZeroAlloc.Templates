@@ -2,16 +2,23 @@
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <RootNamespace>MyApp.Api</RootNamespace>
-    <!-- ZAM003: class request types are fine here. -->
-    <NoWarn>$(NoWarn);ZAM003</NoWarn>
+    <!-- ZAM003: class request types are fine here.
+         SYSLIB1220/SYSLIB1030: the STJ source generator can't resolve the
+         JsonConverter type that ZA.Serialisation emits for [ValueObject] typed
+         IDs (CustomerId, OrderId) declared in MyApp.Domain — the converter
+         lives in Domain's generated output and is invisible to the Api
+         generator at compile time. Runtime is unaffected: Program.cs's
+         `AddZeroAllocValueObjectConverters()` registers the converter into
+         `options.Converters`, which STJ consults BEFORE the TypeInfo
+         resolver chain. vs doesn't see this because its [ValueObject]s and
+         JsonContext live in the same assembly. -->
+    <NoWarn>$(NoWarn);ZAM003;SYSLIB1220;SYSLIB1030</NoWarn>
     <PublishAot>true</PublishAot>
     <InvariantGlobalization>true</InvariantGlobalization>
     <!-- Collapse IL2xxx/IL3xxx warnings per source assembly into a single
-         summary line. Expected warnings come from EF Core (model building
-         hooks), OpenTelemetry (RequiresDynamicCode for OTel SDK reflection),
-         SQLite (DependencyContext.LoadDefault under single-file) and Npgsql.
-         All either guarded at runtime (we use the compiled model + embedded
-         schema script) or invoked only outside the hot path. -->
+         summary line. Expected warnings come from OpenTelemetry
+         (RequiresDynamicCode for OTel SDK reflection), SQLite
+         (DependencyContext.LoadDefault under single-file) and Npgsql. -->
     <TrimmerSingleWarn>true</TrimmerSingleWarn>
   </PropertyGroup>
   <ItemGroup>
@@ -25,10 +32,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Design">
-      <PrivateAssets>all</PrivateAssets>
-      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-    </PackageReference>
     <PackageReference Include="ZeroAlloc.Mapping">
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
@@ -37,7 +40,6 @@
     <PackageReference Include="OpenTelemetry.Extensions.Hosting" />
     <PackageReference Include="OpenTelemetry.Instrumentation.AspNetCore" />
     <PackageReference Include="OpenTelemetry.Instrumentation.Http" />
-    <PackageReference Include="OpenTelemetry.Instrumentation.EntityFrameworkCore" />
     <ProjectReference Include="../MyApp.Application/MyApp.Application.csproj" />
     <ProjectReference Include="../MyApp.Infrastructure/MyApp.Infrastructure.csproj" />
   </ItemGroup>

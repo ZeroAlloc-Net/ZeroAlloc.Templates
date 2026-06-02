@@ -25,14 +25,15 @@ HTTP POST /orders
                      ▼
 ┌──────────────────────────────────────────────────────────┐
 │ src/MyApp/Common/      TypedIds (OrderId, CustomerId),   │
-│ src/MyApp/Persistence/ AppDbContext, ZeroAlloc.*         │
+│ src/MyApp/Persistence/ Migrations/{Sqlite,Postgres}/*.sql│
+│                        (embedded resources)              │
 │ src/MyApp/Authorization/ [Policy] declarations           │
 └──────────────────────────────────────────────────────────┘
 ```
 
 - **`Features/<Area>/<UseCase>/<UseCase>.cs`** — one slice per use case. Holds the request + validator + handler + endpoint + (optionally) the persistence entity owned by that slice.
 - **`Common/`** — primitives shared across slices: TypedIds, the `Error` catalog, telemetry setup.
-- **`Persistence/AppDbContext.cs`** — the `DbContext`. Entity definitions live in the slices that *create* the entity (e.g. `PlaceOrder.cs` defines `Order`); `AppDbContext` only exposes the `DbSet<T>`.
+- **Per-slice persistence** — each feature handler is a `public sealed partial class XxxHandler(IAsyncDbConnection conn)` with inline `[Query]`/`[Command]` partials and any row records co-located in the slice file. There is no central persistence type — the slice owns its data access shape, matching the vertical-slice principle that "everything a slice needs lives in the slice". `Persistence/Migrations/{Sqlite,Postgres}/NNN_<name>.sql` holds the embedded SQL applied at startup by `ZeroAlloc.ORM.Migrations.MigrationRunner`.
 - **`Authorization/Policies.cs`** — `[Policy]` declarations used by `[RequirePolicy(...)]` on requests.
 - **`Program.cs`** — DI wiring + endpoint-discovery walk (assembly walk that calls `Map` on every `public static class *Endpoint`).
 
@@ -55,7 +56,7 @@ HTTP POST /orders
 3. Define `*Validator : AbstractValidator<*Command>`.
 4. Define `*Handler : IRequestHandler<*Command, Result<TResponse, Error>>`. Return `ValueTask<...>`, **not** `Task<...>`.
 5. Define `*Endpoint` as a `public static class` with `public static void Map(IEndpointRouteBuilder)`. Wire `IMediator.Send` + map result to `Results.Created`/`Results.Ok`/`Results.Problem`.
-6. If the slice owns a persistence entity (e.g. `PlaceOrder` owns `Order`), define it as `internal sealed class` in the same file. Add the matching `DbSet<T>` to `AppDbContext`.
+6. If the slice needs to read or write rows, declare the relevant `[Query]`/`[Command]` partial methods directly on the handler class (mark the class `public sealed partial class XxxHandler(IAsyncDbConnection conn)`). Co-locate row records inside the class as `public sealed record XxxRow(...)`. Add SQL migration files at `src/MyApp/Persistence/Migrations/{Sqlite,Postgres}/NNN_<name>.sql` if the schema needs to change — the `MigrationRunner` picks them up by version on next startup.
 7. Add a unit test in `tests/MyApp.UnitTests/Features/<Area>/<UseCase>/<UseCase>HandlerTests.cs`.
 8. Add an integration test in `tests/MyApp.IntegrationTests/Features/<Area>/<UseCase>/<UseCase>EndpointTests.cs`.
 
@@ -87,15 +88,22 @@ ZA.Validation's `[Validate]` source generator is wired up — or you can write `
 | `OrderId` / `CustomerId` use `[TypedId]` from ZA.ValueObjects | Auto-generated `.New()` factory + JSON converter |
 | Switching a request to `IAuthorizedRequest<TPayload>` for Result-style auth | Under AOT publish, the deny path silently throws `AuthorizationDeniedException`. Add a `[ModuleInitializer]` carrier method with `[DynamicDependency(PublicMethods, typeof(Result<TPayload, AuthorizationFailure>))]` per `TPayload` you use. |
 
-## 5. AOT-specific gotchas (as of EF Core 10)
+## 5. AOT publish
 
-EF Core's NativeAOT support is incomplete. This template works around the gaps:
+AOT publish is intentionally **not enabled** in this template. The ZA.ORM swap
+removed the previous EF Core-anchored AOT blockers; two reflection sites still
+prevent AOT publish without further work:
 
-| Issue | Workaround in template |
-|---|---|
-| `Database.MigrateAsync` / `EnsureCreatedAsync` use reflection-based design-time model building | Schema applied via embedded `schema.sql` script (regenerate with `dotnet ef migrations script` after entity changes) |
-| Reflection-based handler scanning gets trimmed under AOT | `services.AddMediator().RegisterHandlersFromAssembly(typeof(Program).Assembly)` — combined with the slice convention, the trimmer keeps handlers reachable. For AOT-only builds you may need explicit per-handler registration. |
-| Anonymous types lack source-gen JsonTypeInfo, fail at serialization under AOT | All response shapes are concrete records covered by `JsonContext` |
+1. **Endpoint discovery** in `Program.cs` walks the assembly for static
+   `*Endpoint` classes with `Map(IEndpointRouteBuilder)` methods. A future
+   iteration can source-generate this registry.
+2. **`RegisterHandlersFromAssembly()`** in the Mediator wiring is reflective.
+   A future iteration can replace it with per-slice
+   `services.AddScoped<IRequestHandler<,>, THandler>()` calls (mechanical) or
+   a source-generated registry.
+
+za-clean already AOT-publishes successfully — when comparing the two templates,
+treat AOT publish as a "vs ships later" item, not a "vs can't" item.
 
 ## 6. How to verify
 

@@ -1,36 +1,43 @@
-using Microsoft.EntityFrameworkCore;
 using MyApp.Common;
 using MyApp.Features.Orders.PlaceOrder;
-using MyApp.Persistence;
 using Xunit;
 
 namespace MyApp.UnitTests.Features.Orders.PlaceOrder;
 
 /// <summary>
 /// Unit tests for the PlaceOrder slice. Exercises the handler against a
-/// kept-alive in-memory SQLite database to keep the seam between EF Core
-/// and the slice realistic. The pipeline-level <c>[Validate]</c> behavior
-/// is exercised through the integration test (POST /orders with bad
-/// input → 400), so this file focuses on the handler's happy path plus a
-/// direct invocation of the source-generated validator for the validation
-/// rules the slice declares.
+/// kept-alive in-memory SQLite database (via <see cref="TestDb"/>) so the
+/// generator-emitted [Command]/[Query] partials run against a real ADO.NET
+/// surface. The pipeline-level <c>[Validate]</c> behavior is exercised
+/// through the integration test (POST /orders with bad input → 400), so
+/// this file focuses on the handler's happy path plus a direct invocation
+/// of the source-generated validator for the validation rules the slice
+/// declares.
 /// </summary>
 public sealed class PlaceOrderHandlerTests
 {
     [Fact]
     public async Task PlaceOrder_WithValidInput_PersistsAndReturnsOrderId()
     {
-        await using var db = NewInMemoryDb();
-        var handler = new PlaceOrderHandler(db);
+        await using var db = new TestDb();
+        var handler = new PlaceOrderHandler(db.Connection);
         var cmd = new PlaceOrderCommand(CustomerId: new CustomerId(42), Total: 99.99m);
 
         var result = await handler.Handle(cmd, CancellationToken.None);
 
         Assert.True(result.IsSuccess);
-        Assert.Equal(1, await db.Orders.CountAsync());
-        var persisted = await db.Orders.SingleAsync();
-        Assert.Equal(new CustomerId(42), persisted.CustomerId);
-        Assert.Equal(99.99m, persisted.Total);
+
+        var countCmd = db.Connection.CreateCommand();
+        countCmd.CommandText = "SELECT COUNT(*) FROM \"Orders\"";
+        var count = Convert.ToInt32(await countCmd.ExecuteScalarAsync());
+        Assert.Equal(1, count);
+
+        var readCmd = db.Connection.CreateCommand();
+        readCmd.CommandText = "SELECT \"CustomerId\", \"Total\" FROM \"Orders\"";
+        await using var reader = await readCmd.ExecuteReaderAsync();
+        Assert.True(await reader.ReadAsync());
+        Assert.Equal(42, reader.GetInt32(0));
+        Assert.Equal(99.99m, reader.GetDecimal(1));
     }
 
     [Fact]
@@ -56,16 +63,5 @@ public sealed class PlaceOrderHandlerTests
         }
 
         return false;
-    }
-
-    private static AppDbContext NewInMemoryDb()
-    {
-        var opts = new DbContextOptionsBuilder<AppDbContext>()
-            .UseSqlite("Data Source=:memory:")
-            .Options;
-        var db = new AppDbContext(opts);
-        db.Database.OpenConnection();
-        db.Database.EnsureCreated();
-        return db;
     }
 }

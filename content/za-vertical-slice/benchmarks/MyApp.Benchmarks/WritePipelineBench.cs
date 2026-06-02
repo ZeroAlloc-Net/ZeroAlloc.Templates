@@ -1,56 +1,45 @@
+using System.Data.Async;
+using System.Data.Async.Adapters;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
-using System.Security.Claims;
 using BenchmarkDotNet.Attributes;
 using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Data.Sqlite;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using MyApp.Common;
 using MyApp.Features.Orders.PlaceOrder;
-using MyApp.Persistence;
 using Npgsql;
-using ZeroAlloc.Mediator;
-using ZeroAlloc.Results;
+using ZeroAlloc.ORM.Migrations;
 
 namespace MyApp.Benchmarks;
 
 /// <summary>
-/// Attribution benchmark for the PlaceOrder slice. Three measurements peel
-/// the pipeline back one layer at a time so the cost of each layer falls
-/// out as a delta:
-/// <list type="bullet">
-///   <item><description><c>PlaceOrder_FullPipeline</c> — HTTP → JWT → endpoint policy → mediator [RequirePolicy] → [Validate] → handler → EF.</description></item>
-///   <item><description><c>PlaceOrder_MediatorDirect</c> — mediator [RequirePolicy] → [Validate] → handler → EF (HTTP + JWT bypassed; HttpContext pre-populated with the scope claim so authorization sees an authenticated principal).</description></item>
-///   <item><description><c>PlaceOrder_HandlerDirect</c> — handler → EF (mediator, validation, authorization all bypassed; raw handler invocation against the scoped DbContext).</description></item>
-/// </list>
+/// Single-method WritePipeline benchmark for the za-vertical-slice template.
+/// Hosts the API via WebApplicationFactory&lt;Program&gt; and runs POST /orders
+/// end-to-end through ASP.NET middleware, mediator dispatch, validation, the
+/// ZA.ORM-generated [Command] partial in <see cref="PlaceOrderHandler"/>, and
+/// out to the database.
+///
 /// <para>
-/// <b>Reading the deltas:</b> (Full − MediatorDirect) is the cost of the HTTP
-/// + JWT + JSON-deserialization layer. (MediatorDirect − HandlerDirect) is the
-/// cost of mediator dispatch + validation pipeline + authorization pipeline.
-/// HandlerDirect itself is the EF baseline.
+/// <b>Backends:</b> <c>[Params]</c> dispatches the benchmark against both
+/// in-memory SQLite and a localhost Postgres. Migrations apply once per
+/// [GlobalSetup] via ZA.ORM's MigrationRunner against folder-scoped embedded
+/// SQL resources (<c>Persistence/Migrations/{Sqlite,Postgres}/*.sql</c>).
+/// Postgres creates a fresh per-process database (<c>bench_&lt;guid8&gt;</c>)
+/// and applies the Postgres-prefixed migration set.
 /// </para>
-/// <para>
-/// <b>Backends:</b> <c>[Params]</c> dispatches each method against both
-/// in-memory SQLite and a localhost Postgres. Both branches use the
-/// production <c>Program.cs</c> <c>ApplyEmbeddedSchemaAsync</c> path, reading
-/// <c>schema.sql</c> (Sqlite) or <c>schema.postgres.sql</c> (Postgres) from
-/// embedded resources. Postgres targets a fresh per-process database
-/// (<c>bench_&lt;guid8&gt;</c>) created by [GlobalSetup]; the WAF host then
-/// applies the embedded Postgres script to it on startup.
-/// </para>
+///
 /// <para>
 /// <b>Local dev — Postgres profile only:</b>
 /// <code>
 /// docker run --rm -d -p 5432:5432 \
 ///   -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=bench \
-///   --name bench-pg postgres:17
+///   --name bench-pg postgres:17 \
+///   -c max_connections=500
 /// </code>
 /// then <c>dotnet run -c Release -- --filter "*WritePipelineBench*"</c>.
-/// CI provisions Postgres via the <c>services:</c> block in
+/// CI provisions Postgres via the docker-run pattern in
 /// <c>.github/workflows/benchmarks.yml</c>.
 /// </para>
 /// </summary>
@@ -62,21 +51,22 @@ public class WritePipelineBench
 
     private WebApplicationFactory<Program>? _factory;
     private HttpClient? _client;
-    private SqliteConnection? _connection;
+    private SqliteConnection? _sqliteConn;
+    private IAsyncDbConnection? _sqliteAsync;
     private string? _postgresAdminConnString;
+    private string? _postgresWorkerConnString;
     private string? _postgresDbName;
-    private object? _httpRequest;
-    private PlaceOrderCommand _command;
+    private object? _request;
 
     [GlobalSetup]
     public void Setup()
     {
-        NpgsqlConnectionStringBuilder? csb = null;
-
         if (Backend == DbBackend.Sqlite)
         {
-            _connection = new SqliteConnection("DataSource=:memory:");
-            _connection.Open();
+            _sqliteConn = new SqliteConnection("DataSource=:memory:");
+            _sqliteConn.Open();
+            _sqliteAsync = _sqliteConn.AsAsync();
+            ApplyMigrations(_sqliteAsync, isPostgres: false);
         }
         else
         {
@@ -86,7 +76,7 @@ public class WritePipelineBench
             var pwd = Environment.GetEnvironmentVariable("POSTGRES_PASSWORD") ?? "postgres";
             var adminDb = Environment.GetEnvironmentVariable("POSTGRES_DB") ?? "bench";
 
-            csb = new NpgsqlConnectionStringBuilder
+            var csb = new NpgsqlConnectionStringBuilder
             {
                 Host = host,
                 Port = int.Parse(port, System.Globalization.CultureInfo.InvariantCulture),
@@ -97,11 +87,21 @@ public class WritePipelineBench
             _postgresAdminConnString = csb.ConnectionString;
             _postgresDbName = "bench_" + Guid.NewGuid().ToString("N")[..8];
 
-            using var admin = new NpgsqlConnection(_postgresAdminConnString);
-            admin.Open();
-            using var cmd = admin.CreateCommand();
-            cmd.CommandText = $"CREATE DATABASE \"{_postgresDbName}\"";
-            cmd.ExecuteNonQuery();
+            using (var admin = new NpgsqlConnection(_postgresAdminConnString))
+            {
+                admin.Open();
+                using var cmd = admin.CreateCommand();
+                cmd.CommandText = $"CREATE DATABASE \"{_postgresDbName}\"";
+                cmd.ExecuteNonQuery();
+            }
+
+            csb.Database = _postgresDbName;
+            _postgresWorkerConnString = csb.ConnectionString;
+
+            using var worker = new NpgsqlConnection(_postgresWorkerConnString);
+            worker.Open();
+            var workerAsync = worker.AsAsync();
+            ApplyMigrations(workerAsync, isPostgres: true);
         }
 
         _factory = new WebApplicationFactory<Program>().WithWebHostBuilder(b =>
@@ -111,59 +111,31 @@ public class WritePipelineBench
             {
                 ["Jwt:DevSigningKey"] = TestJwt.DevKey,
                 ["Database:Provider"] = Backend == DbBackend.Postgres ? "Postgres" : "Sqlite",
-                ["Database:SchemaStrategy"] = "EmbeddedScript",
+                ["Database:SchemaStrategy"] = "Skip",
+                ["ConnectionStrings:Default"] = Backend == DbBackend.Postgres
+                    ? _postgresWorkerConnString
+                    : "DataSource=:memory:",
             }));
             b.ConfigureServices(s =>
             {
-                // Strip every EF Core registration the production AddDbContext
-                // (or AddDbContextPool) left behind. Removing only
-                // DbContextOptions<AppDbContext> leaves provider-specific
-                // singletons (IDatabaseProvider, IRelationalConnection, etc.)
-                // from the original UseSqlite call in the container; re-adding
-                // AddDbContext with UseNpgsql then registers a second
-                // IDatabaseProvider and EF throws "Services for database
-                // providers '...Sqlite', '...Npgsql' have been registered".
-                //
-                // Also includes typeof(AppDbContext) explicitly — its FullName
-                // lives in MyApp.Persistence (not the EF namespace), but
-                // AddDbContextPool registers AppDbContext with a factory that
-                // resolves via IScopedDbContextLease<AppDbContext>. The
-                // namespace strip catches the lease but not the factory
-                // descriptor itself; if we re-AddDbContext without removing
-                // it, the host can still resolve AppDbContext through the
-                // pool-flavored factory and throw "No service for type
-                // 'Microsoft.EntityFrameworkCore.Internal.IScopedDbContextLease`1[AppDbContext]'".
-                var efDescriptors = s
-                    .Where(d => d.ServiceType == typeof(AppDbContext)
-                        || (d.ServiceType.FullName is { } n
-                            && (n.StartsWith("Microsoft.EntityFrameworkCore", StringComparison.Ordinal)
-                                || n.StartsWith("Npgsql.EntityFrameworkCore", StringComparison.Ordinal))))
-                    .ToList();
-                foreach (var d in efDescriptors)
+                var existing = s.SingleOrDefault(d => d.ServiceType == typeof(IAsyncDbConnection));
+                if (existing is not null)
                 {
-                    s.Remove(d);
+                    s.Remove(existing);
                 }
 
                 if (Backend == DbBackend.Sqlite)
                 {
-                    s.AddDbContext<AppDbContext>(opt =>
-                    {
-                        opt.UseSqlite(_connection!, sqlite =>
-                            sqlite.MigrationsAssembly(typeof(AppDbContext).Assembly.GetName().Name));
-                        opt.ConfigureWarnings(w => w.Ignore(
-                            Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning));
-                    });
+                    // Singleton (not scoped) — MS.Extensions.DependencyInjection
+                    // would otherwise add the shared wrapper to each request scope's
+                    // disposal list, closing the underlying :memory: SqliteConnection
+                    // after the first request and evaporating the database.
+                    s.AddSingleton<IAsyncDbConnection>(_ => _sqliteAsync!);
                 }
                 else
                 {
-                    csb!.Database = _postgresDbName;
-                    var workerConnString = csb.ConnectionString;
-                    s.AddDbContext<AppDbContext>(opt =>
-                    {
-                        opt.UseNpgsql(workerConnString);
-                        opt.ConfigureWarnings(w => w.Ignore(
-                            Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning));
-                    });
+                    var workerConnString = _postgresWorkerConnString!;
+                    s.AddScoped<IAsyncDbConnection>(_ => new NpgsqlConnection(workerConnString).AsAsync());
                 }
             });
         });
@@ -172,59 +144,23 @@ public class WritePipelineBench
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue(
             "Bearer", TestJwt.Issue(["orders.write"]));
 
-        _httpRequest = new { customerId = 42, total = 99.99m };
-        _command = new PlaceOrderCommand(CustomerId: new CustomerId(42), Total: 99.99m);
-    }
-
-    /// <summary>Full HTTP path: serialization + JWT validation + ASP.NET policy + mediator + EF.</summary>
-    [Benchmark(Baseline = true)]
-    public async Task<HttpResponseMessage> PlaceOrder_FullPipeline()
-        => await _client!.PostAsJsonAsync("/orders", _httpRequest);
-
-    /// <summary>
-    /// In-process mediator dispatch. Bypasses HTTP and JWT but still pays the
-    /// mediator [RequirePolicy] + [Validate] pipeline behaviors. HttpContext is
-    /// pre-populated with the scope claim so HttpSecurityContextAccessor returns
-    /// an authenticated principal — otherwise the policy denies the request and
-    /// the benchmark measures the authorization-failure path instead of the
-    /// happy path.
-    /// </summary>
-    [Benchmark]
-    public async Task<Result<OrderId, Error>> PlaceOrder_MediatorDirect()
-    {
-        using var scope = _factory!.Services.CreateScope();
-        SeedHttpContext(scope.ServiceProvider);
-        var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
-        return await mediator.Send(_command, CancellationToken.None);
-    }
-
-    /// <summary>Raw handler call. Bypasses mediator, validation, and authorization entirely.</summary>
-    [Benchmark]
-    public async Task<Result<OrderId, Error>> PlaceOrder_HandlerDirect()
-    {
-        using var scope = _factory!.Services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        var handler = new PlaceOrderHandler(db);
-        return await handler.Handle(_command, CancellationToken.None);
-    }
-
-    private static void SeedHttpContext(IServiceProvider sp)
-    {
-        var accessor = sp.GetRequiredService<IHttpContextAccessor>();
-        var identity = new ClaimsIdentity(new[]
+        _request = new
         {
-            new Claim("scope", "orders.write"),
-            new Claim("sub", "bench"),
-        }, authenticationType: "Bearer");
-        accessor.HttpContext = new DefaultHttpContext { User = new ClaimsPrincipal(identity) };
+            customerId = 42,
+            total = 99.99m,
+        };
     }
+
+    [Benchmark]
+    public async Task<HttpResponseMessage> WritePipeline()
+        => await _client!.PostAsJsonAsync("/orders", _request);
 
     [GlobalCleanup]
     public void Cleanup()
     {
         _client?.Dispose();
         _factory?.Dispose();
-        _connection?.Dispose();
+        _sqliteConn?.Dispose();
 
         if (Backend == DbBackend.Postgres && _postgresAdminConnString is not null && _postgresDbName is not null)
         {
@@ -242,6 +178,20 @@ public class WritePipelineBench
                 // can drop stale bench_* databases manually if a process crashes.
             }
         }
+    }
+
+    private static void ApplyMigrations(IAsyncDbConnection conn, bool isPostgres)
+    {
+        var source = new EmbeddedResourceMigrationSource(
+            typeof(PlaceOrderHandler).Assembly,
+            isPostgres
+                ? "MyApp.Persistence.Migrations.Postgres."
+                : "MyApp.Persistence.Migrations.Sqlite.");
+        IMigrationDialect dialect = isPostgres
+            ? new PostgresMigrationDialect()
+            : new SqliteMigrationDialect();
+        var runner = new MigrationRunner(conn, source, dialect);
+        runner.RunAsync().GetAwaiter().GetResult();
     }
 }
 

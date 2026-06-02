@@ -14,6 +14,9 @@ internal sealed class FakeOrderRepository : IOrderRepository
         return Task.CompletedTask;
     }
 
+    public Task<int> CountAsync(CancellationToken ct)
+        => Task.FromResult(Saved.Count);
+
     public Task<Order?> GetByIdAsync(OrderId id, CancellationToken ct)
     {
         var match = Saved.FirstOrDefault(o => o.Id.Value == id.Value);

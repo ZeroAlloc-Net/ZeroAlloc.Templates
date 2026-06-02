@@ -1,8 +1,7 @@
-using Microsoft.EntityFrameworkCore;
+using System.Data.Async;
 using MyApp.Common;
 using MyApp.Features.Orders.CancelOrder;
 using MyApp.Features.Orders.PlaceOrder;
-using MyApp.Persistence;
 using Xunit;
 
 namespace MyApp.UnitTests.Features.Orders.CancelOrder;
@@ -12,30 +11,32 @@ public sealed class CancelOrderHandlerTests
     [Fact]
     public async Task CancelOrder_WhenPending_SavesCancelledState()
     {
-        await using var db = NewInMemoryDb();
-        var order = new Order(new CustomerId(1), 99m);
-        await db.Orders.AddAsync(order);
-        await db.SaveChangesAsync();
+        await using var db = new TestDb();
+        var orderId = await InsertOrderAsync(db.Connection, customerId: 1, total: 99m, status: nameof(OrderStatus.Pending));
 
-        var handler = new CancelOrderHandler(db);
-        var result = await handler.Handle(new CancelOrderCommand(order.Id), CancellationToken.None);
+        var handler = new CancelOrderHandler(db.Connection);
+        var result = await handler.Handle(new CancelOrderCommand(new OrderId(orderId)), CancellationToken.None);
 
         Assert.True(result.IsSuccess);
-        var persisted = await db.Orders.AsNoTracking().FirstAsync(o => o.Id == order.Id);
-        Assert.Equal(OrderStatus.Cancelled, persisted.Status);
+
+        var readCmd = db.Connection.CreateCommand();
+        readCmd.CommandText = "SELECT \"Status\" FROM \"Orders\" WHERE \"Id\" = @id";
+        var idParam = readCmd.CreateParameter();
+        idParam.ParameterName = "@id";
+        idParam.Value = orderId;
+        readCmd.Parameters.Add(idParam);
+        var status = (string?)await readCmd.ExecuteScalarAsync();
+        Assert.Equal(nameof(OrderStatus.Cancelled), status);
     }
 
     [Fact]
     public async Task CancelOrder_WhenAlreadyCancelled_ReturnsConflict()
     {
-        await using var db = NewInMemoryDb();
-        var order = new Order(new CustomerId(1), 99m);
-        order.Cancel();
-        await db.Orders.AddAsync(order);
-        await db.SaveChangesAsync();
+        await using var db = new TestDb();
+        var orderId = await InsertOrderAsync(db.Connection, customerId: 1, total: 99m, status: nameof(OrderStatus.Cancelled));
 
-        var handler = new CancelOrderHandler(db);
-        var result = await handler.Handle(new CancelOrderCommand(order.Id), CancellationToken.None);
+        var handler = new CancelOrderHandler(db.Connection);
+        var result = await handler.Handle(new CancelOrderCommand(new OrderId(orderId)), CancellationToken.None);
 
         Assert.True(result.IsFailure);
         Assert.Equal(ErrorKind.Conflict, result.Error.Kind);
@@ -45,8 +46,8 @@ public sealed class CancelOrderHandlerTests
     [Fact]
     public async Task CancelOrder_WhenUnknownId_ReturnsNotFound()
     {
-        await using var db = NewInMemoryDb();
-        var handler = new CancelOrderHandler(db);
+        await using var db = new TestDb();
+        var handler = new CancelOrderHandler(db.Connection);
 
         var result = await handler.Handle(new CancelOrderCommand(new OrderId(9999)), CancellationToken.None);
 
@@ -55,14 +56,23 @@ public sealed class CancelOrderHandlerTests
         Assert.Equal("order.not_found", result.Error.Code);
     }
 
-    private static AppDbContext NewInMemoryDb()
+    private static async Task<int> InsertOrderAsync(IAsyncDbConnection conn, int customerId, decimal total, string status)
     {
-        var opts = new DbContextOptionsBuilder<AppDbContext>()
-            .UseSqlite("Data Source=:memory:")
-            .Options;
-        var db = new AppDbContext(opts);
-        db.Database.OpenConnection();
-        db.Database.EnsureCreated();
-        return db;
+        await using var cmd = conn.CreateCommand();
+        cmd.CommandText =
+            "INSERT INTO \"Orders\" (\"CustomerId\", \"Total\", \"Status\") VALUES (@customerId, @total, @status) RETURNING \"Id\"";
+        AddParam(cmd, "@customerId", customerId);
+        AddParam(cmd, "@total", total);
+        AddParam(cmd, "@status", status);
+        var id = await cmd.ExecuteScalarAsync().ConfigureAwait(false);
+        return Convert.ToInt32(id);
+    }
+
+    private static void AddParam(IAsyncDbCommand cmd, string name, object value)
+    {
+        var p = cmd.CreateParameter();
+        p.ParameterName = name;
+        p.Value = value;
+        cmd.Parameters.Add(p);
     }
 }

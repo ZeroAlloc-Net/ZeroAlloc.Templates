@@ -1,10 +1,10 @@
+using System.Data.Async;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
-using Microsoft.EntityFrameworkCore;
 using MyApp.Common;
-using MyApp.Persistence;
 using ZeroAlloc.Authorization;
 using ZeroAlloc.Mediator;
+using ZeroAlloc.ORM;
 using ZeroAlloc.Results;
 using ZeroAlloc.Validation;
 
@@ -30,16 +30,23 @@ public readonly record struct PlaceOrderCommand(
 /// <summary>
 /// Persists the order and returns its newly-assigned <see cref="OrderId"/>.
 /// </summary>
-public sealed class PlaceOrderHandler(AppDbContext db)
+public sealed partial class PlaceOrderHandler(IAsyncDbConnection conn)
     : IRequestHandler<PlaceOrderCommand, Result<OrderId, Error>>
 {
     public async ValueTask<Result<OrderId, Error>> Handle(PlaceOrderCommand cmd, CancellationToken ct)
     {
-        var order = new Order(cmd.CustomerId, cmd.Total);
-        await db.Orders.AddAsync(order, ct).ConfigureAwait(false);
-        await db.SaveChangesAsync(ct).ConfigureAwait(false);
-        return Result<OrderId, Error>.Success(order.Id);
+        var id = await InsertOrderAsync(
+            cmd.CustomerId.Value,
+            cmd.Total,
+            nameof(OrderStatus.Pending),
+            ct).ConfigureAwait(false);
+        return Result<OrderId, Error>.Success(new OrderId(id));
     }
+
+    [Command(
+        "INSERT INTO \"Orders\" (\"CustomerId\", \"Total\", \"Status\") VALUES (@customerId, @total, @status) RETURNING \"Id\"",
+        Kind = CommandKind.Identity)]
+    public partial Task<int> InsertOrderAsync(int customerId, decimal total, string status, CancellationToken ct);
 }
 
 /// <summary>
@@ -61,10 +68,11 @@ public static class PlaceOrderEndpoint
 }
 
 /// <summary>
-/// Persistence entity owned by this slice. EF Core assigns <see cref="Id"/> on
-/// INSERT via the <see cref="OrderId"/> value-converter configured in
-/// <see cref="AppDbContext.OnModelCreating"/>; constructing with an
+/// Persistence entity owned by this slice. Constructing with an
 /// <see cref="OrderId"/> wrapping <c>0</c> signals "let the database pick an id".
+/// Post the ZA.ORM swap, persistence is hand-rolled SQL in the handlers — this
+/// type carries domain behaviour (<see cref="Cancel"/>) but no EF materialisation
+/// ctor is needed.
 /// <para>
 /// <b>Public on purpose:</b> read-side slices (GetOrder, ListOrders) project from
 /// this entity. Handlers, validators, and DTOs stay internal to their slice; only
@@ -74,11 +82,6 @@ public static class PlaceOrderEndpoint
 /// </summary>
 public sealed class Order
 {
-    // EF materialisation constructor.
-    private Order()
-    {
-    }
-
     public Order(CustomerId customerId, decimal total)
     {
         Id = new OrderId(0);
@@ -115,7 +118,7 @@ public sealed class Order
 /// <summary>
 /// Order lifecycle. New orders start in <see cref="Pending"/>; the only
 /// transition is to <see cref="Cancelled"/> via <see cref="Order.Cancel"/>.
-/// Persisted as a string column (see <c>AppDbContext.OnModelCreating</c>).
+/// Persisted as a string column (via <c>nameof(OrderStatus.X)</c> in handler SQL).
 /// </summary>
 public enum OrderStatus
 {

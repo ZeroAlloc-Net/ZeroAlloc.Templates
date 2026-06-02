@@ -46,10 +46,13 @@ public static class Telemetry
 public static class TelemetryServiceCollectionExtensions
 {
     /// <summary>
-    /// Registers ASP.NET Core + HttpClient + EF Core instrumentation, plus the
+    /// Registers ASP.NET Core + HttpClient instrumentation, plus the
     /// <c>MyApp</c> and <c>ZeroAlloc.Mediator</c> activity sources. Mirrors
     /// za-clean's Program.cs OTel block — extracted here so Program.cs in the
     /// vertical-slice template stays under ~50 lines of composition.
+    /// Post the ZA.ORM swap there is no EF Core instrumentation to add;
+    /// ZA.ORM's emitted code surfaces DB activity via the standard ADO.NET
+    /// diagnostic source, which AspNetCoreInstrumentation already correlates.
     /// </summary>
     public static IServiceCollection AddMyAppTelemetry(this IServiceCollection services)
     {
@@ -57,7 +60,6 @@ public static class TelemetryServiceCollectionExtensions
             .WithTracing(t => t
                 .AddAspNetCoreInstrumentation()
                 .AddHttpClientInstrumentation()
-                .AddEntityFrameworkCoreInstrumentation()
                 .AddSource("ZeroAlloc.Mediator")
                 .AddSource(Telemetry.SourceName)
                 .AddConsoleExporter())

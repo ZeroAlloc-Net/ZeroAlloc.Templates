@@ -7,13 +7,13 @@ Clean Architecture Web API. **Publishes as a 35.8 MB Native AOT single-file bina
 | **AOT binary size** | 35.8 MB single-file, self-contained (win-x64) |
 | **AOT cold start** | ~1.0 s (process → `/healthz` 200, best of 3) |
 | **JIT cold start** (comparison) | ~2.2 s (same scenario) |
-| **Framework primitives end-to-end** | ~165 ns / 200 B (= mapping cost alone; chain adds 0 B) |
-| **Mediator dispatch alone** | ~37 ns / 0 B |
-| **Validator (hand-rolled, regex zip)** | ~40 ns / 0 B |
-| **ValueObject `TryCreate`** | ~13 ns / 0 B |
-| **End-to-end pipeline** (with ASP.NET + EF) | 156 KB / 2 ms — mostly platform overhead, not ZA |
+| **Framework primitives end-to-end** | ~125 ns / 160 B (= mapping cost alone; chain adds 0 B) |
+| **Mediator dispatch alone** | ~31 ns / 0 B |
+| **Validator (source-generated, regex zip)** | ~57 ns / 0 B |
+| **ValueObject `TryCreate`** | ~3 ns / 0 B |
+| **End-to-end pipeline** (ASP.NET + ZA.ORM, Postgres) | ~1.3 ms / 36 KB — mostly platform overhead, not ZA |
 
-Measured on a 2022 i9-12900HK / Windows 11 / .NET 10.0.7. The decisive datapoint: `EndToEndPrimitives` matches `Mapping_RequestToCommand` byte-for-byte — the validator + Mediator dispatch through the chain allocate **zero bytes**. The 200 B is the `CreateOrderCommand` record + nested `OrderItem[]` array, a caller cost every framework pays.
+AOT figures measured on a 2022 i9-12900HK / Windows 11 / .NET 10.0.7. Pipeline + primitive numbers measured in CI on Ubuntu 24.04 / AMD EPYC / .NET 10.0.8 via [`Benchmarks (manual)` run 26778623747](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/actions/runs/26778623747). The decisive datapoint: the validator + Mediator dispatch through the chain allocate **zero bytes**. The 160 B is the `CreateOrderCommand` record + nested `OrderItem[]` array, a caller cost every framework pays.
 
 **Reproduce:**
 
@@ -21,7 +21,7 @@ Measured on a 2022 i9-12900HK / Windows 11 / .NET 10.0.7. The decisive datapoint
 # Framework primitives (zero-alloc, ns/op — what ZA is)
 dotnet run -c Release --project benchmarks/MyApp.Benchmarks.Primitives -- --filter "*"
 
-# Full pipeline (ASP.NET + EF — what the platform costs)
+# Full pipeline (ASP.NET + ZA.ORM — what the platform costs)
 dotnet run -c Release --project benchmarks/MyApp.Benchmarks -- --filter "*WritePipelineBench*"
 
 # AOT publish + cold-start
@@ -38,7 +38,7 @@ curl http://localhost:5000/healthz
 # → {"status":"ok"}
 ```
 
-The API boots, applies its EF Core SQLite migrations, seeds a sample order in `Development`, and listens on the Kestrel default. OpenTelemetry traces stream to the console.
+The API boots, applies its ZA.ORM-managed embedded SQL migrations, seeds a sample order in `Development`, and listens on the Kestrel default. OpenTelemetry traces stream to the console.
 
 ## Layout
 
@@ -46,7 +46,7 @@ The API boots, applies its EF Core SQLite migrations, seeds a sample order in `D
 src/
 ├── MyApp.Domain/            Entities, value objects, domain events
 ├── MyApp.Application/       Commands, queries, handlers, validators (CQRS via ZA.Mediator)
-├── MyApp.Infrastructure/    EF Core SQLite, ZA.Rest typed HTTP client + ZA.Resilience
+├── MyApp.Infrastructure/    ZA.ORM partial repositories over IAsyncDbConnection, ZA.Rest typed HTTP client + ZA.Resilience
 └── MyApp.Api/               Minimal API endpoints, DTOs, JWT auth, OpenTelemetry
 
 tests/
@@ -56,19 +56,19 @@ tests/
 
 benchmarks/
 ├── MyApp.Benchmarks.Primitives/ BenchmarkDotNet — ZA primitives in isolation (0 B framework cost)
-├── MyApp.Benchmarks/            BenchmarkDotNet — full ASP.NET + EF pipeline cost
+├── MyApp.Benchmarks/            BenchmarkDotNet — full ASP.NET + ZA.ORM pipeline cost
 └── MyApp.LoadTest/              NBomber — RPS under sustained concurrency
 ```
 
 ## Load testing under sustained concurrency
 
-The NBomber load test scenario (read RPS, 500 VUs for 30s against real Kestrel):
+The NBomber load test scenario (read RPS, open-model 5,000-RPS inject for 30s + 10s ramp against real Kestrel, Postgres backend):
 
-| Mean | p95 | p99 | RPS | Notes |
-|---:|---:|---:|---:|---|
-| 1009 ms | 2138 ms | 2634 ms | **473** | 14,207 OK / 370 timeouts. SQLite read-bound. |
+| Mean | p50 | p95 | p99 | RPS | Notes |
+|---:|---:|---:|---:|---:|---|
+| 247 ms | 189 ms | 679 ms | 1,137 ms | **4,312** | 172,500 OK / 0 fail. Captured in CI on AMD EPYC 7763. |
 
-Latency under 500-VU load reflects SQLite's single-file lock + EF Core's tracking-context allocation per request. PostgreSQL + EF `AsNoTracking()` on reads + response caching dramatically improve both throughput and p99 — the harness is shipped so adopters measure on *their* data layer choice.
+ZA.ORM has no change tracker — reads materialise straight from `IAsyncDbConnection` with zero overhead; Postgres + open-model inject sustains 4.3k RPS with zero failures. The wider tail vs the EF-era closed-model baseline reflects the load-shape change (open-model `Inject` removes the closed-loop backpressure that previously bounded p99). The harness is shipped so adopters measure on *their* data layer choice and load shape.
 
 **Reproduce:**
 
@@ -87,12 +87,12 @@ Full methodology + per-package comparisons (ZA.Mapping vs Mapperly/AutoMapper, e
 
 - **AI agents**: [AGENTS.md](AGENTS.md) — orientation for Claude Code, Cursor, GitHub Copilot, Codex, Aider. Includes "how to add a command/query/endpoint/value object" recipes and the ZA-specific gotchas.
 - **Boundary rules**: enforced by `tests/MyApp.ArchitectureTests/CleanArchitectureRules.cs`. Five NetArchTest rules covering Clean dependency direction.
-- **Swap SQLite → PostgreSQL**: set `Database:Provider=Postgres` and point `ConnectionStrings:Default` at your Postgres conn string. AOT-correct: production startup applies the embedded `schema.postgres.sql` via `ApplyEmbeddedSchemaAsync` — no EF reflection at runtime. For load-testing or ad-hoc experimentation, set `Database:SchemaStrategy=EmbeddedScript` (the default). After entity changes, regenerate both providers' migrations + schema scripts:
-  ```bash
-  tools/regen-schema.sh              # bash
-  pwsh tools/regen-schema.ps1        # PowerShell
+- **Swap SQLite → PostgreSQL**: set `Database:Provider=Postgres` and point `ConnectionStrings:Default` at your Postgres conn string. AOT-correct: ZA.ORM's `MigrationRunner` picks up the embedded SQL files under `src/MyApp.Infrastructure/Persistence/Migrations/Postgres/` on startup — no reflection, no design-time tooling. After entity or schema changes, hand-author a new migration file under both providers:
   ```
-  This produces fresh `Migrations.Sqlite/`, `Migrations.Postgres/`, `schema.sql`, and `schema.postgres.sql` so both providers stay in lockstep.
+  src/MyApp.Infrastructure/Persistence/Migrations/Sqlite/002_add_customer_email.sql
+  src/MyApp.Infrastructure/Persistence/Migrations/Postgres/002_add_customer_email.sql
+  ```
+  File-naming convention: `NNN_description.sql` — a 3+ digit zero-padded version prefix (strictly increasing) plus a snake_case description. `MigrationRunner` orders by the prefix and applies anything newer than the recorded high-water mark on next startup.
 
 ## License
 
