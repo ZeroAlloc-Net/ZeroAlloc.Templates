@@ -16,8 +16,13 @@ using ZeroAlloc.Serialisation.SystemTextJson;
 var builder = WebApplication.CreateBuilder(args);
 
 // ---------------------------------------------------------------------------
-// EF Core + Infrastructure composition (DbContext, [Scoped] services, typed HTTP
-// client wrapped through the ZA.Rest + ZA.Resilience proxy).
+// ZA.ORM + Infrastructure composition (IAsyncDbConnection per scope, [Scoped]
+// services, typed HTTP client wrapped through the ZA.Rest + ZA.Resilience
+// proxy). Database provider selected by `Database:Provider` config; default
+// Sqlite (`Data Source=app.db`) keeps the zero-setup `dotnet run` quickstart
+// working. Production schema applies via the embedded SQL migrations + ZA.ORM
+// MigrationRunner block further down — no DbContext, no compiled model, no
+// reflection on the hot path.
 // ---------------------------------------------------------------------------
 var connectionString = builder.Configuration.GetConnectionString("Default")
     ?? "Data Source=app.db";
