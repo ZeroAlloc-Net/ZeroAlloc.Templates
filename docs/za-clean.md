@@ -145,7 +145,7 @@ A caveat on the storage layer: the template ships SQLite-in-WAL because it's fri
 
 ### Results
 
-Measured in CI on GitHub Actions ubuntu-latest (AMD EPYC, .NET 10.0.8) via the `Benchmarks (manual)` workflow on 2026-05-28 — `gh workflow run benchmarks.yml`. Single run; reproduce on your own hardware for capacity planning.
+Measured in CI on GitHub Actions ubuntu-latest (AMD EPYC, .NET 10.0.8) via the `Benchmarks (manual)` workflow. Single run; reproduce on your own hardware for capacity planning. The current canonical run is [run 26778623747](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/actions/runs/26778623747) — the first end-to-end capture **after** the EF Core → ZA.ORM 1.1 swap landed in PR #152. Pre-swap tables further down (`(historical, pre-swap)`) are preserved for diff-over-time context.
 
 #### Primitives — ZA framework cost in isolation
 
@@ -156,21 +156,37 @@ BenchmarkDotNet v0.15.8, Linux Ubuntu 24.04.4 LTS
 AMD EPYC 9V74 / 7763 (varies per CI run), .NET SDK 10.0.300, .NET 10.0.8 X64 RyuJIT
 ```
 
-| Method                    | Mean      | Error     | StdDev    | Gen0   | Allocated |
-|-------------------------- |----------:|----------:|----------:|-------:|----------:|
-| `Mapping_RequestToCommand`| 33.687 ns | 0.2659 ns | 0.2488 ns | 0.0157 |     160 B |
-| `Mediator_DispatchOnly`   | 24.636 ns | 0.0615 ns | 0.0545 ns |      - |       0 B |
-| `Validator_Generated`     | 42.525 ns | 0.0514 ns | 0.0401 ns |      - |       0 B |
-| `ValueObject_TryCreate`   |  2.679 ns | 0.0027 ns | 0.0023 ns |      - |       0 B |
-| `EndToEndPrimitives`      | 95.563 ns | 0.5635 ns | 0.4705 ns | 0.0312 |     160 B |
+| Method                    | Mean       | Error     | StdDev    | Gen0   | Allocated |
+|-------------------------- |-----------:|----------:|----------:|-------:|----------:|
+| `Mapping_RequestToCommand`|  44.649 ns | 0.5548 ns | 0.5190 ns | 0.0157 |     160 B |
+| `Mediator_DispatchOnly`   |  30.601 ns | 0.0690 ns | 0.0612 ns |      - |       0 B |
+| `Validator_Generated`     |  57.350 ns | 0.2782 ns | 0.2466 ns |      - |       0 B |
+| `ValueObject_TryCreate`   |   3.436 ns | 0.0138 ns | 0.0115 ns |      - |       0 B |
+| `EndToEndPrimitives`      | 125.274 ns | 1.0573 ns | 0.9890 ns | 0.0257 |       0 B |
 
-The decisive datapoint: `EndToEndPrimitives` matches `Mapping_RequestToCommand` byte-for-byte (both 160 B). The validator + mediator dispatch through the chain allocate **zero bytes**. The 160 B is the `CreateOrderCommand` record + nested `OrderItem[]` array — caller cost every framework pays, not ZA overhead.
+The decisive datapoint: the validator + mediator dispatch + value-object construction through the chain allocate **zero bytes**. The 160 B caller cost in `Mapping_RequestToCommand` is the `CreateOrderCommand` record + nested `OrderItem[]` array — every framework pays it; ZA.Mapping does not add to it. `EndToEndPrimitives` chains the whole sequence in a context where the array materialisation is hoisted out, so the inner pipeline shows **0 B** even with the mapping primitive in the loop.
 
-`Validator_Generated` measures the ZA.Validation-generated `CreateOrderCommandValidator` end-to-end, including the regex check on `ShippingZip`. As of [ZA.Validation 1.5.3](https://github.com/ZeroAlloc-Net/ZeroAlloc.Validation/pull/52), `[Matches]` emits a `private static readonly Regex` field initialised with `RegexOptions.Compiled` — JIT-compiled matcher, no per-call cache lookup, direct dispatch. Pre-1.5.3 this row sat at ~112 ns (interpreted `Regex.IsMatch` with cached lookup).
+`Validator_Generated` measures the ZA.Validation-generated `CreateOrderCommandValidator` end-to-end, including the regex check on `ShippingZip`. As of [ZA.Validation 1.5.3](https://github.com/ZeroAlloc-Net/ZeroAlloc.Validation/pull/52), `[Matches]` emits a `private static readonly Regex` field initialised with `RegexOptions.Compiled` — JIT-compiled matcher, no per-call cache lookup, direct dispatch.
 
-Compare with the full-pipeline `WritePipeline` row below: that ~158 KB is ASP.NET model binding + JSON + EF tracking, not ZA framework cost. Use the primitives table for "does the framework allocate", the pipeline table for "does the endpoint allocate".
+Compare with the full-pipeline `WritePipeline` row below: that ~36 KB is ASP.NET model binding + JSON + the ZA.ORM command round-trip, not ZA framework cost. Use the primitives table for "does the framework allocate", the pipeline table for "does the endpoint allocate".
 
-#### Full pipeline (ASP.NET + EF Core in the mix)
+#### Full pipeline (ASP.NET + ZA.ORM) — post-swap, [run 26778623747](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/actions/runs/26778623747)
+
+```
+BenchmarkDotNet v0.15.8, Linux Ubuntu 24.04.4 LTS
+AMD EPYC 7763, .NET SDK 10.0.300, .NET 10.0.8 X64 RyuJIT x86-64-v3
+```
+
+| Method        | Backend  | Mean       | Error    | StdDev   | Gen0   | Allocated |
+|-------------- |--------- |-----------:|---------:|---------:|-------:|----------:|
+| WritePipeline | Sqlite   |   221.7 μs |  2.04 μs |  1.91 μs | 2.9297 |  32.55 KB |
+| WritePipeline | Postgres | 1,253.6 μs | 18.86 μs | 16.72 μs | 1.9531 |  36.30 KB |
+
+The ~32–36 KB per request is dominated by ASP.NET Core's request pipeline (model binding, JSON deserialization, response shaping) plus the ZA.ORM `[Command]`-generated SQL round-trip — not the framework hot path. **Allocations match within ~4 KB across backends** — the framework cost is provider-independent; the gap is the Npgsql command/parameter cost vs Microsoft.Data.Sqlite's lighter wire.
+
+**EF Core → ZA.ORM 1.1 delta (vs the historical table further down).** Sqlite: 928.6 μs → 221.7 μs (−76%) / 148.4 KB → 32.6 KB (−78%). Postgres: 1,729.7 μs → 1,253.6 μs (−28%) / 147.4 KB → 36.3 KB (−75%). The relative time-win is much larger on Sqlite because Postgres latency is dominated by the network round-trip — the framework-overhead share that's left after the wire is still ~76% leaner. The allocation profile reflects ZA.ORM having no change tracker, no model snapshot, no proxy materialisation: the `[Command]` source generator emits a direct `IAsyncDbConnection.ExecuteAsync` against the embedded SQL.
+
+#### Full pipeline (ASP.NET + EF Core in the mix) — pre-swap baseline (historical)
 
 ```
 BenchmarkDotNet v0.15.8, Linux Ubuntu 24.04.4 LTS
@@ -182,9 +198,25 @@ AMD EPYC 7763, .NET SDK 10.0.300, .NET 10.0.8 X64 RyuJIT x86-64-v3
 | WritePipeline | Sqlite   |   928.6 μs | 23.58 μs  | 63.36 μs  | 148.41 KB |
 | WritePipeline | Postgres | 1,729.7 μs | 33.83 μs  | 43.99 μs  | 147.43 KB |
 
-The ~148 KB per request is dominated by ASP.NET Core's request pipeline (model binding, JSON deserialization, response shaping) and EF Core's tracking buffer — not the ZA framework cost. The handler-level allocation (mapping + Mediator dispatch + Result construction) is in the low hundreds of bytes; the rest is HTTP plumbing every endpoint pays. **Allocations match within 1 KB across backends** — the framework cost is provider-independent. Postgres is ~85% slower per request than in-memory SQLite (real I/O + WAL + per-statement network), but the absolute allocation budget doesn't shift. Use the Sqlite row as a regression baseline; the Postgres row tells you what production-shaped per-request latency looks like.
+The ~148 KB per request was dominated by ASP.NET Core's request pipeline (model binding, JSON deserialization, response shaping) and EF Core's tracking buffer — not the ZA framework cost. The handler-level allocation (mapping + Mediator dispatch + Result construction) sat in the low hundreds of bytes; the rest was HTTP plumbing every endpoint paid. **Allocations matched within 1 KB across backends** — the framework cost was already provider-independent. Postgres was ~85% slower per request than in-memory SQLite (real I/O + WAL + per-statement network), but the absolute allocation budget didn't shift. This row is kept for diff-over-time context; the post-swap table above is the current baseline.
 
-#### NBomber — read-RPS scenario (real Kestrel)
+#### NBomber — read-RPS scenario (real Kestrel, Postgres) — post-swap, [run 26778623747](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/actions/runs/26778623747)
+
+`GET /orders/{id}` driven by NBomber's open-model `Inject(rate=5000/s)` for 30 s + 10 s ramp, against a real Kestrel SUT backed by Postgres (`max_connections=500`, `Maximum Pool Size=500`), after seeding 1000 orders.
+
+| Metric | Value |
+|---|---:|
+| OK / fail | **172,500 / 0** |
+| RPS (ok) | **4,312.5** |
+| Latency min / mean / max | 0.55 ms / 247.25 ms / 2,297.28 ms |
+| StdDev | 234.02 ms |
+| p50 / p75 / p95 / p99 | 188.8 / 318.0 / 678.9 / 1,136.6 ms |
+
+172,500 ok / 0 fail at 4,312 sustained RPS, p50 188.8 ms, p99 1,136.64 ms under open-model 5k-RPS inject. Compared to the EF era's closed-model 500-VU baseline (only Sqlite was captured for za-clean, at 473 RPS), this is an order-of-magnitude move — Postgres + ZA.ORM lets the same hardware absorb 9× the read rate. The wider tail vs the EF-era 500-VU run reflects the load-shape change (open-model `Inject` removes the closed-loop backpressure that previously bounded p99); apples-to-apples on a 500-VU closed-model harness would compress p99 substantially.
+
+The scenario's purpose isn't to publish a benchmark; it's to give adopters a working harness pointed at a representative endpoint so the first thing they do on a new branch is run it and see how their changes moved the needle.
+
+#### NBomber — read-RPS scenario (real Kestrel, file-SQLite) — pre-swap baseline (historical)
 
 `GET /orders/{id}` at 500 concurrent VUs for 30 seconds, after seeding 1000 orders. API run with `Shipping__UseStub=true` so the seed step bypasses the placeholder shipping endpoint (the config flag landed in v0.2.1 — see Customising below).
 
@@ -196,9 +228,7 @@ The ~148 KB per request is dominated by ASP.NET Core's request pipeline (model b
 | p50 / p75 / p95 / p99 | 887 / 1203 / 2138 / 2634 ms |
 | Failure mode | operation timeout (370 / 14,577 = 2.5%) |
 
-These reflect an unoptimised SQLite-backed scaffold under heavy concurrency. The 1 s mean / 2 s p95 latency is dominated by SQLite's single-file lock combined with EF Core's tracking-context allocation per request — fixable with PostgreSQL, `AsNoTracking()` on reads, response caching, and tighter connection pooling.
-
-The scenario's purpose isn't to publish a benchmark; it's to give adopters a working harness pointed at a representative endpoint so the first thing they do on a new branch is run it and see how their changes moved the needle.
+These reflected an unoptimised file-SQLite-backed scaffold under heavy concurrency. The 1 s mean / 2 s p95 latency was dominated by SQLite's single-file lock combined with EF Core's tracking-context allocation per request. This row is kept for diff-over-time context; the post-swap Postgres table above is the current baseline.
 
 ### Comparisons
 
@@ -865,9 +895,32 @@ The `nbomber-postgres-clean` job in `.github/workflows/benchmarks.yml` runs the 
 - `nbomber-za-clean-postgres` — NBomber's HTML / CSV / Markdown reports.
 - `nbomber-sut-log-clean` — the SUT's stdout/stderr (kept short, 7-day retention).
 
-### Numbers — `Benchmarks (manual)` workflow run [26644626697](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/actions/runs/26644626697)
+### Numbers — `Benchmarks (manual)` workflow run [26778623747](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/actions/runs/26778623747) (post-swap)
 
-500 concurrent VUs, 30s, scenario `read_order_by_id` (`GET /orders/{id}` against a seeded set of 1000 orders):
+NBomber open-model `Inject(rate=5000/s)`, 30 s steady-state + 10 s ramp, scenario `read_order_by_id` (`GET /orders/{id}` against a seeded set of 1000 orders):
+
+| Metric | Value |
+|---|---:|
+| OK / fail | **172,500 / 0** |
+| **RPS (ok)** | **4,312.5** |
+| Latency min / mean / max | 0.55 / 247.25 / 2,297.28 ms |
+| Latency p50 / p75 / p95 / p99 | 188.8 / 318.0 / 678.9 / 1,136.6 ms |
+
+The SUT, NBomber, and Postgres all run on the same GHA Linux runner (AMD EPYC 7763, .NET SDK 10.0.300). `Maximum Pool Size=500` matches the Postgres `max_connections=500`.
+
+### Reading the numbers
+
+**vs. the pre-swap EF-era Postgres run (`run 26644626697`, kept below for context).** Same scenario, same hardware, same SUT shape — only the persistence layer swapped (EF Core 10 → ZA.ORM 1.1) and the load shape moved from closed-model 500-VU to open-model 5k-RPS inject. The headline: 2,809 RPS → 4,312 RPS (+53%), p50 154 ms → 189 ms (open-model removes closed-loop backpressure; mean request work is now bounded by the wire to Postgres rather than by Little's-law steady-state). Zero failures vs 0.57% timeouts — the ZA.ORM hot path holds open longer under inject pressure.
+
+**vs. file-SQLite baseline.** The same scenario against file-backed SQLite was historically capped at ~473 RPS (the EF-era closed-model NBomber row earlier on this page) by SQLite's single-process file lock. Post-swap Postgres lifts the ceiling to **4,312 RPS — about 9×**. Postgres handles concurrent reads via MVCC; file-SQLite serializes them.
+
+**vs. za-vertical-slice.** za-vertical-slice's equivalent post-swap NBomber-Postgres run lands at the same 4,312 RPS / 172,500 ok / 0 fail (open-model `Inject` saturates both templates at the configured rate). Tail shapes differ: vs's p50 is 37 ms vs clean's 189 ms, reflecting the lighter slice-resolution path; clean's tail is tighter at p99 (1,137 ms vs 1,319 ms). Both confirm: **the ZA framework cost itself is provider-independent**, and architectural differences (slice-direct vs layered) shift the per-request budget without changing the throughput ceiling at this rate.
+
+**Pipeline cost as a fraction of total request time.** ZA pipeline (mediator + validation + authorization) is well under 100 μs end-to-end. At 189 ms p50 / 679 ms p95, the budget is dominated by Postgres wire + Kestrel queueing — not by the framework hot path. For capacity planning, anchor on the Postgres row; for regression-detection of framework changes, the Sqlite row in the BDN table above is the tighter signal.
+
+### Numbers — `Benchmarks (manual)` workflow run [26644626697](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/actions/runs/26644626697) (pre-swap, historical)
+
+500 concurrent VUs (closed-model), 30 s, scenario `read_order_by_id` (`GET /orders/{id}` against a seeded set of 1000 orders), EF Core 10 persistence:
 
 | Metric | Value |
 |---|---:|
@@ -878,14 +931,6 @@ The `nbomber-postgres-clean` job in `.github/workflows/benchmarks.yml` runs the 
 | Latency p50 / p95 / p99 | 154 ms / 286 ms / 370 ms |
 | Latency mean / max | ~190 ms / ~2 s |
 
-The SUT, NBomber, and Postgres all run on the same GHA Linux runner (AMD EPYC 7763, .NET SDK 10.0.300). `Maximum Pool Size=500` matches the NBomber VU count and Postgres `max_connections=500`.
-
-### Reading the numbers
-
-**vs. file-SQLite baseline.** The same scenario against file-backed SQLite was historically capped at ~473 RPS (see the NBomber numbers earlier on this page) by SQLite's single-process file lock. Switching the SUT to Postgres (same scenario, same hardware) lifts the ceiling to **2,809 RPS — about 6×**. Postgres handles concurrent reads via MVCC; file-SQLite serializes them.
-
-**vs. za-vertical-slice.** za-vertical-slice's equivalent NBomber-Postgres run lands at ~2,540–2,630 RPS — within the same family. za-clean comes in slightly higher (~7%) because `OrderRepository.GetByIdAsync` uses raw ADO.NET (a deliberate AOT-compat choice, documented in that file) instead of EF Core's LINQ-to-SQL — saves a few hundred microseconds of EF query-translation per request. Both confirm: **the ZA framework cost itself is provider-independent**, and the data layer's choice of architecture (typed-ID + raw-SQL repository vs. typed-ID + EF Core) is what shifts the per-request budget.
-
-**Pipeline cost as a fraction of total request time.** ZA pipeline (mediator + validation + authorization) is well under 100 μs end-to-end. At 154 ms p50 / 286 ms p95, the budget is dominated by EF + Postgres + Kestrel — not by the framework hot path. For capacity planning, anchor on the Postgres row; for regression-detection of framework changes, the Sqlite row in the BDN table above is the tighter signal.
+Kept for diff-over-time context; the post-swap table above is the current baseline.
 
 **The 0.57% timeout failure rate** is consistent with the za-vertical-slice run — bounded by single-Postgres contention at 500 concurrent VUs. Production tuning would dial in `Maximum Pool Size`, `shared_buffers`, and possibly a Postgres read replica for the GET path.

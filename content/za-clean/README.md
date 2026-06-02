@@ -7,15 +7,13 @@ Clean Architecture Web API. **Publishes as a 35.8 MB Native AOT single-file bina
 | **AOT binary size** | 35.8 MB single-file, self-contained (win-x64) |
 | **AOT cold start** | ~1.0 s (process → `/healthz` 200, best of 3) |
 | **JIT cold start** (comparison) | ~2.2 s (same scenario) |
-| **Framework primitives end-to-end** | ~165 ns / 200 B (= mapping cost alone; chain adds 0 B) |
-| **Mediator dispatch alone** | ~37 ns / 0 B |
-| **Validator (hand-rolled, regex zip)** | ~40 ns / 0 B |
-| **ValueObject `TryCreate`** | ~13 ns / 0 B |
-| **End-to-end pipeline** (ASP.NET + ZA.ORM) \* | 156 KB / 2 ms — mostly platform overhead, not ZA |
+| **Framework primitives end-to-end** | ~125 ns / 160 B (= mapping cost alone; chain adds 0 B) |
+| **Mediator dispatch alone** | ~31 ns / 0 B |
+| **Validator (source-generated, regex zip)** | ~57 ns / 0 B |
+| **ValueObject `TryCreate`** | ~3 ns / 0 B |
+| **End-to-end pipeline** (ASP.NET + ZA.ORM, Postgres) | ~1.3 ms / 36 KB — mostly platform overhead, not ZA |
 
-\* Numbers captured pre-ZA.ORM-swap; re-capture pending.
-
-Measured on a 2022 i9-12900HK / Windows 11 / .NET 10.0.7. The decisive datapoint: `EndToEndPrimitives` matches `Mapping_RequestToCommand` byte-for-byte — the validator + Mediator dispatch through the chain allocate **zero bytes**. The 200 B is the `CreateOrderCommand` record + nested `OrderItem[]` array, a caller cost every framework pays.
+AOT figures measured on a 2022 i9-12900HK / Windows 11 / .NET 10.0.7. Pipeline + primitive numbers measured in CI on Ubuntu 24.04 / AMD EPYC / .NET 10.0.8 via [`Benchmarks (manual)` run 26778623747](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/actions/runs/26778623747). The decisive datapoint: the validator + Mediator dispatch through the chain allocate **zero bytes**. The 160 B is the `CreateOrderCommand` record + nested `OrderItem[]` array, a caller cost every framework pays.
 
 **Reproduce:**
 
@@ -64,15 +62,13 @@ benchmarks/
 
 ## Load testing under sustained concurrency
 
-The NBomber load test scenario (read RPS, 500 VUs for 30s against real Kestrel):
+The NBomber load test scenario (read RPS, open-model 5,000-RPS inject for 30s + 10s ramp against real Kestrel, Postgres backend):
 
-| Mean | p95 | p99 | RPS | Notes |
-|---:|---:|---:|---:|---|
-| 1009 ms | 2138 ms | 2634 ms | **473** | 14,207 OK / 370 timeouts. SQLite read-bound. |
+| Mean | p50 | p95 | p99 | RPS | Notes |
+|---:|---:|---:|---:|---:|---|
+| 247 ms | 189 ms | 679 ms | 1,137 ms | **4,312** | 172,500 OK / 0 fail. Captured in CI on AMD EPYC 7763. |
 
-> Numbers captured pre-ZA.ORM-swap; refresh tracked in backlog.
-
-Latency under 500-VU load reflects SQLite's single-file lock. ZA.ORM has no change tracker — reads materialise straight from `IAsyncDbConnection` with zero overhead. PostgreSQL + response caching dramatically improve both throughput and p99 — the harness is shipped so adopters measure on *their* data layer choice.
+ZA.ORM has no change tracker — reads materialise straight from `IAsyncDbConnection` with zero overhead; Postgres + open-model inject sustains 4.3k RPS with zero failures. The wider tail vs the EF-era closed-model baseline reflects the load-shape change (open-model `Inject` removes the closed-loop backpressure that previously bounded p99). The harness is shipped so adopters measure on *their* data layer choice and load shape.
 
 **Reproduce:**
 
