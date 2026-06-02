@@ -24,28 +24,28 @@ HTTP POST /orders
 └─────────┬───────────────┘
           │ depends on
           ▼
-┌─────────────────────────┐    ┌─────────────────────────┐
-│ MyApp.Domain            │ ◀──│ MyApp.Infrastructure    │
-│  Order, Money, OrderId  │    │  AppDbContext, EF, Rest │
-│  ZA.ValueObjects, ZA.Results│    │  ZA.Resilience, ZA.Inject │
-└─────────────────────────┘    └─────────────────────────┘
+┌─────────────────────────┐    ┌──────────────────────────────────┐
+│ MyApp.Domain            │ ◀──│ MyApp.Infrastructure             │
+│  Order, Money, OrderId  │    │  ZA.ORM repos (IAsyncDbConnection)│
+│  ZA.ValueObjects, ZA.Results│    │  ZA.Rest, ZA.Resilience, ZA.Inject│
+└─────────────────────────┘    └──────────────────────────────────┘
 ```
 
-- **Domain** — entities, value objects. No EF, no ASP.NET. Pure invariants.
+- **Domain** — entities, value objects. No persistence, no ASP.NET. Pure invariants.
 - **Application** — CQRS slice. Handlers return `ValueTask<Result<T, ApplicationError>>`.
-- **Infrastructure** — EF Core SQLite, outbound HTTP via ZA.Rest, resilience policies.
+- **Infrastructure** — ZA.ORM partial repositories over `IAsyncDbConnection` (raw `Microsoft.Data.Sqlite` / `Npgsql` providers), embedded SQL migrations via `MigrationRunner`, outbound HTTP via ZA.Rest, resilience policies.
 - **Api** — Minimal API endpoints, DTOs, JWT auth, OpenTelemetry composition.
 
 ## 2. Boundary rules (enforced)
 
 `tests/MyApp.ArchitectureTests/CleanArchitectureRules.cs` enforces these via NetArchTest. Violations fail CI.
 
-- Domain references nothing outside Domain (no EF, no ASP.NET, no Application/Infra/Api).
+- Domain references nothing outside Domain (no persistence, no ASP.NET, no Application/Infra/Api).
 - Application references only Domain (plus ZA packages).
-- Infrastructure references Domain + Application (plus EF + ZA).
+- Infrastructure references Domain + Application (plus ADO.NET providers + ZA).
 - Api references everything (it's the composition root).
 - Handlers (`IRequestHandler<,>`) live only in Application.
-- `DbContext` types live only in Infrastructure.
+- ZA.ORM `[Query]`/`[Command]` partial repositories live only in Infrastructure. They depend on `System.Data.Async.IAsyncDbConnection`, which is injected per request via the scoped DI registration in `InfrastructureServiceCollectionExtensions`.
 
 **Before adding a `using` across layers, ask: "does the dependency rules table allow this?"** If not, the code belongs in a different layer.
 
@@ -73,7 +73,7 @@ Same as command but `IRequest<Result<TResponse, ApplicationError>>` typically wi
 
 1. Create `src/MyApp.Domain/ValueObjects/<Name>.cs` — `readonly partial struct` with `[ValueObject]` attribute from ZA.ValueObjects.
 2. Add a public `Amount`/`Value` property + private ctor + static `TryCreate(...) → Result<<Name>, string>` factory.
-3. **EF mapping caveat:** at entity-root level use `b.ComplexProperty(o => o.Total, …)`. At owned-collection level (e.g. inside `OwnsMany`) the `OwnedNavigationBuilder` does NOT expose `ComplexProperty` — use a `ValueConverter<<Name>, string>` round-trip. See `OrderConfiguration.cs:9-26` for the comment + example.
+3. **Storage round-trip:** if the value object appears in a stored column, add a `<Name>Converter` static helper alongside `MoneyConverter.cs` exposing `ToStorage(<Name>) -> string` and `FromStorage(string) -> <Name>`. The repository's `[Command]` partial takes the converted `string` parameter; the read path materialises the row record and the handler (or repository, on `GetByIdAsync`) calls `FromStorage(...)` to rehydrate the value object. See `OrderRepository.cs:14-22` (the `AddAsync` body) for the reference shape — `MoneyConverter.ToStorage(order.Total)` is passed straight into the generator-emitted `InsertOrderAsync` partial.
 
 ### Add a validation rule
 
@@ -98,24 +98,34 @@ These bit us during template construction; they'll bite you too if you don't kno
 | ZA.Telemetry is a code-gen instrumentation library | Use vanilla OpenTelemetry; opt into `[Instrument]` per method |
 | ZA.Mapping needs `<PrivateAssets>all</PrivateAssets>` to prevent ZAMP006 across assembly boundaries | Set on the `<PackageReference>` in Application + Api csprojs |
 | `OrderId` / `CustomerId` use `[ValueObject]` from ZA.ValueObjects (equality only, no factory) | Hand-write `TryCreate` if validation is needed |
-| EF Core 9's `OwnedNavigationBuilder` doesn't expose `ComplexProperty` | Use a `ValueConverter` round-trip inside `OwnsMany` |
 | Switching a request to `IAuthorizedRequest<TPayload>` for Result-style auth | Under AOT publish, the deny path silently throws `AuthorizationDeniedException` instead of returning `Result<T, AuthorizationFailure>.Failure(...)`. Add a `[ModuleInitializer]` carrier method with `[DynamicDependency(PublicMethods, typeof(Result<TPayload, AuthorizationFailure>))]` per `TPayload` you use. See [ZA.Mediator.Authorization AOT docs](https://github.com/ZeroAlloc-Net/ZeroAlloc.Mediator/blob/main/docs/authorization.md#aot-publish). |
 
-## 5. AOT-specific gotchas (as of EF Core 10.0.7)
+## 5. AOT publish
 
-EF Core's NativeAOT support is incomplete in production-ready form. This template
-works around the gaps:
+The Api layer enables `<PublishAot>true</PublishAot>` and CI's
+`aot-publish-smoke` job verifies `dotnet publish -p:PublishAot=true -r linux-x64`
+produces a working binary that boots and responds to `/healthz`.
 
-| Issue | Workaround in template |
-|---|---|
-| `Database.MigrateAsync` / `EnsureCreatedAsync` use reflection-based design-time model building | Schema applied via embedded `schema.sql` script (regenerate with `dotnet ef migrations script` after entity changes) |
-| EF 10's `--nativeaot` compiled-model emits incorrect `UnsafeAccessorKind.Field` for `readonly struct` ComplexProperty types | `Order.Total` mapped via `HasConversion` (TEXT column `"<amount>\|<currency>"`) instead of `ComplexProperty` |
-| LINQ-to-SQL translation requires `--precompile-queries`, blocked by source-gen interactions in our stack | `OrderRepository.GetByIdAsync` written in raw SQL via `db.Database.GetDbConnection().CreateCommand()`; `Order.Materialize` factory exposes hand-hydration to the repository |
-| Reflection-based handler scanning (e.g., ZA.Mediator's `RegisterHandlersFromAssembly`) gets trimmed under AOT | `ApplicationServiceCollectionExtensions` registers handlers manually (`services.AddScoped<IRequestHandler<TReq, TResp>, ConcreteHandler>()` per handler) |
-| Anonymous types lack source-gen JsonTypeInfo, fail at serialization under AOT | All response shapes are concrete records covered by `JsonContext` |
+The ZA.ORM swap eliminated the previous AOT blockers:
+- No EF Core compiled-model dance (no DbContext at all).
+- No design-time model pipeline (`Database.MigrateAsync` / `EnsureCreated` were
+  the reflection-anchored APIs; `MigrationRunner` is hand-written ADO.NET that
+  reads embedded SQL migration resources and tracks state in `__zaorm_migrations`).
+- No LINQ-to-SQL precompile-queries collision with co-resident ZA.* source
+  generators. The repository's `[Query]`/`[Command]` partials are emitted as
+  plain ADO.NET command builds at compile time.
 
-When EF Core's NativeAOT support matures (compiled-model fix + precompile-queries
-fix), revisit these workarounds. Track upstream issues in dotnet/efcore.
+What remains AOT-relevant:
+- DTOs that cross the HTTP boundary must be registered in
+  `MyApp.Api/JsonContext.cs` via `[JsonSerializable(typeof(...))]`. Forgetting
+  surfaces at boot under AOT (the real-run-smoke CI job is the safety net).
+- Reflection-based handler scanning (e.g., ZA.Mediator's `RegisterHandlersFromAssembly`)
+  gets trimmed under AOT, so `ApplicationServiceCollectionExtensions` registers
+  handlers manually (`services.AddScoped<IRequestHandler<TReq, TResp>, ConcreteHandler>()`
+  per handler).
+- Trim-warnings from OpenTelemetry / Npgsql / SQLite are gated under
+  `<TrimmerSingleWarn>true</TrimmerSingleWarn>` — they're invoked outside the
+  hot path or guarded at runtime.
 
 ## 6. How to verify
 
