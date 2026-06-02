@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using MyApp.Common;
 using ZeroAlloc.Authorization;
+using ZeroAlloc.Inject;
 using ZeroAlloc.Mediator;
 using ZeroAlloc.ORM;
 using ZeroAlloc.Results;
@@ -30,6 +31,7 @@ public readonly record struct PlaceOrderCommand(
 /// <summary>
 /// Persists the order and returns its newly-assigned <see cref="OrderId"/>.
 /// </summary>
+[Scoped]
 public sealed partial class PlaceOrderHandler(IAsyncDbConnection conn)
     : IRequestHandler<PlaceOrderCommand, Result<OrderId, Error>>
 {

@@ -40,6 +40,14 @@ public static class MyAppServiceCollectionExtensions
         services.AddScoped<IRequestHandler<ListOrdersQuery, Result<OrderPage, Error>>, ListOrdersHandler>();
         services.AddScoped<IRequestHandler<CancelOrderCommand, UnitResult<Error>>, CancelOrderHandler>();
 
+        // ZA.Inject-generated registry: emits AddScoped<THandler>() for every
+        // class in this assembly marked with [Scoped]. Mediator's source-generated
+        // dispatch resolves handlers by their concrete type, so this concrete
+        // registration is what makes the dispatch actually work — the
+        // IRequestHandler<,> registrations above remain for any code that
+        // resolves handlers via the interface (rare but harmless).
+        services.AddMyAppServices();
+
         return services;
     }
 }

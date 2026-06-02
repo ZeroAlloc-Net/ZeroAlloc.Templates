@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using MyApp.Common;
 using ZeroAlloc.Authorization;
+using ZeroAlloc.Inject;
 using ZeroAlloc.Mediator;
 using ZeroAlloc.ORM;
 using ZeroAlloc.Results;
@@ -34,6 +35,7 @@ public readonly record struct GetOrderQuery(OrderId Id)
 /// </summary>
 public sealed record OrderDto(OrderId Id, CustomerId CustomerId, decimal Total);
 
+[Scoped]
 public sealed partial class GetOrderHandler(IAsyncDbConnection conn)
     : IRequestHandler<GetOrderQuery, Result<OrderDto, Error>>
 {

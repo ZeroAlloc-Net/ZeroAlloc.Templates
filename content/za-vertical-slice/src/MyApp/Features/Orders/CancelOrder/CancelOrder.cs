@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Routing;
 using MyApp.Common;
 using MyApp.Features.Orders.PlaceOrder;
 using ZeroAlloc.Authorization;
+using ZeroAlloc.Inject;
 using ZeroAlloc.Mediator;
 using ZeroAlloc.ORM;
 using ZeroAlloc.Results;
@@ -26,6 +27,7 @@ namespace MyApp.Features.Orders.CancelOrder;
 public readonly record struct CancelOrderCommand(OrderId Id)
     : IRequest<UnitResult<Error>>;
 
+[Scoped]
 public sealed partial class CancelOrderHandler(IAsyncDbConnection conn)
     : IRequestHandler<CancelOrderCommand, UnitResult<Error>>
 {
