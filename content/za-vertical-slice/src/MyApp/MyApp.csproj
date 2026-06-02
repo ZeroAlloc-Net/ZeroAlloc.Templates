@@ -3,16 +3,16 @@
     <TargetFramework>net10.0</TargetFramework>
     <RootNamespace>MyApp</RootNamespace>
     <!-- ZAM003: class request types are fine here.
-         ZAM008: handlers intentionally take constructor dependencies — they are resolved via DI
-         (services.AddMediator().RegisterHandlersFromAssembly), not via the static Mediator API. -->
+         ZAM008: handlers intentionally take constructor dependencies — they
+         are resolved via DI (services.AddMyApp / ZA.Inject's AddMyAppServices),
+         not via the static Mediator API. -->
     <NoWarn>$(NoWarn);ZAM003;ZAM008</NoWarn>
-    <!-- AOT publish intentionally NOT enabled (cf. za-clean which does opt in).
-         Two reflection sites in this template still block AOT: assembly-walk
-         endpoint discovery in Program.cs and RegisterHandlersFromAssembly()
-         in the mediator wiring. Persistence is no longer a blocker post the
-         ZA.ORM swap. A future iteration can opt into AOT by source-generating
-         the endpoint registry and using explicit per-slice
-         AddScoped<IRequestHandler<,>>. -->
+    <!-- AOT publish enabled. Handler registration is hand-listed in
+         Common/MyAppServiceCollectionExtensions.cs (AddMyApp); endpoints are
+         hand-listed via XxxEndpoint.Map(app) calls near the end of Program.cs.
+         Each new slice adds one line to each list — see AGENTS.md §3. -->
+    <PublishAot>true</PublishAot>
+    <TrimmerSingleWarn>true</TrimmerSingleWarn>
     <InvariantGlobalization>true</InvariantGlobalization>
     <!-- This project declares [Policy] / [RequirePolicy]. The vertical-slice
          layout has only one src project, so it owns policies (no sibling src
