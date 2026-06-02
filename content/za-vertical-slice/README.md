@@ -8,8 +8,12 @@ Where Clean Architecture splits the codebase by *technical layer* (Domain / Appl
 |---|---:|
 | **AOT binary size** | ~36 MB single-file, self-contained (win-x64) |
 | **AOT cold start** | ~1.0 s (process → `/healthz` 200, best of 3) |
-| **Framework primitives end-to-end** | ~165 ns / 200 B (= mapping cost alone; chain adds 0 B) |
-| **Mediator dispatch alone** | ~37 ns / 0 B |
+| **ValueObject `TryCreate` (Money)** | ~3 ns / 0 B |
+| **TypedId construct** | ~0 ns / 0 B (inlined away) |
+| **Validator (source-generated)** | ~4 ns / 0 B |
+| **`Result<T, Error>` (success path)** | ~7 ns / 0 B |
+| **WritePipeline (ASP.NET + ZA.ORM, Postgres)** | ~659 μs / 32 KB per request |
+| **WritePipeline (ASP.NET + ZA.ORM, Sqlite)** | ~186 μs / 29 KB per request |
 
 **Reproduce:**
 
@@ -36,7 +40,7 @@ curl http://localhost:5000/healthz
 
 The API boots, applies its ZA.ORM-managed embedded SQL migrations, and listens on the Kestrel default. OpenTelemetry traces stream to the console.
 
-> Benchmark numbers in this README were captured pre-ZA.ORM-swap; refresh tracked in backlog.
+> Pipeline + primitive numbers measured in CI on Ubuntu 24.04 / AMD EPYC / .NET 10.0.8 via [`Benchmarks (manual)` run 26778623747](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/actions/runs/26778623747). NBomber-Postgres at 5,000-RPS open-model inject sustains 4,312 RPS / 0 failures (p50 37 ms, p99 1,319 ms; full table in [docs/za-vertical-slice.md](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/blob/main/docs/za-vertical-slice.md#load-testing-against-postgres)).
 
 ## Layout
 
