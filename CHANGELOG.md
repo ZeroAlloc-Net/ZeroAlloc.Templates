@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.11.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/compare/ZeroAlloc.Templates-v0.10.0...ZeroAlloc.Templates-v0.11.0) (2026-06-02)
+
+
+### Features
+
+* **za-vertical-slice:** enable AOT publish — hand-list handlers + endpoints (closes B5) ([#161](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/issues/161)) ([e5fa262](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/commit/e5fa262035327210fb75726559502a1665d7ac53))
+
+
+### Documentation
+
+* **backlog:** close B5 — AOT-ify za-vertical-slice shipped ([#161](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/issues/161)) ([14d54e4](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/commit/14d54e4a88cc05faa74ddc012b175e0bbf5eb6a5))
+* **za-clean:** correct stale 'EF Core + Infrastructure composition' Program.cs comment ([#159](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/issues/159)) ([01130e4](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/commit/01130e40bc11c76d1e8b89e6a2352d6f6c3a9dd3))
+* **za-clean:** re-measure AOT headline numbers post-swap (.NET 10.0.8) ([ed9277b](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/commit/ed9277b1b337cc2640c464b4908ec9f915f293f9))
+* **za-vertical-slice:** update AOT headline numbers with measured values post-B5 ([c489829](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/commit/c489829e1eb9e5bc28ea8b234a98e270e82a3b6a))
+
 ## [0.10.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/compare/ZeroAlloc.Templates-v0.9.3...ZeroAlloc.Templates-v0.10.0) (2026-06-02)
 
 
