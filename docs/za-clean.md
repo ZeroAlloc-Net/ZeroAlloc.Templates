@@ -21,14 +21,14 @@ dotnet new za-clean -o MyApp
 cd MyApp && dotnet run --project src/MyApp.Api
 ```
 
-The Api boots, applies its EF Core SQLite migrations, seeds a sample order in `Development`, and listens on the kestrel default. In another shell:
+The Api boots, applies its embedded SQL migrations via `ZeroAlloc.ORM.Migrations.MigrationRunner` (SQLite by default), seeds a sample order in `Development`, and listens on the kestrel default. In another shell:
 
 ```bash
 $ curl http://localhost:5000/healthz
 {"status":"ok"}
 ```
 
-The same process is emitting OpenTelemetry traces to the console — `GET /healthz` produces a single `Microsoft.AspNetCore` span, and any subsequent `POST /orders` will produce a nested trace covering the mediator handler, the EF Core command, and the outbound HTTP call to the shipping client.
+The same process is emitting OpenTelemetry traces to the console — `GET /healthz` produces a single `Microsoft.AspNetCore` span, and any subsequent `POST /orders` will produce a nested trace covering the mediator handler, the ZA.ORM-emitted ADO.NET commands (one INSERT per row, plus the read-back), and the outbound HTTP call to the shipping client.
 
 ## Tour of the Layers
 
@@ -50,8 +50,9 @@ HTTP POST /orders
 └──────────┬───────────────────┘
            ▼
 ┌──────────────────────────────┐
-│ MyApp.Infrastructure         │  EfOrderRepository (EF Core + SQLite)
-│  Persistence/, External/     │  ShippingQuoteHttpClient (ZA.Rest proxy)
+│ MyApp.Infrastructure         │  OrderRepository (ZA.ORM partial over
+│  Persistence/, External/     │   IAsyncDbConnection; SQLite or Npgsql)
+│                              │  ShippingQuoteHttpClient (ZA.Rest proxy)
 └──────────┬───────────────────┘
            ▼
 ┌──────────────────────────────┐
@@ -60,17 +61,17 @@ HTTP POST /orders
 └──────────────────────────────┘
 ```
 
-**Domain** holds `Order`, `OrderLine`, `OrderStatus`, and the `Money` / `Sku` value objects. It has zero references to anything outside itself — no EF, no ASP.NET, no ZA packages other than ZA.Results for `Result<T, DomainError>`. Invariants live in smart constructors.
+**Domain** holds `Order`, `OrderLine`, `OrderStatus`, and the `Money` / `Sku` value objects. It has zero references to anything outside itself — no persistence, no ASP.NET, no ZA packages other than ZA.Results for `Result<T, DomainError>`. Invariants live in smart constructors.
 
 **Application** holds the CQRS slice: `CreateOrderCommand`/`Handler`, `GetOrderByIdQuery`/`Handler`, the `IOrderRepository` and `IShippingQuoteClient` abstractions, and `ApplicationError`. Handlers implement `IRequestHandler<TRequest, TResponse>` from ZA.Mediator and return `ValueTask<Result<T, ApplicationError>>`. A hand-rolled `CreateOrderValidator` runs at the top of `CreateOrderHandler.Handle` and short-circuits to a `validation.failed` `ApplicationError` on the first invalid field — intentional: one error per response keeps the template's API simple, and ZA.Validation's batched form will land here when its generator nupkg ships.
 
-**Infrastructure** holds `AppDbContext`, `EfOrderRepository`, EF Core migrations, and `ShippingQuoteHttpClient` — a `[ZeroAllocRestClient]` interface that ZA.Rest + ZA.Resilience compose into a typed HTTP client with retry/timeout policies. `InfrastructureServiceCollectionExtensions.AddMyAppInfrastructure(...)` wires it all up.
+**Infrastructure** holds `OrderRepository` — a `public sealed partial class OrderRepository(IAsyncDbConnection conn)` with `[Query]`/`[Command]` partial methods that the ZA.ORM source generator fills in against raw `Microsoft.Data.Sqlite` / `Npgsql` providers, the embedded SQL migrations under `Persistence/Migrations/{Sqlite,Postgres}/NNN_<name>.sql` applied at startup by `ZeroAlloc.ORM.Migrations.MigrationRunner`, the static `MoneyConverter.ToStorage` / `FromStorage` helper used to round-trip value objects through TEXT columns, and `ShippingQuoteHttpClient` — a `[ZeroAllocRestClient]` interface that ZA.Rest + ZA.Resilience compose into a typed HTTP client with retry/timeout policies. `InfrastructureServiceCollectionExtensions.AddMyAppInfrastructure(...)` wires it all up and registers `IAsyncDbConnection` as scoped.
 
 **Api** holds `Program.cs`, the minimal-API endpoint groups, DTOs, and DTO ↔ domain mappings (ZA.Mapping). It composes the other layers, registers JWT auth + the `OrdersRead`/`OrdersWrite` policies, and configures OpenTelemetry.
 
 ## Each ZA Package's Role
 
-The template references ten ZeroAlloc packages. Generators ship as separate `*.Generator` nupkgs and are wired with `PrivateAssets=all` so they don't transit to downstream consumers — relevant when you add more ZA packages later.
+The template references the ZeroAlloc.* package family plus the `AdoNet.Async` async-ADO.NET wrapper that ZA.ORM builds on. Generators ship as separate `*.Generator` nupkgs and are wired with `PrivateAssets=all` so they don't transit to downstream consumers — relevant when you add more ZA packages later.
 
 | Package | Where it lives in the template | Notes |
 | --- | --- | --- |
@@ -78,22 +79,26 @@ The template references ten ZeroAlloc packages. Generators ship as separate `*.G
 | [ZA.Mapping](https://mapping.zeroalloc.net) | `MyApp.Api/Mappings/` | `[Map<DTO, Domain>]` static partial classes. Zero-alloc happy path. |
 | [ZA.Validation](https://validation.zeroalloc.net) | `MyApp.Application/CreateOrder/CreateOrderCommand.cs`, `OrderItem.cs` | `[Validate]` attributes on the command + nested item record. ZA.Validation's source generator emits `CreateOrderCommandValidator` and `OrderItemValidator` at build time. `[NotEmpty]` on `IReadOnlyList<OrderItem>` covers the "at least one item" rule via the type-aware emission introduced in 1.3.0. The thin facade at [`CreateOrderValidator.cs`](../content/za-clean/src/MyApp.Application/CreateOrder/CreateOrderValidator.cs) maps the first failure to `ApplicationError("validation.failed", ...)` so `CreateOrderHandler.Handle` stays unchanged. |
 | [ZA.Mediator](https://mediator.zeroalloc.net) | All handlers in `MyApp.Application/*` | `IRequest<TResponse>` / `IRequestHandler<TRequest, TResponse>`. Handlers return `ValueTask<T>`. ActivitySource `ZeroAlloc.Mediator` is wired into OTel. |
-| [ZA.Inject](https://inject.zeroalloc.net) | `EfOrderRepository`, `ShippingQuoteHttpClient`, all handlers | `[Scoped]` / `[Singleton]` / `[Transient]` attributes — **not** `[Service(ServiceLifetime.X)]`. Generated `AddMyAppApplication()` / `AddMyAppInfrastructure(...)` extensions compose registration. |
+| [ZA.Inject](https://inject.zeroalloc.net) | `OrderRepository`, `ShippingQuoteHttpClient`, all handlers | `[Scoped]` / `[Singleton]` / `[Transient]` attributes — **not** `[Service(ServiceLifetime.X)]`. Generated `AddMyAppApplication()` / `AddMyAppInfrastructure(...)` extensions compose registration. |
 | [ZA.Authorization](https://authorization.zeroalloc.net) + [ZA.Mediator.Authorization](https://mediator.zeroalloc.net) | `MyApp.Application/Authorization/OrdersPolicies.cs`, `MyApp.Api/Authorization/HttpSecurityContextAccessor.cs` | `[AuthorizationPolicy("OrdersRead"/"OrdersWrite")]` defines two policies that read the JWT `scope` claim (RFC 6749 space-separated tokens). Commands and queries carry `[Authorize(...)]`. The mediator pipeline behavior runs the policy against an `ISecurityContext` bridged from `HttpContext.User` and denies dispatch before the handler executes — **defense in depth on top of** the endpoint-level `RequireAuthorization` policies (same names, same claims) registered on the minimal-API routes. |
 | [ZA.Telemetry](https://telemetry.zeroalloc.net) | (available, not used directly) | `[Instrument]` / `[Trace]` source generator. The template uses vanilla OpenTelemetry; attribute-driven tracing is an add-on you opt into per method. |
 | [ZA.Rest](https://rest.zeroalloc.net) | `MyApp.Infrastructure/External/IShippingQuoteClient.cs` | `[ZeroAllocRestClient]` on the interface. Generates `services.AddIShippingQuoteHttpClient(opts => opts.BaseAddress = ...)`. |
 | [ZA.Resilience](https://resilience.zeroalloc.net) | Same interface, alongside Rest | `[Retry]` / `[Timeout]` attributes on the interface. Generates a proxy type that wraps the inner client. |
 | [ZA.Rest.Resilience](https://github.com/ZeroAlloc-Net/ZeroAlloc.Rest.Resilience) | Bridge package | Composes the Rest + Resilience generators so a single attribute-decorated interface yields both an HTTP client *and* a resilience proxy. |
+| [ZA.ORM](https://orm.zeroalloc.net) | `MyApp.Infrastructure/Persistence/OrderRepository.cs` | The runtime side of ZA.ORM. The repository is a `public sealed partial class OrderRepository(IAsyncDbConnection conn)` whose `[Query]` / `[Command]` partial method declarations the generator fills in with hand-shaped ADO.NET. Connection lifecycle is ref-counted — the emitted body calls `OpenAsync()` only if the connection isn't already open, and closes only what it opened. No DbContext, no change tracker. |
+| [ZA.ORM.Abstractions](https://orm.zeroalloc.net) | Referenced by both Infrastructure and Application | Holds `IAsyncDbConnection` adapters and the `[Query]` / `[Command]` / `[StoredProcedure]` attributes. Application doesn't take a dependency on the concrete provider, only on the abstraction. |
+| [ZA.ORM.Generator](https://orm.zeroalloc.net) | Analyzer reference in `MyApp.Infrastructure.csproj` | Emits the INSERT / SELECT / multi-result-set bodies behind the `[Query]` / `[Command]` partials. Ships as a separate `*.Generator` nupkg, wired with `OutputItemType="Analyzer" ReferenceOutputAssembly="false"`. |
+| [AdoNet.Async](https://github.com/ZeroAlloc-Net/AdoNet.Async) | `MyApp.Infrastructure` | The `IAsyncDbConnection` / `IAsyncDbCommand` abstraction layer over raw ADO.NET. Lets ZA.ORM target Sqlite / Npgsql / any future provider through one shape without taking a DbContext-style dependency. |
+| [AdoNet.Async.Adapters](https://github.com/ZeroAlloc-Net/AdoNet.Async) | `InfrastructureServiceCollectionExtensions` | Provides the `Microsoft.Data.Sqlite` / `Npgsql` -> `IAsyncDbConnection` adapter registrations. Scoped per request via `services.AddScoped<IAsyncDbConnection>(...)`. |
 
 ## Boundary Tests
 
-`tests/MyApp.ArchitectureTests/CleanArchitectureRules.cs` runs five NetArchTest rules against the four assemblies. All pass on a fresh scaffold:
+`tests/MyApp.ArchitectureTests/CleanArchitectureRules.cs` runs four NetArchTest rules against the four assemblies. All pass on a fresh scaffold:
 
-1. `Domain_does_not_depend_on_anything_outside_Domain` — no EF, no ASP.NET, no Application/Infrastructure/Api.
-2. `Application_does_not_depend_on_Infrastructure_or_Api` — and no EF / ASP.NET either.
+1. `Domain_does_not_depend_on_anything_outside_Domain` — no ASP.NET, no Application/Infrastructure/Api. (The rule's namespace ban list still names `Microsoft.EntityFrameworkCore` as a defensive guard against future EF re-introduction; the swap left it in place.)
+2. `Application_does_not_depend_on_Infrastructure_or_Api` — and no ASP.NET either.
 3. `Infrastructure_does_not_depend_on_Api` — keeps composition one-directional.
 4. `Handlers_live_in_Application_only` — `IRequestHandler<,>` implementations cannot leak into Domain/Infrastructure/Api.
-5. `EF_DbContexts_live_in_Infrastructure_only` — `DbContext` subclasses cannot leak out.
 
 Each rule is `[Fact]`-shaped and uses NetArchTest's fluent API:
 
@@ -119,7 +124,7 @@ Three harnesses, three questions.
 
 **`MyApp.Benchmarks.Primitives` (BenchmarkDotNet, in-isolation)** — `PrimitivesBench` exercises each ZA layer standalone: mapping, mediator dispatch, validator, value-object construction, and an end-to-end chain. No ASP.NET, no EF, no HTTP. These are the numbers that deliver on the "zero-allocation through the framework hot path" claim. Expect ns/op and 0 B/op for the framework primitives themselves.
 
-**`MyApp.Benchmarks` (BenchmarkDotNet, in-process)** — `WritePipelineBench` hosts the API via `WebApplicationFactory<Program>` and measures `POST /orders` end-to-end through middleware, model binding, mediator dispatch, validation, EF Core SaveChanges, and the outbound shipping call (stubbed). It reports allocation per request and median latency. In-process means you're measuring the *pipeline*, not the network — useful for spotting regressions, not capacity planning.
+**`MyApp.Benchmarks` (BenchmarkDotNet, in-process)** — `WritePipelineBench` hosts the API via `WebApplicationFactory<Program>` and measures `POST /orders` end-to-end through middleware, model binding, mediator dispatch, validation, the ZA.ORM `[Command]`-generated INSERT path against `IAsyncDbConnection`, and the outbound shipping call (stubbed). It reports allocation per request and median latency. In-process means you're measuring the *pipeline*, not the network — useful for spotting regressions, not capacity planning.
 
 **`MyApp.LoadTest` (NBomber, real Kestrel)** — drives sustained concurrency against a real Kestrel process. Two terminals: one runs the Api, the other runs the load test. NBomber reports p50/p95/p99 latency and RPS. This is where you size your service.
 
@@ -132,7 +137,7 @@ Three harnesses, three questions.
 | JIT cold start (same scenario, best of 3) | ~2.2 s |
 | AOT speedup | ~2.2× faster cold start |
 
-Captured on .NET 10.0.7 / 2022 i9-12900HK / Windows 11. The template's `MyApp.Api.csproj` defaults to `<PublishAot>true</PublishAot>`. EF Core requires work-arounds for NativeAOT — see "Known limitations under NativeAOT" below for the specifics the template applies. JSON serialization uses `JsonContext` source-gen. `InvariantGlobalization=true` keeps the binary lean; adopters needing culture-sensitive parsing should set it to `false` and document the ICU dependency.
+Captured on .NET 10.0.7 / 2022 i9-12900HK / Windows 11. The template's `MyApp.Api.csproj` defaults to `<PublishAot>true</PublishAot>`. The ZA.ORM swap removed the previous EF Core-anchored AOT blockers — the persistence layer is now plain source-generated ADO.NET on top of `Microsoft.Data.Sqlite` / `Npgsql`, and CI's `aot-publish-smoke` job verifies `dotnet publish -p:PublishAot=true -r linux-x64` produces a working binary that boots and answers `/healthz`. JSON serialization uses `JsonContext` source-gen. `InvariantGlobalization=true` keeps the binary lean; adopters needing culture-sensitive parsing should set it to `false` and document the ICU dependency.
 
 Reproduce:
 
@@ -773,20 +778,9 @@ Shipping__UseStub=true dotnet run --project src/MyApp.Api &
 dotnet run -c Release --project benchmarks/MyApp.LoadTest
 ```
 
-### Known limitations under NativeAOT (as of EF Core 10.0.7)
+### NativeAOT status
 
-The template publishes successfully under `<PublishAot>true</PublishAot>`, but EF Core's NativeAOT story is still maturing. We work around three gaps:
-
-1. **No `MigrateAsync` / `EnsureCreatedAsync`.** Both require design-time model building (reflection-based). The template embeds the migration output as `schema.sql` and applies it on startup. Regenerate the script after any entity change:
-   ```bash
-   dotnet ef migrations script -i -o src/MyApp.Api/schema.sql --project src/MyApp.Infrastructure --startup-project src/MyApp.Api
-   ```
-
-2. **No LINQ-to-SQL for reads.** EF Core 10's compiled-model handles writes (`db.Orders.AddAsync`) but reads need `--precompile-queries`, which currently fails because Roslyn's AOT pass can't see source-generator output. The template's `OrderRepository.GetByIdAsync` uses raw SQL via `db.Database.GetDbConnection().CreateCommand()` and hand-materialises the aggregate through `Order.Materialize(...)`. Money columns round-trip through the shared `MoneyConverter` helper so the raw-SQL read path uses the same `"<amount>|<currency>"` parse rules as the EF `ValueConverter`. Pattern is shown in [`OrderRepository.cs`](../content/za-clean/src/MyApp.Infrastructure/Persistence/OrderRepository.cs) — clone the same shape for new read endpoints.
-
-3. **No `ComplexProperty` on `readonly struct` value-objects.** EF Core 10's `--nativeaot` generator emits incorrect `[UnsafeAccessor(UnsafeAccessorKind.Field)]` with by-value `this`, fails runtime verification. The template routes value-object columns through `HasConversion(_moneyConverter)` instead — Money column is a single `TEXT` storing `"<amount>|<currency>"`.
-
-When EF Core ships fixes upstream (precompile-queries source-gen visibility, ComplexProperty by-value-struct codegen), these workarounds become unnecessary. Until then: **raw SQL for reads, embedded schema script for migrations, ValueConverter for value-objects in entity roots**.
+AOT publish works end-to-end post-swap. CI's `aot-publish-smoke` job runs `dotnet publish -p:PublishAot=true -r linux-x64` on every push and asserts the produced binary boots and answers `/healthz`. The previous EF Core-anchored gaps (no `MigrateAsync`, no LINQ-to-SQL under `--precompile-queries`, no `ComplexProperty` on `readonly struct` value-objects) are all gone because the persistence layer no longer routes through EF: ZA.ORM emits hand-shaped ADO.NET commands at compile time, `MigrationRunner` reads embedded SQL resources at startup with zero reflection, and value objects round-trip through the static `MoneyConverter` helper into TEXT columns. Migrations are hand-authored SQL under `src/MyApp.Infrastructure/Persistence/Migrations/{Sqlite,Postgres}/NNN_<name>.sql` — picked up by version-prefix on next startup, no regen step. The reference shape for both the write and the raw-SQL-flavoured read path is [`OrderRepository.cs`](../content/za-clean/src/MyApp.Infrastructure/Persistence/OrderRepository.cs).
 
 ## Customising
 
@@ -794,25 +788,11 @@ Three extensions you'll likely make first.
 
 ### Swap SQLite → PostgreSQL
 
-Replace the EF Core provider in `Program.cs` (or in `InfrastructureServiceCollectionExtensions` if you moved the registration there):
+Both providers are already wired in `InfrastructureServiceCollectionExtensions.AddMyAppInfrastructure(provider, connectionString, ...)`. The `provider` argument is a string: `"Postgres"` (case-insensitive) registers a scoped `NpgsqlConnection` adapted to `IAsyncDbConnection`; any other value falls through to `SqliteConnection`. Flip the value in `Program.cs` (or via `Database:Provider` configuration if you've moved it to `appsettings.json`) and update `ConnectionStrings:Default` to a Postgres connection string.
 
-```csharp
-// Before
-options.UseSqlite(connectionString);
+The matching migration set already exists at `src/MyApp.Infrastructure/Persistence/Migrations/Postgres/`. The `MigrationRunner` consults the `__zaorm_migrations` history table on startup and applies any unseen `NNN_<name>.sql` files in order. No EF tooling step required. To add a Postgres-only schema change, drop a new `NNN_<name>.sql` into that directory; SQLite-specific syntax in any custom migration (e.g. `AUTOINCREMENT` vs `GENERATED ... AS IDENTITY`) needs to live in the per-provider folder it applies to.
 
-// After
-options.UseNpgsql(connectionString);
-```
-
-Then:
-
-```bash
-dotnet add src/MyApp.Infrastructure package Npgsql.EntityFrameworkCore.PostgreSQL
-dotnet ef migrations remove --project src/MyApp.Infrastructure
-dotnet ef migrations add InitialPostgres --project src/MyApp.Infrastructure
-```
-
-Update `ConnectionStrings:Default` in `appsettings.json` to a Postgres connection string. SQLite-specific types in any custom migration (e.g. `TEXT` for enums) may need adjustment — for the scaffolded schema this is a no-op.
+A deeper reference for ZA.ORM-style migrations lives at [orm.zeroalloc.net/cookbook/migrations](https://orm.zeroalloc.net/cookbook/migrations).
 
 ### Add a New Endpoint
 
@@ -863,7 +843,7 @@ The `OrdersRead` / `OrdersWrite` policies stay as-is — only the issuance and v
 
 NBomber's `MyApp.LoadTest` previously targeted in-memory SQLite via the production app — capped at ~470 RPS by SQLite's single-process file lock. That ceiling is the lock, not the framework. Running against Postgres reveals the real throughput.
 
-The SUT and NBomber run as separate processes. The SUT is configured for Postgres via env vars; NBomber's scenario code is unchanged. AOT-correct: the production startup applies `schema.postgres.sql` via `ApplyEmbeddedSchemaAsync` — zero EF reflection at runtime.
+The SUT and NBomber run as separate processes. The SUT is configured for Postgres via env vars; NBomber's scenario code is unchanged. AOT-correct: the production startup applies the embedded `Persistence/Migrations/Postgres/*.sql` files via `ZeroAlloc.ORM.Migrations.MigrationRunner`, which reads the embedded resources and tracks state in `__zaorm_migrations` — pure ADO.NET, zero reflection at runtime.
 
 ### Local recipe
 
