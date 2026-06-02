@@ -57,17 +57,17 @@ public sealed partial class OrderRepository(IAsyncDbConnection conn) : IOrderRep
     [Command(
         "INSERT INTO \"Orders\" (\"CustomerId\", \"Status\", \"Total\") VALUES (@customerId, @status, @total) RETURNING \"Id\"",
         Kind = CommandKind.Identity)]
-    public partial Task<int> InsertOrderAsync(int customerId, string status, string total, CancellationToken ct);
+    private partial Task<int> InsertOrderAsync(int customerId, string status, string total, CancellationToken ct);
 
     [Command(
         "INSERT INTO \"OrderLines\" (\"OrderId\", \"Sku\", \"Quantity\", \"Price\") VALUES (@orderId, @sku, @quantity, @price)")]
-    public partial Task<int> InsertOrderLineAsync(int orderId, string sku, int quantity, string price, CancellationToken ct);
+    private partial Task<int> InsertOrderLineAsync(int orderId, string sku, int quantity, string price, CancellationToken ct);
 
     [Query(
         "SELECT \"CustomerId\", \"Status\", \"Total\" FROM \"Orders\" WHERE \"Id\" = @id;" +
         "SELECT \"Sku\", \"Quantity\", \"Price\" FROM \"OrderLines\" WHERE \"OrderId\" = @id;")]
-    public partial Task<(OrderHeadRow Head, IReadOnlyList<OrderLineRow> Lines)?> ReadOrderAsync(int id, CancellationToken ct);
+    private partial Task<(OrderHeadRow Head, IReadOnlyList<OrderLineRow> Lines)?> ReadOrderAsync(int id, CancellationToken ct);
 
-    public sealed record OrderHeadRow(int CustomerId, string Status, string Total);
-    public sealed record OrderLineRow(string Sku, int Quantity, string Price);
+    private sealed record OrderHeadRow(int CustomerId, string Status, string Total);
+    private sealed record OrderLineRow(string Sku, int Quantity, string Price);
 }
