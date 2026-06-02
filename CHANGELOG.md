@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.10.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/compare/ZeroAlloc.Templates-v0.9.3...ZeroAlloc.Templates-v0.10.0) (2026-06-02)
+
+
+### Features
+
+* **templates:** adopt ZeroAlloc.ORM 1.2.0 + drop two workaround patches ([#155](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/issues/155)) ([3c71f17](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/commit/3c71f17ad03e29b38dc2719ad3755e9c2b82a5af))
+
 ## [0.9.3](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/compare/ZeroAlloc.Templates-v0.9.2...ZeroAlloc.Templates-v0.9.3) (2026-06-02)
 
 
