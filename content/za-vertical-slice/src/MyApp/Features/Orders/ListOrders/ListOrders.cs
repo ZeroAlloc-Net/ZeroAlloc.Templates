@@ -1,5 +1,4 @@
 using System.Data.Async;
-using System.Runtime.CompilerServices;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Routing;
@@ -39,9 +38,10 @@ public sealed partial class ListOrdersHandler(IAsyncDbConnection conn)
     {
         var total = await CountOrdersAsync(ct).ConfigureAwait(false);
         var skip = (query.Page - 1) * query.PageSize;
+        var rows = await ListOrdersAsync(query.PageSize, skip, ct).ConfigureAwait(false);
 
-        var items = new List<OrderListItem>(query.PageSize);
-        await foreach (var row in ListOrdersAsync(query.PageSize, skip, ct).ConfigureAwait(false))
+        var items = new List<OrderListItem>(rows.Count);
+        foreach (var row in rows)
         {
             items.Add(new OrderListItem(new OrderId(row.Id), new CustomerId(row.CustomerId), row.Total));
         }
@@ -50,12 +50,12 @@ public sealed partial class ListOrdersHandler(IAsyncDbConnection conn)
     }
 
     [Query("SELECT COUNT(*) FROM \"Orders\"")]
-    public partial Task<int> CountOrdersAsync(CancellationToken ct);
+    private partial Task<int> CountOrdersAsync(CancellationToken ct);
 
     [Query("SELECT \"Id\", \"CustomerId\", \"Total\" FROM \"Orders\" ORDER BY \"Id\" LIMIT @limit OFFSET @offset")]
-    public partial IAsyncEnumerable<OrderListRow> ListOrdersAsync(int limit, int offset, [EnumeratorCancellation] CancellationToken ct);
+    private partial Task<IReadOnlyList<OrderListRow>> ListOrdersAsync(int limit, int offset, CancellationToken ct);
 
-    public sealed record OrderListRow(int Id, int CustomerId, decimal Total);
+    private sealed record OrderListRow(int Id, int CustomerId, decimal Total);
 }
 
 public static class ListOrdersEndpoint
