@@ -46,7 +46,27 @@ Bundled into B3's same PR — the underlying SchemaStrategy + embedded-script re
 
 ---
 
-## B5 — AOT-ify za-vertical-slice (`<PublishAot>true</PublishAot>`)
+## ~~B5 — AOT-ify za-vertical-slice (`<PublishAot>true</PublishAot>`)~~ — ✅ shipped 2026-06-02 (#161)
+
+**Shipped.** Both templates now NativeAOT publish. The four-blocker list got resolved in two phases: the two persistence blockers (EF compiled model + EF LINQ-to-SQL read path) were eliminated by the [ZA.ORM swap](#b6--ef-core--zaorm-11-swap--shipped-2026-06-01); the two reflection blockers (endpoint discovery walk + `RegisterHandlersFromAssembly`) were closed by PR #161 using the **hand-list pattern that za-clean was already running**, not the source-generated registry the original sketch recommended.
+
+The original §1–§2 recommendation was "source-generate the endpoint registry + handler registration." During brainstorming, discovering that za-clean already AOT-publishes via the simpler hand-list approach (one extension method, `[Scoped]` attribute on each handler, generated-by-ZA.Inject concrete-type registry) changed the design. The hand-list pattern ships in days; the upstream-generator approach was its own meaningful library project. The hand-list now ships in both templates; the upstream generator is tracked as a separate brainstorm if and when the manual one-line-per-slice friction proves real.
+
+**What landed:**
+
+- `content/za-vertical-slice/src/MyApp/Common/MyAppServiceCollectionExtensions.cs` — new `AddMyApp(...)` extension wrapping `AddMediator().WithValidation().WithAuthorization()` + six `IRequestHandler<,>` registrations + `AddMyAppServices()` (ZA.Inject-generated concrete-type registry).
+- `[Scoped]` (`using ZeroAlloc.Inject;`) added to every handler class. **Surprise step the design missed:** ZA.Mediator's source-generated dispatch resolves handlers by *concrete type* (`GetRequiredService<TConcreteHandler>`), not by the `IRequestHandler<,>` interface — so without the `[Scoped]` attribute the dispatch fails at runtime. Caught by IntegrationTests; documented as the third manual step in AGENTS.md §3.
+- `Program.cs` — six lines of mediator wiring collapsed to one `AddMyApp(...)` call; 25-line reflective endpoint walk replaced by six explicit `XxxEndpoint.Map(app)` calls; `using System.Reflection;` dropped.
+- `MyApp.csproj` — `<PublishAot>true</PublishAot>` + `<TrimmerSingleWarn>true</TrimmerSingleWarn>` on; AOT-deferral comment replaced with a pointer at the hand-list sites.
+- `AGENTS.md` — §3 "Add a new use case" recipe gains three new manual steps (mark handler `[Scoped]`, register the interface in `MyAppServiceCollectionExtensions`, call `XxxEndpoint.Map(app)` in `Program.cs`). §5 "AOT publish" rewritten — was "intentionally not enabled," now "enabled."
+
+**Tradeoff acknowledged.** Original §6 noted the vs read-throughput "win" over za-clean would shrink once vs went AOT — the open-model NBomber numbers in PR #145 reflected JIT-vs-AOT, not framework-vs-framework. Bench refresh is a follow-up task; bench numbers on `main` are pre-AOT-enable and should be re-captured for the comparison to land honestly. Carry-forward.
+
+**Diagnosis (durable record).** The original B5 sketch over-engineered: it recommended source-generating the endpoint registry + handler registration to preserve auto-discovery DX. During brainstorming we discovered za-clean *already AOT-publishes* via a hand-list pattern that's mechanically smaller — one extension method per assembly, `[Scoped]` attributes on each handler. Mirroring that pattern landed in four implementation commits over a few hours; the upstream source-generator alternative would have been weeks of work for a marginal DX win. The hand-list adds a "one line per slice" step, which AGENTS.md now makes explicit and CI's `real-run-smoke-vs` catches if forgotten.
+
+---
+
+## ~~B5 (original entry, preserved for context)~~ — AOT-ify za-vertical-slice (`<PublishAot>true</PublishAot>`)
 
 **What.** Turn on `<PublishAot>true</PublishAot>` in `content/za-vertical-slice/src/MyApp/MyApp.csproj` and resolve the three reflection blockers the csproj's own comment (lines 9-18) currently defers. End state: both shipped templates publish NativeAOT in production, mirroring `za-clean`'s posture.
 
