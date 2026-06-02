@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Routing;
 using MyApp.Common;
 using ZeroAlloc.Authorization;
+using ZeroAlloc.Inject;
 using ZeroAlloc.Mediator;
 using ZeroAlloc.ORM;
 using ZeroAlloc.Results;
@@ -31,6 +32,7 @@ public sealed record OrderListItem(OrderId Id, CustomerId CustomerId, decimal To
 
 public sealed record OrderPage(int Page, int PageSize, int Total, IReadOnlyList<OrderListItem> Items);
 
+[Scoped]
 public sealed partial class ListOrdersHandler(IAsyncDbConnection conn)
     : IRequestHandler<ListOrdersQuery, Result<OrderPage, Error>>
 {

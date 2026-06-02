@@ -57,10 +57,19 @@ HTTP POST /orders
 4. Define `*Handler : IRequestHandler<*Command, Result<TResponse, Error>>`. Return `ValueTask<...>`, **not** `Task<...>`.
 5. Define `*Endpoint` as a `public static class` with `public static void Map(IEndpointRouteBuilder)`. Wire `IMediator.Send` + map result to `Results.Created`/`Results.Ok`/`Results.Problem`.
 6. If the slice needs to read or write rows, declare the relevant `[Query]`/`[Command]` partial methods directly on the handler class (mark the class `public sealed partial class XxxHandler(IAsyncDbConnection conn)`). Co-locate row records inside the class as `public sealed record XxxRow(...)`. Add SQL migration files at `src/MyApp/Persistence/Migrations/{Sqlite,Postgres}/NNN_<name>.sql` if the schema needs to change — the `MigrationRunner` picks them up by version on next startup.
-7. Add a unit test in `tests/MyApp.UnitTests/Features/<Area>/<UseCase>/<UseCase>HandlerTests.cs`.
-8. Add an integration test in `tests/MyApp.IntegrationTests/Features/<Area>/<UseCase>/<UseCase>EndpointTests.cs`.
-
-No central registration to edit — `Program.cs` discovers handlers via `RegisterHandlersFromAssembly(...)` and endpoints via the assembly walk.
+7. **Mark the handler `[Scoped]`** (`using ZeroAlloc.Inject;`). ZA.Inject's generator picks this up and emits the concrete-type DI registration in `AddMyAppServices()` — without the attribute, `ZeroAlloc.Mediator`'s source-generated dispatch fails at runtime with `"no service for type ...Handler has been registered"` (it resolves handlers by their concrete type, not by `IRequestHandler<,>`).
+8. **Register the handler's `IRequestHandler<,>` interface.** Add one line to `src/MyApp/Common/MyAppServiceCollectionExtensions.cs`:
+   ```csharp
+   services.AddScoped<IRequestHandler<TRequest, TResponse>, THandler>();
+   ```
+   Keep the per-slice order matching the `Features/` tree so diffs are visually obvious. AOT publish refuses to find handlers via reflection, so this hand-list is the AOT-friendly replacement for the pre-1.0 `RegisterHandlersFromAssembly(...)`.
+9. **Wire the endpoint.** Add one line near the bottom of `src/MyApp/Program.cs`:
+   ```csharp
+   YourEndpoint.Map(app);
+   ```
+   Per-slice explicit registration is the AOT-friendly replacement for the pre-1.0 assembly walk. Forgetting it means the route returns 404 at runtime — the slice's IntegrationTests will catch it.
+10. Add a unit test in `tests/MyApp.UnitTests/Features/<Area>/<UseCase>/<UseCase>HandlerTests.cs`.
+11. Add an integration test in `tests/MyApp.IntegrationTests/Features/<Area>/<UseCase>/<UseCase>EndpointTests.cs`.
 
 ### Add a value object
 
@@ -90,20 +99,23 @@ ZA.Validation's `[Validate]` source generator is wired up — or you can write `
 
 ## 5. AOT publish
 
-AOT publish is intentionally **not enabled** in this template. The ZA.ORM swap
-removed the previous EF Core-anchored AOT blockers; two reflection sites still
-prevent AOT publish without further work:
+AOT publish is enabled (`<PublishAot>true</PublishAot>` in `MyApp.csproj`). Both
+reflection sites that previously blocked it are gone:
 
-1. **Endpoint discovery** in `Program.cs` walks the assembly for static
-   `*Endpoint` classes with `Map(IEndpointRouteBuilder)` methods. A future
-   iteration can source-generate this registry.
-2. **`RegisterHandlersFromAssembly()`** in the Mediator wiring is reflective.
-   A future iteration can replace it with per-slice
-   `services.AddScoped<IRequestHandler<,>, THandler>()` calls (mechanical) or
-   a source-generated registry.
+1. **Endpoint discovery** — hand-listed via `XxxEndpoint.Map(app)` calls in
+   `Program.cs` (see §3 step 9). One line per slice.
+2. **Mediator handler registration** — hand-listed in
+   `Common/MyAppServiceCollectionExtensions.cs` via `AddMyApp(...)` (the
+   `IRequestHandler<,>` interfaces) plus the ZA.Inject-generated
+   `AddMyAppServices()` (the concrete-type registrations from `[Scoped]`
+   attributes). See §3 steps 7 + 8.
 
-za-clean already AOT-publishes successfully — when comparing the two templates,
-treat AOT publish as a "vs ships later" item, not a "vs can't" item.
+The "Add a new use case" recipe in §3 above lists the two manual steps that
+each new slice needs. CI's `aot-publish-smoke-vs` and `real-run-smoke-vs` jobs
+are the safety net — forgetting any of (a) `[Scoped]` on the handler,
+(b) the interface registration in `MyAppServiceCollectionExtensions`, or
+(c) the `Map(app)` call in `Program.cs` surfaces at the AOT publish or first
+HTTP request.
 
 ## 6. How to verify
 

@@ -1,19 +1,21 @@
 using System.Data.Async;
 using System.Data.Async.Adapters;
-using System.Reflection;
 using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.Data.Sqlite;
 using Microsoft.IdentityModel.Tokens;
 using MyApp;
 using MyApp.Authorization;
+using MyApp.Features.Customers.CreateCustomer;
+using MyApp.Features.Customers.GetCustomer;
+using MyApp.Features.Orders.CancelOrder;
+using MyApp.Features.Orders.GetOrder;
+using MyApp.Features.Orders.ListOrders;
+using MyApp.Features.Orders.PlaceOrder;
 using Npgsql;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
 using ZeroAlloc.Authorization.Generated;
-using ZeroAlloc.Mediator;
-using ZeroAlloc.Mediator.Authorization;
-using ZeroAlloc.Mediator.Validation;
 using ZeroAlloc.ORM.Migrations;
 using ZeroAlloc.Serialisation.SystemTextJson;
 
@@ -33,10 +35,7 @@ builder.Services.AddHttpContextAccessor();
 builder.Services.AddHealthChecks();
 builder.Services.AddZeroAllocAuthorization();
 
-builder.Services.AddMediator()
-    .RegisterHandlersFromAssembly(typeof(Program).Assembly)
-    .WithValidation()
-    .WithAuthorization(o => o.UseAccessor<HttpSecurityContextAccessor>());
+builder.Services.AddMyApp(o => o.UseAccessor<HttpSecurityContextAccessor>());
 
 // ---------------------------------------------------------------------------
 // ZA.ORM substrate — provider selected by `Database:Provider` config
@@ -226,25 +225,16 @@ if (!string.Equals(schemaStrategy, "Skip", StringComparison.OrdinalIgnoreCase))
 app.UseAuthentication();
 app.UseAuthorization();
 
-// ---------------------------------------------------------------------------
-// Endpoint discovery — runtime assembly walk. Every public static class whose
-// name ends in "Endpoint" and that exposes a public static
-// void Map(IEndpointRouteBuilder) method is invoked once at startup.
-//
-// This is a vertical-slice convention: each slice owns its own Map call in
-// the same file as its request/handler/validator. The walk avoids hand-
-// maintaining a central registration list. v0.5 may swap this for a source
-// generator if startup time becomes a concern.
-// ---------------------------------------------------------------------------
-foreach (var endpointType in typeof(Program).Assembly
-    .GetTypes()
-    .Where(t => t is { IsClass: true, IsAbstract: true, IsSealed: true } && t.Name.EndsWith("Endpoint", StringComparison.Ordinal))
-    .Where(t => t.GetMethod("Map", BindingFlags.Public | BindingFlags.Static, new[] { typeof(IEndpointRouteBuilder) }) is not null))
-{
-    endpointType
-        .GetMethod("Map", BindingFlags.Public | BindingFlags.Static, new[] { typeof(IEndpointRouteBuilder) })!
-        .Invoke(null, new object[] { app });
-}
+// Endpoint registrations — one Map call per slice, mirroring the
+// Features/<Area>/<UseCase>/ tree. AOT publish requires the explicit calls;
+// the pre-1.0 reflective walk was the last AOT-blocker (the other was
+// reflection-based RegisterHandlersFromAssembly, now folded into AddMyApp).
+PlaceOrderEndpoint.Map(app);
+GetOrderEndpoint.Map(app);
+ListOrdersEndpoint.Map(app);
+CancelOrderEndpoint.Map(app);
+CreateCustomerEndpoint.Map(app);
+GetCustomerEndpoint.Map(app);
 
 // Health check — exposed for liveness/readiness probes.
 app.MapHealthChecks("/healthz");

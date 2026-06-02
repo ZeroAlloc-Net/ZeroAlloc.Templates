@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using MyApp.Common;
 using ZeroAlloc.Authorization;
+using ZeroAlloc.Inject;
 using ZeroAlloc.Mediator;
 using ZeroAlloc.ORM;
 using ZeroAlloc.Results;
@@ -26,6 +27,7 @@ public readonly record struct CreateCustomerCommand(
     [property: NotEmpty, EmailAddress] string Email)
     : IRequest<Result<CustomerId, Error>>;
 
+[Scoped]
 public sealed partial class CreateCustomerHandler(IAsyncDbConnection conn)
     : IRequestHandler<CreateCustomerCommand, Result<CustomerId, Error>>
 {
