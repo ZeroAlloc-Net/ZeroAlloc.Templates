@@ -11,7 +11,7 @@ namespace MyApp.Infrastructure.Persistence;
 [Scoped]
 public sealed partial class OrderRepository(IAsyncDbConnection conn) : IOrderRepository
 {
-    public async Task AddAsync(Order order, CancellationToken ct)
+    public async Task<Order> AddAsync(Order order, CancellationToken ct)
     {
         // BeginTransactionAsync requires an open connection. The per-command
         // ref-counted prologue inside each emitted partial method sees
@@ -32,8 +32,6 @@ public sealed partial class OrderRepository(IAsyncDbConnection conn) : IOrderRep
                     tx,
                     ct).ConfigureAwait(false);
 
-                order.AssignPersistenceId(new OrderId(orderId));
-
                 foreach (var line in order.Lines)
                 {
                     await InsertOrderLineAsync(
@@ -48,6 +46,12 @@ public sealed partial class OrderRepository(IAsyncDbConnection conn) : IOrderRep
                 await tx.CommitAsync(ct).ConfigureAwait(false);
                 // Exception above propagates out of the `using` scope — tx
                 // DisposeAsync rolls back if CommitAsync wasn't reached.
+                return Order.Materialize(
+                    new OrderId(orderId),
+                    order.CustomerId,
+                    order.Status,
+                    order.Total,
+                    order.Lines);
             }
         }
         finally
