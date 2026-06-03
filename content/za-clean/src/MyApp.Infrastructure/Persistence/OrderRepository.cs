@@ -22,31 +22,33 @@ public sealed partial class OrderRepository(IAsyncDbConnection conn) : IOrderRep
         if (openedHere) await conn.OpenAsync(ct).ConfigureAwait(false);
         try
         {
-            await using var tx = await conn.BeginTransactionAsync(ct).ConfigureAwait(false);
-
-            var orderId = await InsertOrderAsync(
-                order.CustomerId.Value,
-                order.Status.ToString(),
-                MoneyConverter.ToStorage(order.Total),
-                tx,
-                ct).ConfigureAwait(false);
-
-            order.AssignPersistenceId(new OrderId(orderId));
-
-            foreach (var line in order.Lines)
+            var tx = await conn.BeginTransactionAsync(ct).ConfigureAwait(false);
+            await using (tx.ConfigureAwait(false))
             {
-                await InsertOrderLineAsync(
-                    orderId,
-                    line.Sku,
-                    line.Quantity,
-                    MoneyConverter.ToStorage(line.Price),
+                var orderId = await InsertOrderAsync(
+                    order.CustomerId.Value,
+                    order.Status.ToString(),
+                    MoneyConverter.ToStorage(order.Total),
                     tx,
                     ct).ConfigureAwait(false);
-            }
 
-            await tx.CommitAsync(ct).ConfigureAwait(false);
-            // Exception above propagates out of the `using` scope — tx
-            // DisposeAsync rolls back if CommitAsync wasn't reached.
+                order.AssignPersistenceId(new OrderId(orderId));
+
+                foreach (var line in order.Lines)
+                {
+                    await InsertOrderLineAsync(
+                        orderId,
+                        line.Sku,
+                        line.Quantity,
+                        MoneyConverter.ToStorage(line.Price),
+                        tx,
+                        ct).ConfigureAwait(false);
+                }
+
+                await tx.CommitAsync(ct).ConfigureAwait(false);
+                // Exception above propagates out of the `using` scope — tx
+                // DisposeAsync rolls back if CommitAsync wasn't reached.
+            }
         }
         finally
         {
