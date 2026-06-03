@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.12.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/compare/ZeroAlloc.Templates-v0.11.0...ZeroAlloc.Templates-v0.12.0) (2026-06-03)
+
+
+### Features
+
+* **vs:** adopt Money VO + MoneyConverter to close provider divergence (closes [#163](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/issues/163)) ([#168](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/issues/168)) ([8a7edd9](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/commit/8a7edd96085a017823fd7239ca1c2d6f4f5710b6))
+
 ## [0.11.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/compare/ZeroAlloc.Templates-v0.10.0...ZeroAlloc.Templates-v0.11.0) (2026-06-02)
 
 
