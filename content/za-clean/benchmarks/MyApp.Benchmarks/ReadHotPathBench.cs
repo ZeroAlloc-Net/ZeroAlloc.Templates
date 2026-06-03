@@ -1,6 +1,7 @@
 using System.Data.Async;
 using System.Data.Async.Adapters;
 using BenchmarkDotNet.Attributes;
+using BenchmarkDotNet.Order;
 using Microsoft.Data.Sqlite;
 using MyApp.Domain;
 using MyApp.Domain.ValueObjects;
@@ -30,6 +31,7 @@ namespace MyApp.Benchmarks;
 /// </para>
 /// </summary>
 [MemoryDiagnoser]
+[Orderer(SummaryOrderPolicy.FastestToSlowest)]
 public class ReadHotPathBench
 {
     private SqliteConnection? _conn;
@@ -56,8 +58,52 @@ public class ReadHotPathBench
         _seededId = order.Id;
     }
 
+    // Hand-written baseline issuing the same ;-joined head+lines SELECT
+    // via raw SqliteCommand + ExecuteReaderAsync + NextResultAsync + manual
+    // materialize. Does the same MoneyConverter.FromStorage roundtrip for
+    // Total + Price so the comparison is apples-to-apples (both paths pay
+    // the TEXT-to-Money decode). Mirrors ZA.ORM's MultiResultSetBench.
+    [Benchmark(Baseline = true)]
+    public async Task<Order?> HandWrittenAdoNet()
+    {
+        await using var cmd = _conn!.CreateCommand();
+        cmd.CommandText =
+            "SELECT \"CustomerId\", \"Status\", \"Total\" FROM \"Orders\" WHERE \"Id\" = @id;" +
+            "SELECT \"Sku\", \"Quantity\", \"Price\" FROM \"OrderLines\" WHERE \"OrderId\" = @id;";
+        var p = cmd.CreateParameter();
+        p.ParameterName = "@id";
+        p.Value = _seededId.Value;
+        cmd.Parameters.Add(p);
+
+        await using var reader = await cmd.ExecuteReaderAsync().ConfigureAwait(false);
+        if (!await reader.ReadAsync().ConfigureAwait(false))
+        {
+            return null;
+        }
+        var customerId = reader.GetInt32(0);
+        var status = reader.GetString(1);
+        var totalStr = reader.GetString(2);
+
+        await reader.NextResultAsync().ConfigureAwait(false);
+        var lines = new List<OrderLine>(capacity: 2);
+        while (await reader.ReadAsync().ConfigureAwait(false))
+        {
+            lines.Add(new OrderLine(
+                reader.GetString(0),
+                reader.GetInt32(1),
+                MoneyConverter.FromStorage(reader.GetString(2))));
+        }
+
+        return Order.Materialize(
+            _seededId,
+            new CustomerId(customerId),
+            Enum.Parse<OrderStatus>(status),
+            MoneyConverter.FromStorage(totalStr),
+            lines);
+    }
+
     [Benchmark]
-    public async Task<Order?> GetByIdAsync()
+    public async Task<Order?> ZeroAlloc_ORM()
         => await _repo!.GetByIdAsync(_seededId, default).ConfigureAwait(false);
 
     [GlobalCleanup]

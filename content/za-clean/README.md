@@ -11,7 +11,7 @@ Clean Architecture Web API. **Publishes as a ~27 MB Native AOT binary; cold-star
 | **Mediator dispatch alone** | ~31 ns / 0 B |
 | **Validator (source-generated, regex zip)** | ~57 ns / 0 B |
 | **ValueObject `TryCreate`** | ~3 ns / 0 B |
-| **Read hot path** (ZA.ORM `GetByIdAsync` / Sqlite, head + 2 lines) | ~37 µs / 2.77 KB — provider + parameter-boxing dominate; tracked in [ZA.ORM #113](https://github.com/ZeroAlloc-Net/ZeroAlloc.ORM/issues/113) |
+| **Read hot path** (`GetByIdAsync` / Sqlite, head + 2 lines) | ZA.ORM ~27 µs / 1.71 KB vs hand-written ADO.NET ~26 µs / 1.57 KB — framework 1.09× allocations (+0.14 KB AdoNet.Async wrapper overhead). See [ZA.ORM v0.7.0 benchmarks](https://github.com/ZeroAlloc-Net/ZeroAlloc.ORM/blob/main/docs/benchmarks/v0.7.0-sqlite-results.md) for the full comparison matrix |
 | **End-to-end pipeline** (ASP.NET + ZA.ORM, Postgres) | ~1.3 ms / 36 KB — mostly platform overhead, not ZA |
 
 AOT figures re-measured 2026-06-02 post-ZA.ORM-swap (#152) on i9-12900HK / Windows 11 / .NET 10.0.8. Pipeline + primitive numbers measured in CI on Ubuntu 24.04 / AMD EPYC / .NET 10.0.8 via [`Benchmarks (manual)` run 26778623747](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/actions/runs/26778623747). The decisive datapoint: the validator + Mediator dispatch through the chain allocate **zero bytes**. The 160 B is the `CreateOrderCommand` record + nested `OrderItem[]` array, a caller cost every framework pays.
