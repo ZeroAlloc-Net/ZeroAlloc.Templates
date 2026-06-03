@@ -1,6 +1,6 @@
 # MyApp
 
-Clean Architecture Web API. **Publishes as a ~27 MB Native AOT binary; cold-starts in ~540 ms** (vs ~1.2 s under JIT — ~2.2× faster, ~75% smaller deploy). Source-generated, zero-allocation through the framework hot path. Built on the [ZeroAlloc.\*](https://github.com/ZeroAlloc-Net) ecosystem.
+Clean Architecture Web API. **Publishes as a ~27 MB Native AOT binary; cold-starts in ~540 ms** (vs ~1.2 s under JIT — ~2.2× faster, ~75% smaller deploy). Source-generated, zero-allocation through the validator + mediator + mapping chain (data-access adds provider-shaped overhead — see benchmarks table). Built on the [ZeroAlloc.\*](https://github.com/ZeroAlloc-Net) ecosystem.
 
 | | Value |
 |---|---:|
@@ -11,6 +11,7 @@ Clean Architecture Web API. **Publishes as a ~27 MB Native AOT binary; cold-star
 | **Mediator dispatch alone** | ~31 ns / 0 B |
 | **Validator (source-generated, regex zip)** | ~57 ns / 0 B |
 | **ValueObject `TryCreate`** | ~3 ns / 0 B |
+| **Read hot path** (ZA.ORM `GetByIdAsync` / Sqlite, head + 2 lines) | ~37 µs / 2.77 KB — provider + parameter-boxing dominate; tracked in [ZA.ORM #113](https://github.com/ZeroAlloc-Net/ZeroAlloc.ORM/issues/113) |
 | **End-to-end pipeline** (ASP.NET + ZA.ORM, Postgres) | ~1.3 ms / 36 KB — mostly platform overhead, not ZA |
 
 AOT figures re-measured 2026-06-02 post-ZA.ORM-swap (#152) on i9-12900HK / Windows 11 / .NET 10.0.8. Pipeline + primitive numbers measured in CI on Ubuntu 24.04 / AMD EPYC / .NET 10.0.8 via [`Benchmarks (manual)` run 26778623747](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/actions/runs/26778623747). The decisive datapoint: the validator + Mediator dispatch through the chain allocate **zero bytes**. The 160 B is the `CreateOrderCommand` record + nested `OrderItem[]` array, a caller cost every framework pays.
@@ -20,6 +21,9 @@ AOT figures re-measured 2026-06-02 post-ZA.ORM-swap (#152) on i9-12900HK / Windo
 ```bash
 # Framework primitives (zero-alloc, ns/op — what ZA is)
 dotnet run -c Release --project benchmarks/MyApp.Benchmarks.Primitives -- --filter "*"
+
+# Read hot path (ZA.ORM read-path allocation floor — no HTTP/serialization)
+dotnet run -c Release --project benchmarks/MyApp.Benchmarks -- --filter "*ReadHotPathBench*"
 
 # Full pipeline (ASP.NET + ZA.ORM — what the platform costs)
 dotnet run -c Release --project benchmarks/MyApp.Benchmarks -- --filter "*WritePipelineBench*"
