@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.13.1](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/compare/ZeroAlloc.Templates-v0.13.0...ZeroAlloc.Templates-v0.13.1) (2026-06-03)
+
+
+### Code Refactoring
+
+* **za-clean:** immutable Order aggregate — remove persistence leak (closes [#166](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/issues/166)) ([#178](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/issues/178)) ([aa8eb69](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/commit/aa8eb693059d05ec38803e177a6629ca5d102366))
+
 ## [0.13.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/compare/ZeroAlloc.Templates-v0.12.1...ZeroAlloc.Templates-v0.13.0) (2026-06-03)
 
 
