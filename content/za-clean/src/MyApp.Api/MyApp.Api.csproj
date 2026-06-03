@@ -15,6 +15,15 @@
     <NoWarn>$(NoWarn);ZAM003;SYSLIB1220;SYSLIB1030</NoWarn>
     <PublishAot>true</PublishAot>
     <InvariantGlobalization>true</InvariantGlobalization>
+    <!-- Throughput knobs for the server process. ServerGC gives one heap +
+         GC thread per core (vs the workstation default's single heap) — the
+         right choice for a concurrent request server. TieredPGO instruments
+         the tier-0 JIT and recompiles hot methods with profile-guided layout;
+         it only applies on the JIT path (a no-op under full PublishAot), so it
+         helps the `dotnet run` benchmark and any non-AOT deployment. -->
+    <ServerGarbageCollection>true</ServerGarbageCollection>
+    <ConcurrentGarbageCollection>true</ConcurrentGarbageCollection>
+    <TieredPGO>true</TieredPGO>
     <!-- Collapse IL2xxx/IL3xxx warnings per source assembly into a single
          summary line. Expected warnings come from OpenTelemetry
          (RequiresDynamicCode for OTel SDK reflection), SQLite

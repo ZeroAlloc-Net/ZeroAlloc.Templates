@@ -318,16 +318,15 @@ jobs:
 
       - name: Run NBomber
         working-directory: content/za-clean
-        # Open-model injection (Simulation.Inject). The target rate is bounded
-        # here because the load generator, SUT, and Postgres all share this one
-        # runner's ~2-4 vCPUs — injecting the code's 10k/s default would just
-        # produce a timeout storm as the co-located generator starves the SUT.
-        # 5000/s is a meaningful overshoot of the historical ~2,809 RPS closed-
-        # loop baseline: it exposes the post-tuning ceiling on this hardware
-        # without melting the shared box. For a true single-box ceiling, run the
-        # generator on a separate machine and raise LOADTEST_TARGET_RPS to 10000.
+        # Open-model injection (Simulation.Inject). Raised to 15000/s for this
+        # branch: the read endpoint now has output caching, so the SUT serves
+        # repeated reads without touching the DB and the prior 5000/s ceiling
+        # (DB-bound) no longer reflects capacity. 15k probes where the cached
+        # path saturates on the shared runner. NOTE this is still a co-located
+        # generator+SUT+Postgres box — for a true ceiling run the generator
+        # off-box. (vs is left at 5000/s: output caching is za-clean-only here.)
         env:
-          LOADTEST_TARGET_RPS: "5000"
+          LOADTEST_TARGET_RPS: "15000"
           LOADTEST_DURATION_S: "30"
         run: dotnet run -c Release --no-build --project benchmarks/MyApp.LoadTest -- http://localhost:5000
 

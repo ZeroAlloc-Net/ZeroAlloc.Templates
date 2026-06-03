@@ -14,6 +14,13 @@
     <PublishAot>true</PublishAot>
     <TrimmerSingleWarn>true</TrimmerSingleWarn>
     <InvariantGlobalization>true</InvariantGlobalization>
+    <!-- Throughput knobs for the server process. ServerGC gives one heap +
+         GC thread per core; TieredPGO recompiles hot methods with PGO layout
+         on the JIT path (a no-op under full PublishAot, so it helps the
+         `dotnet run` benchmark and any non-AOT deployment). -->
+    <ServerGarbageCollection>true</ServerGarbageCollection>
+    <ConcurrentGarbageCollection>true</ConcurrentGarbageCollection>
+    <TieredPGO>true</TieredPGO>
     <!-- This project declares [Policy] / [RequirePolicy]. The vertical-slice
          layout has only one src project, so it owns policies (no sibling src
          project to inherit the Generator transitively from). -->

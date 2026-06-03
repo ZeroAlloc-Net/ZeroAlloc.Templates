@@ -156,6 +156,30 @@ builder.Services.ConfigureHttpJsonOptions(o =>
     o.SerializerOptions.AddZeroAllocValueObjectConverters();
 });
 
+// ---------------------------------------------------------------------------
+// Output caching for the read hot path. SECURITY MODEL — read before reusing:
+//   * UseOutputCache() is placed AFTER UseAuthentication/UseAuthorization
+//     (below), so a cache HIT still required a valid token + the OrdersRead
+//     policy to pass on THIS request — identity is enforced on every hit, not
+//     only on the miss that populated the entry.
+//   * The cache key varies by the route `id` AND the Authorization header, so
+//     two different bearer tokens never share an entry — no cross-identity
+//     leakage of one caller's order to another.
+//   * Short TTL bounds staleness (orders are mutable). Tagged "orders" so the
+//     write path can EvictByTagAsync("orders") if you want stronger
+//     consistency than the TTL.
+// Net effect under load: repeated reads of the same order by the same caller
+// skip the mediator + DB round-trip + materialization + serialization.
+// ---------------------------------------------------------------------------
+builder.Services.AddOutputCache(options =>
+{
+    options.AddPolicy("OrderById", policy => policy
+        .Expire(TimeSpan.FromSeconds(5))
+        .SetVaryByRouteValue("id")
+        .VaryByHeader("Authorization")
+        .Tag("orders"));
+});
+
 var app = builder.Build();
 
 // Apply schema on startup. `Database:SchemaStrategy` controls how:
@@ -213,6 +237,10 @@ if (!string.Equals(schemaStrategy, "Skip", StringComparison.OrdinalIgnoreCase))
 
 app.UseAuthentication();
 app.UseAuthorization();
+// AFTER auth on purpose — see the AddOutputCache security note above. A cache
+// hit short-circuits the endpoint (mediator + DB) but only once authn/authz
+// for this request have already passed.
+app.UseOutputCache();
 
 app.MapOrders();
 // Use a concrete record type rather than an anonymous object so the

@@ -31,7 +31,7 @@ public static class OrdersEndpoints
             return result.IsSuccess
                 ? Results.Ok(OrderToResponse.Map(result.Value))
                 : Results.NotFound();
-        }).RequireAuthorization("OrdersRead");
+        }).RequireAuthorization("OrdersRead").CacheOutput("OrderById");
 
         return app;
     }
