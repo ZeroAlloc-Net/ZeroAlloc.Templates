@@ -24,12 +24,14 @@
     <PackageVersion Include="ZeroAlloc.Mediator.Authorization" Version="4.1.4" />
     <PackageVersion Include="ZeroAlloc.Mediator.Generator" Version="4.1.4" />
     <PackageVersion Include="ZeroAlloc.Inject.Generator" Version="1.7.1" />
-    <!-- ZeroAlloc.ORM 1.2.0 + AdoNet.Async substrate (replaces EF Core 10).
-         1.2.0 adds: any-accessibility partial-method emit (#101) + bare
-         Task<IReadOnlyList<TRow>> return shape (#102). Both are used below. -->
-    <PackageVersion Include="ZeroAlloc.ORM" Version="1.2.0" />
-    <PackageVersion Include="ZeroAlloc.ORM.Abstractions" Version="1.2.0" />
-    <PackageVersion Include="ZeroAlloc.ORM.Generator" Version="1.2.0" />
+    <!-- ZeroAlloc.ORM 1.5.0 + AdoNet.Async substrate (replaces EF Core 10).
+         1.5.0 adds: optional IAsyncDbTransaction parameter on [Command]
+         partial methods. vs's PlaceOrder is single-statement and doesn't
+         need it today, but kept in sync with za-clean for showcase
+         consistency (the v1.5 emit is backwards-compatible with v1.2). -->
+    <PackageVersion Include="ZeroAlloc.ORM" Version="1.5.0" />
+    <PackageVersion Include="ZeroAlloc.ORM.Abstractions" Version="1.5.0" />
+    <PackageVersion Include="ZeroAlloc.ORM.Generator" Version="1.5.0" />
     <PackageVersion Include="AdoNet.Async" Version="1.3.0" />
     <PackageVersion Include="AdoNet.Async.Adapters" Version="1.3.0" />
     <PackageVersion Include="Microsoft.Data.Sqlite" Version="10.0.8" />
