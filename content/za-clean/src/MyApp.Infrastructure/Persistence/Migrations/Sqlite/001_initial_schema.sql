@@ -8,7 +8,7 @@ CREATE TABLE "Orders" (
 CREATE TABLE "OrderLines" (
     "Id" INTEGER NOT NULL CONSTRAINT "PK_OrderLines" PRIMARY KEY AUTOINCREMENT,
     "Sku" TEXT NOT NULL,
-    "Quantity" INTEGER NOT NULL,
+    "Quantity" INTEGER NOT NULL CHECK ("Quantity" > 0),
     "Price" TEXT NOT NULL,
     "OrderId" INTEGER NOT NULL,
     CONSTRAINT "FK_OrderLines_Orders_OrderId" FOREIGN KEY ("OrderId") REFERENCES "Orders" ("Id") ON DELETE CASCADE

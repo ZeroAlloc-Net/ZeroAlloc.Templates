@@ -1,3 +1,4 @@
+using System.Data;
 using System.Data.Async;
 using MyApp.Application;
 using MyApp.Domain;
@@ -12,22 +13,46 @@ public sealed partial class OrderRepository(IAsyncDbConnection conn) : IOrderRep
 {
     public async Task AddAsync(Order order, CancellationToken ct)
     {
-        var orderId = await InsertOrderAsync(
-            order.CustomerId.Value,
-            order.Status.ToString(),
-            MoneyConverter.ToStorage(order.Total),
-            ct).ConfigureAwait(false);
-
-        order.AssignPersistenceId(new OrderId(orderId));
-
-        foreach (var line in order.Lines)
+        // BeginTransactionAsync requires an open connection. The per-command
+        // ref-counted prologue inside each emitted partial method sees
+        // State == Open and is a no-op for both connection lifecycle and
+        // transaction state — the tx attaches via cmd.Transaction (v1.5+),
+        // not via auto-bind, so SqlClient works correctly too.
+        var openedHere = conn.State != ConnectionState.Open;
+        if (openedHere) await conn.OpenAsync(ct).ConfigureAwait(false);
+        try
         {
-            await InsertOrderLineAsync(
-                orderId,
-                line.Sku,
-                line.Quantity,
-                MoneyConverter.ToStorage(line.Price),
-                ct).ConfigureAwait(false);
+            var tx = await conn.BeginTransactionAsync(ct).ConfigureAwait(false);
+            await using (tx.ConfigureAwait(false))
+            {
+                var orderId = await InsertOrderAsync(
+                    order.CustomerId.Value,
+                    order.Status.ToString(),
+                    MoneyConverter.ToStorage(order.Total),
+                    tx,
+                    ct).ConfigureAwait(false);
+
+                order.AssignPersistenceId(new OrderId(orderId));
+
+                foreach (var line in order.Lines)
+                {
+                    await InsertOrderLineAsync(
+                        orderId,
+                        line.Sku,
+                        line.Quantity,
+                        MoneyConverter.ToStorage(line.Price),
+                        tx,
+                        ct).ConfigureAwait(false);
+                }
+
+                await tx.CommitAsync(ct).ConfigureAwait(false);
+                // Exception above propagates out of the `using` scope — tx
+                // DisposeAsync rolls back if CommitAsync wasn't reached.
+            }
+        }
+        finally
+        {
+            if (openedHere) await conn.CloseAsync().ConfigureAwait(false);
         }
     }
 
@@ -57,11 +82,11 @@ public sealed partial class OrderRepository(IAsyncDbConnection conn) : IOrderRep
     [Command(
         "INSERT INTO \"Orders\" (\"CustomerId\", \"Status\", \"Total\") VALUES (@customerId, @status, @total) RETURNING \"Id\"",
         Kind = CommandKind.Identity)]
-    private partial Task<int> InsertOrderAsync(int customerId, string status, string total, CancellationToken ct);
+    private partial Task<int> InsertOrderAsync(int customerId, string status, string total, IAsyncDbTransaction tx, CancellationToken ct);
 
     [Command(
         "INSERT INTO \"OrderLines\" (\"OrderId\", \"Sku\", \"Quantity\", \"Price\") VALUES (@orderId, @sku, @quantity, @price)")]
-    private partial Task<int> InsertOrderLineAsync(int orderId, string sku, int quantity, string price, CancellationToken ct);
+    private partial Task<int> InsertOrderLineAsync(int orderId, string sku, int quantity, string price, IAsyncDbTransaction tx, CancellationToken ct);
 
     [Query(
         "SELECT \"CustomerId\", \"Status\", \"Total\" FROM \"Orders\" WHERE \"Id\" = @id;" +
