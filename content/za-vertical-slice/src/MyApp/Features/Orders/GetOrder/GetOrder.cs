@@ -2,6 +2,7 @@ using System.Data.Async;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using MyApp.Common;
+using MyApp.Persistence;
 using ZeroAlloc.Authorization;
 using ZeroAlloc.Inject;
 using ZeroAlloc.Mediator;
@@ -49,13 +50,15 @@ public sealed partial class GetOrderHandler(IAsyncDbConnection conn)
             : Result<OrderDto, Error>.Success(new OrderDto(
                 new OrderId(row.Id),
                 new CustomerId(row.CustomerId),
-                row.Total));
+                MoneyConverter.FromStorage(row.Total).Amount));
     }
 
     [Query("SELECT \"Id\", \"CustomerId\", \"Total\" FROM \"Orders\" WHERE \"Id\" = @id")]
     public partial Task<OrderRow?> ReadOrderAsync(int id, CancellationToken ct);
 
-    public sealed record OrderRow(int Id, int CustomerId, decimal Total);
+    // Total is stored as the MoneyConverter wire shape "<amount>|<currency>";
+    // the handler converts it back to decimal for the DTO.
+    public sealed record OrderRow(int Id, int CustomerId, string Total);
 }
 
 public static class GetOrderEndpoint

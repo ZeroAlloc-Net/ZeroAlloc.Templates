@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Routing;
 using MyApp.Common;
+using MyApp.Persistence;
 using ZeroAlloc.Authorization;
 using ZeroAlloc.Inject;
 using ZeroAlloc.Mediator;
@@ -45,7 +46,10 @@ public sealed partial class ListOrdersHandler(IAsyncDbConnection conn)
         var items = new List<OrderListItem>(rows.Count);
         foreach (var row in rows)
         {
-            items.Add(new OrderListItem(new OrderId(row.Id), new CustomerId(row.CustomerId), row.Total));
+            items.Add(new OrderListItem(
+                new OrderId(row.Id),
+                new CustomerId(row.CustomerId),
+                MoneyConverter.FromStorage(row.Total).Amount));
         }
 
         return Result<OrderPage, Error>.Success(new OrderPage(query.Page, query.PageSize, total, items));
@@ -57,7 +61,9 @@ public sealed partial class ListOrdersHandler(IAsyncDbConnection conn)
     [Query("SELECT \"Id\", \"CustomerId\", \"Total\" FROM \"Orders\" ORDER BY \"Id\" LIMIT @limit OFFSET @offset")]
     private partial Task<IReadOnlyList<OrderListRow>> ListOrdersAsync(int limit, int offset, CancellationToken ct);
 
-    private sealed record OrderListRow(int Id, int CustomerId, decimal Total);
+    // Total is stored as the MoneyConverter wire shape "<amount>|<currency>";
+    // the handler converts it back to decimal for the wire DTO.
+    private sealed record OrderListRow(int Id, int CustomerId, string Total);
 }
 
 public static class ListOrdersEndpoint
