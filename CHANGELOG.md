@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.13.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/compare/ZeroAlloc.Templates-v0.12.1...ZeroAlloc.Templates-v0.13.0) (2026-06-03)
+
+
+### Features
+
+* **za-clean:** read-path BDN allocation benchmark + narrow zero-alloc claim (closes [#164](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/issues/164)) ([#176](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/issues/176)) ([f7f5f89](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/commit/f7f5f894be5073ae95848d345738ff0a6cb45f78))
+
 ## [0.12.1](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/compare/ZeroAlloc.Templates-v0.12.0...ZeroAlloc.Templates-v0.12.1) (2026-06-03)
 
 
