@@ -23,7 +23,7 @@
     <!-- ASP.NET Core auth -->
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" />
 
-    <!-- ZeroAlloc.ORM 1.1 + AdoNet.Async substrate (provider selected by
+    <!-- ZeroAlloc.ORM 1.2.0 + AdoNet.Async substrate (provider selected by
          `Database:Provider` config; default Sqlite). -->
     <PackageReference Include="ZeroAlloc.ORM" />
     <PackageReference Include="ZeroAlloc.ORM.Abstractions" />
