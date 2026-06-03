@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.12.1](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/compare/ZeroAlloc.Templates-v0.12.0...ZeroAlloc.Templates-v0.12.1) (2026-06-03)
+
+
+### Bug Fixes
+
+* **za-clean:** adopt ZA.ORM v1.5 transaction parameter - close non-atomic Order write (closes [#162](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/issues/162)) ([#174](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/issues/174)) ([cb056fe](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/commit/cb056fe2bf950d447202bd0dd6642c7c958dde14))
+
 ## [0.12.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/compare/ZeroAlloc.Templates-v0.11.0...ZeroAlloc.Templates-v0.12.0) (2026-06-03)
 
 
