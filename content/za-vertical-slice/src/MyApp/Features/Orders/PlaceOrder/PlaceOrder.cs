@@ -2,6 +2,7 @@ using System.Data.Async;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using MyApp.Common;
+using MyApp.Persistence;
 using ZeroAlloc.Authorization;
 using ZeroAlloc.Inject;
 using ZeroAlloc.Mediator;
@@ -37,9 +38,13 @@ public sealed partial class PlaceOrderHandler(IAsyncDbConnection conn)
 {
     public async ValueTask<Result<OrderId, Error>> Handle(PlaceOrderCommand cmd, CancellationToken ct)
     {
+        // Validator (`[GreaterThan(0)]` on Total) guarantees cmd.Total > 0,
+        // so Money.TryCreate cannot fail here. Money is internal-only — the
+        // wire surface (PlaceOrderCommand.Total) stays bare decimal.
+        var money = Money.TryCreate(cmd.Total, "EUR").Value;
         var id = await InsertOrderAsync(
             cmd.CustomerId.Value,
-            cmd.Total,
+            MoneyConverter.ToStorage(money),
             nameof(OrderStatus.Pending),
             ct).ConfigureAwait(false);
         return Result<OrderId, Error>.Success(new OrderId(id));
@@ -48,7 +53,7 @@ public sealed partial class PlaceOrderHandler(IAsyncDbConnection conn)
     [Command(
         "INSERT INTO \"Orders\" (\"CustomerId\", \"Total\", \"Status\") VALUES (@customerId, @total, @status) RETURNING \"Id\"",
         Kind = CommandKind.Identity)]
-    public partial Task<int> InsertOrderAsync(int customerId, decimal total, string status, CancellationToken ct);
+    public partial Task<int> InsertOrderAsync(int customerId, string total, string status, CancellationToken ct);
 }
 
 /// <summary>

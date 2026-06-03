@@ -2,6 +2,7 @@ using System.Data.Async;
 using MyApp.Common;
 using MyApp.Features.Orders.CancelOrder;
 using MyApp.Features.Orders.PlaceOrder;
+using MyApp.Persistence;
 using Xunit;
 
 namespace MyApp.UnitTests.Features.Orders.CancelOrder;
@@ -62,7 +63,9 @@ public sealed class CancelOrderHandlerTests
         cmd.CommandText =
             "INSERT INTO \"Orders\" (\"CustomerId\", \"Total\", \"Status\") VALUES (@customerId, @total, @status) RETURNING \"Id\"";
         AddParam(cmd, "@customerId", customerId);
-        AddParam(cmd, "@total", total);
+        // Total is stored as Money's wire shape "<amount>|<currency>" — encode the
+        // decimal via MoneyConverter so the column matches the production schema.
+        AddParam(cmd, "@total", MoneyConverter.ToStorage(Money.TryCreate(total, "EUR").Value));
         AddParam(cmd, "@status", status);
         var id = await cmd.ExecuteScalarAsync().ConfigureAwait(false);
         return Convert.ToInt32(id);

@@ -1,5 +1,6 @@
 using MyApp.Common;
 using MyApp.Features.Orders.PlaceOrder;
+using MyApp.Persistence;
 using Xunit;
 
 namespace MyApp.UnitTests.Features.Orders.PlaceOrder;
@@ -37,7 +38,11 @@ public sealed class PlaceOrderHandlerTests
         await using var reader = await readCmd.ExecuteReaderAsync();
         Assert.True(await reader.ReadAsync());
         Assert.Equal(42, reader.GetInt32(0));
-        Assert.Equal(99.99m, reader.GetDecimal(1));
+        // Total is persisted as the Money wire shape "<amount>|<currency>" — round-trip
+        // through MoneyConverter to assert the stored value, matching the production handler.
+        var money = MoneyConverter.FromStorage(reader.GetString(1));
+        Assert.Equal(99.99m, money.Amount);
+        Assert.Equal("EUR", money.Currency);
     }
 
     [Fact]

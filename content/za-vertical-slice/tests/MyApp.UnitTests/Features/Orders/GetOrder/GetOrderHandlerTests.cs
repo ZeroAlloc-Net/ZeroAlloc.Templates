@@ -2,6 +2,7 @@ using System.Data.Async;
 using MyApp.Common;
 using MyApp.Features.Orders.GetOrder;
 using MyApp.Features.Orders.PlaceOrder;
+using MyApp.Persistence;
 using Xunit;
 
 namespace MyApp.UnitTests.Features.Orders.GetOrder;
@@ -42,7 +43,9 @@ public sealed class GetOrderHandlerTests
         cmd.CommandText =
             "INSERT INTO \"Orders\" (\"CustomerId\", \"Total\", \"Status\") VALUES (@customerId, @total, @status) RETURNING \"Id\"";
         AddParam(cmd, "@customerId", customerId);
-        AddParam(cmd, "@total", total);
+        // Total is stored as Money's wire shape "<amount>|<currency>" — encode the
+        // decimal via MoneyConverter so the read-side handler can round-trip it.
+        AddParam(cmd, "@total", MoneyConverter.ToStorage(Money.TryCreate(total, "EUR").Value));
         AddParam(cmd, "@status", nameof(OrderStatus.Pending));
         var id = await cmd.ExecuteScalarAsync().ConfigureAwait(false);
         return Convert.ToInt32(id);
