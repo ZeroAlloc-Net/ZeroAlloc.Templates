@@ -176,7 +176,7 @@ builder.Services.AddOutputCache(options =>
     options.AddPolicy("OrderById", policy => policy
         .Expire(TimeSpan.FromSeconds(5))
         .SetVaryByRouteValue("id")
-        .VaryByHeader("Authorization")
+        .SetVaryByHeader("Authorization")
         .Tag("orders"));
 });
 
