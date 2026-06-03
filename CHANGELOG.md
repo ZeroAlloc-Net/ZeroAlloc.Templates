@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.13.2](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/compare/ZeroAlloc.Templates-v0.13.1...ZeroAlloc.Templates-v0.13.2) (2026-06-03)
+
+
+### Tests
+
+* **za-clean:** MoneyConverter symmetry tests (5 cells from vs) ([#180](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/issues/180)) ([1f6bc03](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/commit/1f6bc034918930473d3b7727fe37d50c93b2f05d))
+
 ## [0.13.1](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/compare/ZeroAlloc.Templates-v0.13.0...ZeroAlloc.Templates-v0.13.1) (2026-06-03)
 
 
