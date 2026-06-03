@@ -26,9 +26,9 @@
     <PackageVersion Include="ZeroAlloc.Inject.Generator" Version="1.7.1" />
     <!-- ZeroAlloc.ORM 1.5.0 + AdoNet.Async substrate (replaces EF Core 10).
          1.5.0 adds: optional IAsyncDbTransaction parameter on [Command]
-         partial methods. vs's PlaceOrder is single-statement and doesn't
-         need it today, but kept in sync with za-clean for showcase
-         consistency (the v1.5 emit is backwards-compatible with v1.2). -->
+         partial methods so multi-statement aggregate writes participate
+         in a single transaction across providers (#111). Used by
+         OrderRepository.AddAsync. -->
     <PackageVersion Include="ZeroAlloc.ORM" Version="1.5.0" />
     <PackageVersion Include="ZeroAlloc.ORM.Abstractions" Version="1.5.0" />
     <PackageVersion Include="ZeroAlloc.ORM.Generator" Version="1.5.0" />
