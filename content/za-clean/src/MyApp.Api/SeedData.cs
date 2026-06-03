@@ -19,6 +19,6 @@ internal static class SeedData
         var order = Order.Create(new CustomerId(1));
         order.AddLine("SKU-DEMO", 2, price);
 
-        await repo.AddAsync(order, ct).ConfigureAwait(false);
+        _ = await repo.AddAsync(order, ct).ConfigureAwait(false);
     }
 }

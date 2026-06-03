@@ -14,31 +14,10 @@ public sealed class Order
         Total = Money.TryCreate(0m, "EUR").Value;
     }
 
-    // EF Core materialisation constructor. The framework rehydrates [CustomerId]
-    // and [Total] through the configured property/owned-type mappings; the field
-    // initialisers above keep [_lines] non-null and EF assigns OrderStatus via
-    // its value-converter.
-    private Order()
-    {
-    }
-
-    // Setter is private — only AssignPersistenceId can mutate Id, and only from
-    // its sentinel-zero pre-insert state. Domain code must not touch this.
-    public OrderId Id { get; private set; }
-
-    /// <summary>
-    /// Persistence-layer hook for assigning the database-generated identity
-    /// after a successful INSERT...RETURNING. Throws if the id has already
-    /// been assigned — orders are immutable once persisted.
-    /// </summary>
-    public void AssignPersistenceId(OrderId id)
-    {
-        if (Id.Value != 0)
-        {
-            throw new InvalidOperationException("Order Id is already assigned");
-        }
-        Id = id;
-    }
+// Id is set once at construction. Order.Create() seeds the sentinel
+    // OrderId(0); OrderRepository.AddAsync returns a new Order built via
+    // Order.Materialize(...) carrying the DB-assigned id.
+    public OrderId Id { get; }
 
     public CustomerId CustomerId { get; }
 

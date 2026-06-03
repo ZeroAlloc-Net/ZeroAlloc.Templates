@@ -8,10 +8,20 @@ internal sealed class FakeOrderRepository : IOrderRepository
 {
     public List<Order> Saved { get; } = new();
 
-    public Task AddAsync(Order order, CancellationToken ct)
+    public Task<Order> AddAsync(Order order, CancellationToken ct)
     {
-        Saved.Add(order);
-        return Task.CompletedTask;
+        // Mint a synthetic id (real repo uses INSERT...RETURNING) and
+        // materialize a fresh Order so the fake's Saved list + GetByIdAsync
+        // lookup mirror the real-repo contract: input order's Id stays at
+        // the sentinel; the returned instance carries the assigned id.
+        var assigned = Order.Materialize(
+            new OrderId(Saved.Count + 1),
+            order.CustomerId,
+            order.Status,
+            order.Total,
+            order.Lines);
+        Saved.Add(assigned);
+        return Task.FromResult(assigned);
     }
 
     public Task<int> CountAsync(CancellationToken ct)
