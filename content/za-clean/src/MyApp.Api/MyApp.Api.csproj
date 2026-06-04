@@ -46,5 +46,6 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="MyApp.IntegrationTests" />
+    <InternalsVisibleTo Include="MyApp.Benchmarks" />
   </ItemGroup>
 </Project>
