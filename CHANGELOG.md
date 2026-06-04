@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.14.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/compare/ZeroAlloc.Templates-v0.13.3...ZeroAlloc.Templates-v0.14.0) (2026-06-04)
+
+
+### Features
+
+* **za-clean:** introduce OrderReadModel for GET /orders/{id} ([#185](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/issues/185)) ([65334bd](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/commit/65334bda8c3b16f2a0c244b79888a595a94eaafc))
+
 ## [0.13.3](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/compare/ZeroAlloc.Templates-v0.13.2...ZeroAlloc.Templates-v0.13.3) (2026-06-04)
 
 
