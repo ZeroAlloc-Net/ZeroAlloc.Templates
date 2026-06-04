@@ -1,4 +1,5 @@
 using MyApp.Application;
+using MyApp.Application.GetOrderById;
 using MyApp.Domain;
 using MyApp.Domain.ValueObjects;
 
@@ -10,10 +11,6 @@ internal sealed class FakeOrderRepository : IOrderRepository
 
     public Task<Order> AddAsync(Order order, CancellationToken ct)
     {
-        // Mint a synthetic id (real repo uses INSERT...RETURNING) and
-        // materialize a fresh Order so the fake's Saved list + GetByIdAsync
-        // lookup mirror the real-repo contract: input order's Id stays at
-        // the sentinel; the returned instance carries the assigned id.
         var assigned = Order.Materialize(
             new OrderId(Saved.Count + 1),
             order.CustomerId,
@@ -27,9 +24,23 @@ internal sealed class FakeOrderRepository : IOrderRepository
     public Task<int> CountAsync(CancellationToken ct)
         => Task.FromResult(Saved.Count);
 
-    public Task<Order?> GetByIdAsync(OrderId id, CancellationToken ct)
+    public Task<OrderReadModel?> GetByIdAsync(OrderId id, CancellationToken ct)
     {
         var match = Saved.FirstOrDefault(o => o.Id.Value == id.Value);
-        return Task.FromResult<Order?>(match);
+        if (match is null) return Task.FromResult<OrderReadModel?>(null);
+
+        var lines = new OrderLineReadModel[match.Lines.Count];
+        for (var i = 0; i < match.Lines.Count; i++)
+        {
+            var l = match.Lines[i];
+            lines[i] = new OrderLineReadModel(l.Sku, l.Quantity, l.Price.Amount);
+        }
+        return Task.FromResult<OrderReadModel?>(new OrderReadModel(
+            match.Id,
+            match.CustomerId,
+            match.Status.ToString(),
+            match.Total.Amount,
+            match.Total.Currency,
+            lines));
     }
 }

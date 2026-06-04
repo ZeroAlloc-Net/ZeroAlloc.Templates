@@ -1,3 +1,4 @@
+using MyApp.Application.GetOrderById;
 using MyApp.Domain;
 using MyApp.Domain.ValueObjects;
 
@@ -13,7 +14,7 @@ public interface IOrderRepository
     /// </summary>
     Task<Order> AddAsync(Order order, CancellationToken ct);
 
-    Task<Order?> GetByIdAsync(OrderId id, CancellationToken ct);
+    Task<OrderReadModel?> GetByIdAsync(OrderId id, CancellationToken ct);
 
     Task<int> CountAsync(CancellationToken ct);
 }

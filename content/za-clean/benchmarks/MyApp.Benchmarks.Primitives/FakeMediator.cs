@@ -26,7 +26,7 @@ internal sealed class FakeMediator : IMediator
         CreateOrderCommand request, CancellationToken ct = default)
         => new(_createSuccess);
 
-    public ValueTask<Result<Order, ApplicationError>> Send(
+    public ValueTask<Result<OrderReadModel, ApplicationError>> Send(
         GetOrderByIdQuery request, CancellationToken ct = default)
         => throw new NotSupportedException("Primitives bench only exercises CreateOrderCommand dispatch.");
 }

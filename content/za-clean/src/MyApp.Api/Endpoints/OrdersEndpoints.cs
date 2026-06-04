@@ -29,7 +29,7 @@ public static class OrdersEndpoints
         {
             var result = await mediator.Send(new GetOrderByIdQuery(new OrderId(id)), ct).ConfigureAwait(false);
             return result.IsSuccess
-                ? Results.Ok(OrderToResponse.Map(result.Value))
+                ? Results.Ok(ReadModelToResponse.Map(result.Value))
                 : Results.NotFound();
         }).RequireAuthorization("OrdersRead");
 
