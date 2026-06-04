@@ -13,6 +13,21 @@ public static class MoneyConverter
     public static string ToStorage(Money m)
         => m.Amount.ToString(CultureInfo.InvariantCulture) + "|" + m.Currency;
 
+    /// <summary>
+    /// Parses just the decimal amount from the "amount|currency" storage format,
+    /// skipping the currency token entirely. Used by read paths that project to a
+    /// flat DTO and never read the currency back (e.g. per-line totals on
+    /// <see cref="MyApp.Application.GetOrderById.OrderReadModel"/>, where only
+    /// the order-level currency is exposed). Zero allocations — operates on a
+    /// span over the source string.
+    /// </summary>
+    public static decimal AmountFromStorage(string raw)
+    {
+        var pipe = raw.IndexOf('|');
+        var amountSpan = pipe < 0 ? raw.AsSpan() : raw.AsSpan(0, pipe);
+        return decimal.Parse(amountSpan, NumberStyles.Number, CultureInfo.InvariantCulture);
+    }
+
     public static Money FromStorage(string s)
     {
         if (string.IsNullOrEmpty(s))

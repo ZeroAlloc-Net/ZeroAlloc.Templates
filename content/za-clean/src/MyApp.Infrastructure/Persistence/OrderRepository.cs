@@ -70,8 +70,10 @@ public sealed partial class OrderRepository(IAsyncDbConnection conn) : IOrderRep
         var lineModels = new OrderLineReadModel[lines.Count];
         for (var i = 0; i < lines.Count; i++)
         {
-            var price = MoneyConverter.FromStorage(lines[i].Price);
-            lineModels[i] = new OrderLineReadModel(lines[i].Sku, lines[i].Quantity, price.Amount);
+            lineModels[i] = new OrderLineReadModel(
+                lines[i].Sku,
+                lines[i].Quantity,
+                MoneyConverter.AmountFromStorage(lines[i].Price));
         }
 
         var total = MoneyConverter.FromStorage(head.Total);

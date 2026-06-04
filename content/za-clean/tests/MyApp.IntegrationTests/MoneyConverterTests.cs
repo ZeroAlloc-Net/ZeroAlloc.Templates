@@ -58,4 +58,13 @@ public class MoneyConverterTests
         Assert.Equal(0m, restored.Amount);
         Assert.Equal("USD", restored.Currency);
     }
+
+    [Fact]
+    public void AmountFromStorage_parses_decimal_without_currency_alloc()
+    {
+        // Hot-path helper used by OrderRepository.GetByIdAsync's per-line
+        // projection: skips the currency substring entirely.
+        Assert.Equal(15m, MoneyConverter.AmountFromStorage("15|EUR"));
+        Assert.Equal(99.99m, MoneyConverter.AmountFromStorage("99.99|USD"));
+    }
 }
