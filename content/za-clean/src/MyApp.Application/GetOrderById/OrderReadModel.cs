@@ -1,5 +1,7 @@
 using MyApp.Domain.ValueObjects;
 
+#pragma warning disable MA0048 // read model + its line element co-located in one file by design
+
 namespace MyApp.Application.GetOrderById;
 
 /// <summary>
