@@ -42,21 +42,25 @@ internal sealed class ClaimsPrincipalSecurityContext(ClaimsPrincipal principal)
 
     public bool TryGetValue(string key, out string value)
     {
-        // Hot path: single FindAll walk. Single-value returns Claim.Value directly (0 alloc).
-        // Multi-value joins per RFC 6749 §3.3 — one string.Concat only when needed.
-        string? first = null;
-        string? joined = null;
-        foreach (var c in principal.FindAll(key))
+        // Probe with FindFirst (returns null or a single Claim) for the zero-alloc single-value path.
+        var first = principal.FindFirst(key);
+        if (first is null)
         {
-            if (first is null)
-            {
-                first = c.Value;
-                continue;
-            }
-            joined = joined is null ? $"{first} {c.Value}" : $"{joined} {c.Value}";
+            value = string.Empty;
+            return false;
         }
-        value = joined ?? first ?? string.Empty;
-        return first is not null;
+        // Single-value common case — bail before constructing the FindAll enumerator.
+        // Walk principal.Claims directly to find any additional matches with the same type.
+        string? joined = null;
+        var seenFirst = false;
+        foreach (var c in principal.Claims)
+        {
+            if (!string.Equals(c.Type, key, StringComparison.Ordinal)) continue;
+            if (!seenFirst) { seenFirst = true; continue; }
+            joined = joined is null ? $"{first.Value} {c.Value}" : $"{joined} {c.Value}";
+        }
+        value = joined ?? first.Value;
+        return true;
     }
 
     public string this[string key] => TryGetValue(key, out var v) ? v : throw new KeyNotFoundException(key);
