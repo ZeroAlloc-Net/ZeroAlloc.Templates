@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.13.3](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/compare/ZeroAlloc.Templates-v0.13.2...ZeroAlloc.Templates-v0.13.3) (2026-06-04)
+
+
+### Performance Improvements
+
+* **authorization:** reduce ClaimsPrincipalSecurityContext per-request allocations across both templates ([#183](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/issues/183)) ([23975d8](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/commit/23975d8df3ac4fc48a28583319867ede016bcec9))
+
 ## [0.13.2](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/compare/ZeroAlloc.Templates-v0.13.1...ZeroAlloc.Templates-v0.13.2) (2026-06-03)
 
 
