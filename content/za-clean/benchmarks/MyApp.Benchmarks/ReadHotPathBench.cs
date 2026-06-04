@@ -61,11 +61,13 @@ public class ReadHotPathBench
 
     // Hand-written baseline issuing the same ;-joined head+lines SELECT
     // via raw SqliteCommand + ExecuteReaderAsync + NextResultAsync + manual
-    // materialize. Does the same MoneyConverter.FromStorage roundtrip for
-    // Total + Price so the comparison is apples-to-apples (both paths pay
-    // the TEXT-to-Money decode). Mirrors ZA.ORM's MultiResultSetBench.
+    // materialize. Projects directly into <see cref="OrderReadModel"/> using
+    // the same flattening helpers (<see cref="MoneyConverter.AmountFromStorage"/>
+    // for per-line price, <see cref="MoneyConverter.FromStorage"/> for the
+    // head total) so the comparison is apples-to-apples against the
+    // ZA.ORM-generated read path (post-#173 flat read model).
     [Benchmark(Baseline = true)]
-    public async Task<Order?> HandWrittenAdoNet()
+    public async Task<OrderReadModel?> HandWrittenAdoNet()
     {
         await using var cmd = _conn!.CreateCommand();
         cmd.CommandText =
@@ -86,20 +88,23 @@ public class ReadHotPathBench
         var totalStr = reader.GetString(2);
 
         await reader.NextResultAsync().ConfigureAwait(false);
-        var lines = new List<OrderLine>(capacity: 2);
+        // Two-line seed; size exactly to avoid List growth allocs in baseline.
+        var lines = new List<OrderLineReadModel>(capacity: 2);
         while (await reader.ReadAsync().ConfigureAwait(false))
         {
-            lines.Add(new OrderLine(
+            lines.Add(new OrderLineReadModel(
                 reader.GetString(0),
                 reader.GetInt32(1),
-                MoneyConverter.FromStorage(reader.GetString(2))));
+                MoneyConverter.AmountFromStorage(reader.GetString(2))));
         }
 
-        return Order.Materialize(
+        var total = MoneyConverter.FromStorage(totalStr);
+        return new OrderReadModel(
             _seededId,
             new CustomerId(customerId),
-            Enum.Parse<OrderStatus>(status),
-            MoneyConverter.FromStorage(totalStr),
+            status,
+            total.Amount,
+            total.Currency,
             lines);
     }
 
