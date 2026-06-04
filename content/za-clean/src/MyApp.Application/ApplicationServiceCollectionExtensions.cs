@@ -48,7 +48,7 @@ public static class ApplicationServiceCollectionExtensions
         services.AddMediator()
                 .WithAuthorization(configureAuthorization);
         services.AddScoped<IRequestHandler<CreateOrderCommand, Result<OrderId, ApplicationError>>, CreateOrderHandler>();
-        services.AddScoped<IRequestHandler<GetOrderByIdQuery, Result<Order, ApplicationError>>, GetOrderByIdHandler>();
+        services.AddScoped<IRequestHandler<GetOrderByIdQuery, Result<OrderReadModel, ApplicationError>>, GetOrderByIdHandler>();
         services.AddMyAppApplicationServices();
         return services;
     }

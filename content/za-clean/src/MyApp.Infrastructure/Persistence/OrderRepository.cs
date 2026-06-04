@@ -1,6 +1,7 @@
 using System.Data;
 using System.Data.Async;
 using MyApp.Application;
+using MyApp.Application.GetOrderById;
 using MyApp.Domain;
 using MyApp.Domain.ValueObjects;
 using ZeroAlloc.Inject;
@@ -60,24 +61,27 @@ public sealed partial class OrderRepository(IAsyncDbConnection conn) : IOrderRep
         }
     }
 
-    public async Task<Order?> GetByIdAsync(OrderId id, CancellationToken ct)
+    public async Task<OrderReadModel?> GetByIdAsync(OrderId id, CancellationToken ct)
     {
         var tuple = await ReadOrderAsync(id.Value, ct).ConfigureAwait(false);
         if (tuple is null) return null;
 
         var (head, lines) = tuple.Value;
-        var orderLines = new List<OrderLine>(lines.Count);
-        foreach (var ln in lines)
+        var lineModels = new OrderLineReadModel[lines.Count];
+        for (var i = 0; i < lines.Count; i++)
         {
-            orderLines.Add(new OrderLine(ln.Sku, ln.Quantity, MoneyConverter.FromStorage(ln.Price)));
+            var price = MoneyConverter.FromStorage(lines[i].Price);
+            lineModels[i] = new OrderLineReadModel(lines[i].Sku, lines[i].Quantity, price.Amount);
         }
 
-        return Order.Materialize(
+        var total = MoneyConverter.FromStorage(head.Total);
+        return new OrderReadModel(
             id,
             new CustomerId(head.CustomerId),
-            Enum.Parse<OrderStatus>(head.Status),
-            MoneyConverter.FromStorage(head.Total),
-            orderLines);
+            head.Status,
+            total.Amount,
+            total.Currency,
+            lineModels);
     }
 
     [Query("SELECT COUNT(*) FROM \"Orders\"")]

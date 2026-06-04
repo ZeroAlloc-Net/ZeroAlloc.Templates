@@ -63,6 +63,44 @@ public class CleanArchitectureRules
             $"IRequestHandler implementations found outside MyApp.Application:\n  - {string.Join("\n  - ", offenders)}");
     }
 
+    [Fact]
+    public void Query_handlers_return_application_query_models_not_domain_entities()
+    {
+        var handlerInterface = typeof(IRequestHandler<,>);
+        var domainAssembly = Domain;
+
+        var offenders = Types.InAssembly(Application)
+            .That()
+            .ImplementInterface(handlerInterface)
+            .GetTypes()
+            .SelectMany(t => t.GetInterfaces())
+            .Where(i => i.IsGenericType && i.GetGenericTypeDefinition() == handlerInterface)
+            .Select(i => new { Handler = i, Result = i.GenericTypeArguments[1] })
+            .Where(x =>
+            {
+                var result = x.Result;
+                if (result.IsGenericType &&
+                    result.GetGenericTypeDefinition().Name.StartsWith("Result", StringComparison.Ordinal))
+                {
+                    var inner = result.GenericTypeArguments[0];
+                    return IsForbiddenDomainEntity(inner, domainAssembly);
+                }
+                return IsForbiddenDomainEntity(result, domainAssembly);
+            })
+            .Select(x => x.Handler.GenericTypeArguments[0].FullName)
+            .ToArray();
+
+        Assert.True(
+            offenders.Length == 0,
+            $"Query/command handlers returning Domain entities (not value objects):\n  - {string.Join("\n  - ", offenders)}");
+
+        static bool IsForbiddenDomainEntity(Type t, Assembly domain)
+        {
+            if (t.Assembly != domain) return false;
+            return !(t.Namespace?.EndsWith(".ValueObjects", StringComparison.Ordinal) ?? false);
+        }
+    }
+
     private static string FormatFailure(TestResult r) =>
         $"Violating types:\n  - {string.Join("\n  - ", r.FailingTypeNames ?? Enumerable.Empty<string>())}";
 }
