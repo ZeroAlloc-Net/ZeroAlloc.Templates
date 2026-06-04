@@ -3,6 +3,7 @@ using System.Data.Async.Adapters;
 using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Order;
 using Microsoft.Data.Sqlite;
+using MyApp.Application.GetOrderById;
 using MyApp.Domain;
 using MyApp.Domain.ValueObjects;
 using MyApp.Infrastructure.Persistence;
@@ -103,7 +104,7 @@ public class ReadHotPathBench
     }
 
     [Benchmark]
-    public async Task<Order?> ZeroAlloc_ORM()
+    public async Task<OrderReadModel?> ZeroAlloc_ORM()
         => await _repo!.GetByIdAsync(_seededId, default).ConfigureAwait(false);
 
     [GlobalCleanup]
