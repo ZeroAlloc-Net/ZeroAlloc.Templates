@@ -89,6 +89,7 @@
     <InternalsVisibleTo Include="MyApp.UnitTests" />
     <InternalsVisibleTo Include="MyApp.IntegrationTests" />
     <InternalsVisibleTo Include="MyApp.ConventionTests" />
+    <InternalsVisibleTo Include="MyApp.Benchmarks" />
   </ItemGroup>
   <!-- Embedded SQL migrations applied at startup by ZA.ORM's MigrationRunner.
        Folder-scoped per provider: Migrations/Sqlite/*.sql for Sqlite,

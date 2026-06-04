@@ -44,5 +44,8 @@
   </ItemGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="MyApp.Api" />
+    <InternalsVisibleTo Include="MyApp.Benchmarks" />
+    <InternalsVisibleTo Include="MyApp.IntegrationTests" />
+    <InternalsVisibleTo Include="MyApp.UnitTests" />
   </ItemGroup>
 </Project>

@@ -43,4 +43,9 @@
     <ProjectReference Include="../MyApp.Application/MyApp.Application.csproj" />
     <ProjectReference Include="../MyApp.Infrastructure/MyApp.Infrastructure.csproj" />
   </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="MyApp.IntegrationTests" />
+    <InternalsVisibleTo Include="MyApp.Benchmarks" />
+  </ItemGroup>
 </Project>
