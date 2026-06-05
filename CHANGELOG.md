@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.14.1](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/compare/ZeroAlloc.Templates-v0.14.0...ZeroAlloc.Templates-v0.14.1) (2026-06-05)
+
+
+### Documentation
+
+* **bench:** NBomber rate-sweep — actual SUT ceiling on i9-12900HK ([#187](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/issues/187)) ([4c02671](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/commit/4c0267156ab2421fb3b5838621999de5b05f2bb1))
+
 ## [0.14.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/compare/ZeroAlloc.Templates-v0.13.3...ZeroAlloc.Templates-v0.14.0) (2026-06-04)
 
 
