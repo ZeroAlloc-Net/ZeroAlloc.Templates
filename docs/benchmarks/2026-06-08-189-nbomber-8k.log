@@ -1,0 +1,84 @@
+  _   _   ____                        _                        __               
+ | \ | | | __ )    ___    _ __ ___   | |__     ___   _ __     / /_              
+ |  \| | |  _ \   / _ \  | '_ ` _ \  | '_ \   / _ \ | '__|   | '_ \             
+ | |\  | | |_) | | (_) | | | | | | | | |_) | |  __/ | |      | (_) |            
+ |_| \_| |____/   \___/  |_| |_| |_| |_.__/   \___| |_|       \___/             
+                                                                                
+Welcome to the NBomber community!
+Documentation: https://nbomber.com/docs/getting-started/overview
+Blog: https://nbomber.com/blog
+Roadmap: https://nbomber.com/docs/getting-started/roadmap
+GitHub Discussion: https://github.com/PragmaticFlow/NBomber/discussions
+GitHub Issues: https://github.com/PragmaticFlow/NBomber/issues
+Docker Hub: https://hub.docker.com/u/nbomberdocker
+LinkedIn: https://www.linkedin.com/company/nbomber
+Slack: https://nbomberworkspace.slack.com
+
+11:50:54 [INF] NBomber "6.4.1" started a new session: "2026-06-08_09-50-54_a1b3c92f"
+11:50:54 [INF] NBomber started as single node
+11:50:54 [INF] License validation....
+11:50:54 [WRN] THIS VERSION IS FREE ONLY FOR PERSONAL USE. You can't use it for an 
+organization.
+11:50:54 [INF] Reports folder: "C:\Projects\Prive\ZeroAlloc\ZeroAlloc.Templates\content\za-vertical-slice\bench
+marks\MyApp.LoadTest\bin\Release\net10.0\reports\2026-06-08_09-50-54_a1b3c92f"
+11:50:54 [INF] Plugins: no plugins were loaded
+11:50:54 [INF] Reporting sinks: no reporting sinks were loaded
+11:50:54 [INF] Starting init...
+11:50:54 [INF] Target scenarios: "read_order_by_id"
+11:50:54 [INF] Start init scenario: "read_order_by_id"
+11:51:04 [INF] Init finished
+11:51:04 [INF] Starting bombing...
+11:52:03 [INF] Stopping scenarios...
+11:52:03 [INF] Calculating final statistics...
+
+────────────────────────────────── test info ───────────────────────────────────
+
+test suite: nbomber_default_test_suite_name
+test name: nbomber_default_test_name
+session id: 2026-06-08_09-50-54_a1b3c92f
+
+──────────────────────────────── scenario stats ────────────────────────────────
+
+scenario: read_order_by_id
+  - ok count: 99259
+  - fail count: 176741
+  - all data: 0 MB
+  - duration: 00:00:41
+
+load simulations: 
+  - ramping_inject, rate: 8000, interval: 00:00:01, during: 00:00:10
+  - inject, rate: 8000, interval: 00:00:01, during: 00:00:30
+
+┌─────────────────────────┬────────────────────────────────────────────────────┐
+│                    step │ ok stats                                           │
+├─────────────────────────┼────────────────────────────────────────────────────┤
+│                    name │ global information                                 │
+│           request count │ all = 276000, ok = 99259, RPS = 2481.48            │
+│            latency (ms) │ min = 9.56, mean = 10080.96, max = 24140.94,       │
+│                         │ StdDev = 7672.96                                   │
+│ latency percentile (ms) │ p50 = 8175.62, p75 = 17580.03, p95 = 22626.3, p99  │
+│                         │ = 23642.11                                         │
+└─────────────────────────┴────────────────────────────────────────────────────┘
+┌─────────────────────────┬────────────────────────────────────────────────────┐
+│                    step │ failures stats                                     │
+├─────────────────────────┼────────────────────────────────────────────────────┤
+│                    name │ global information                                 │
+│           request count │ all = 276000, fail = 176741, RPS = 4418.52         │
+│            latency (ms) │ min = 0.07, mean = 18191.35, max = 23953.22,       │
+│                         │ StdDev = 4697.28                                   │
+│ latency percentile (ms) │ p50 = 18874.37, p75 = 21217.28, p95 = 22937.6, p99 │
+│                         │ = 23560.19                                         │
+└─────────────────────────┴────────────────────────────────────────────────────┘
+
+status codes for scenario: read_order_by_id
+┌─────────────┬────────┬───────────────────┐
+│ status code │ count  │ message           │
+├─────────────┼────────┼───────────────────┤
+│        -100 │ 176741 │ operation timeout │
+└─────────────┴────────┴───────────────────┘
+
+
+11:52:04 [INF] Reports saved in folder: "C:\Projects\Prive\ZeroAlloc\ZeroAlloc.Templates\reports\2026-06-08_09-50-54_a1b
+3c92f"
+11:52:04 [WRN] THIS VERSION IS FREE ONLY FOR PERSONAL USE. You can't use it for an 
+organization.

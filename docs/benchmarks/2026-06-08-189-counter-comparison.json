@@ -1,0 +1,282 @@
+[
+  {
+    "Counter": "db.client.connection.count ({connection})[db.client.connection.state=idle]",
+    "Mean5k": 65.6154,
+    "Peak5k": 215.0,
+    "Mean8k": 148.0,
+    "Peak8k": 500.0
+  },
+  {
+    "Counter": "db.client.connection.count ({connection})[db.client.connection.state=used]",
+    "Mean5k": 247.2692,
+    "Peak5k": 500.0,
+    "Mean8k": 310.9194,
+    "Peak8k": 500.0
+  },
+  {
+    "Counter": "db.client.connection.max ({connection})[]",
+    "Mean5k": 500.0,
+    "Peak5k": 500.0,
+    "Mean8k": 500.0,
+    "Peak8k": 500.0
+  },
+  {
+    "Counter": "db.client.connection.npgsql.pending_requests ({request})[]",
+    "Mean5k": 2149.0333,
+    "Peak5k": 4077.0,
+    "Mean8k": 2069.6964,
+    "Peak8k": 3596.0
+  },
+  {
+    "Counter": "db.client.operation.duration (s)[Percentile=50]",
+    "Mean5k": 0.1568,
+    "Peak5k": 1.6328125,
+    "Mean8k": 0.1101,
+    "Peak8k": 0.212158203125
+  },
+  {
+    "Counter": "db.client.operation.duration (s)[Percentile=95]",
+    "Mean5k": 0.423,
+    "Peak5k": 4.8203125,
+    "Mean8k": 0.4873,
+    "Peak8k": 2.70703125
+  },
+  {
+    "Counter": "db.client.operation.duration (s)[Percentile=99]",
+    "Mean5k": 0.6685,
+    "Peak5k": 5.2421875,
+    "Mean8k": 1.0205,
+    "Peak8k": 4.359375
+  },
+  {
+    "Counter": "db.client.operation.npgsql.executing ({command})[]",
+    "Mean5k": 80.3421,
+    "Peak5k": 393.0,
+    "Mean8k": 284.9032,
+    "Peak8k": 500.0
+  },
+  {
+    "Counter": "dotnet.exceptions ({exception} / 1 sec)[error.type=ConnectionResetException]",
+    "Mean5k": 641.0,
+    "Peak5k": 6410.0,
+    "Mean8k": 0.1538,
+    "Peak8k": 2.0
+  },
+  {
+    "Counter": "dotnet.exceptions ({exception} / 1 sec)[error.type=HttpRequestException]",
+    "Mean5k": 2.8841,
+    "Peak5k": 23.0,
+    "Mean8k": 2.8548,
+    "Peak8k": 12.0
+  },
+  {
+    "Counter": "dotnet.exceptions ({exception} / 1 sec)[error.type=NpgsqlException]",
+    "Mean5k": 240.7333,
+    "Peak5k": 6325.0,
+    "Mean8k": null,
+    "Peak8k": null
+  },
+  {
+    "Counter": "dotnet.exceptions ({exception} / 1 sec)[error.type=OperationCanceledException]",
+    "Mean5k": 156.5333,
+    "Peak5k": 3724.0,
+    "Mean8k": 346.0714,
+    "Peak8k": 3823.0
+  },
+  {
+    "Counter": "dotnet.exceptions ({exception} / 1 sec)[error.type=SocketException]",
+    "Mean5k": 1.1739,
+    "Peak5k": 25.0,
+    "Mean8k": 0.5161,
+    "Peak8k": 2.0
+  },
+  {
+    "Counter": "dotnet.exceptions ({exception} / 1 sec)[error.type=TaskCanceledException]",
+    "Mean5k": 327.75,
+    "Peak5k": 4075.0,
+    "Mean8k": null,
+    "Peak8k": null
+  },
+  {
+    "Counter": "dotnet.gc.collections ({collection} / 1 sec)[gc.heap.generation=gen0]",
+    "Mean5k": 0.2436,
+    "Peak5k": 2.0,
+    "Mean8k": 0.2097,
+    "Peak8k": 2.0
+  },
+  {
+    "Counter": "dotnet.gc.collections ({collection} / 1 sec)[gc.heap.generation=gen1]",
+    "Mean5k": 0.0897,
+    "Peak5k": 1.0,
+    "Mean8k": 0.1613,
+    "Peak8k": 1.0
+  },
+  {
+    "Counter": "dotnet.gc.collections ({collection} / 1 sec)[gc.heap.generation=gen2]",
+    "Mean5k": 0.0513,
+    "Peak5k": 1.0,
+    "Mean8k": 0.0645,
+    "Peak8k": 1.0
+  },
+  {
+    "Counter": "dotnet.gc.heap.total_allocated (By / 1 sec)",
+    "Mean5k": 19820508.987,
+    "Peak5k": 225154584.0,
+    "Mean8k": 31598372.7742,
+    "Peak8k": 74624440.0
+  },
+  {
+    "Counter": "dotnet.gc.pause.time (s / 1 sec)",
+    "Mean5k": 0.0234,
+    "Peak5k": 0.22031599999999996,
+    "Mean8k": 0.0292,
+    "Peak8k": 0.15470300000000003
+  },
+  {
+    "Counter": "dotnet.monitor.lock_contentions ({contention} / 1 sec)",
+    "Mean5k": 10.1688,
+    "Peak5k": 85.0,
+    "Mean8k": 51.2258,
+    "Peak8k": 283.0
+  },
+  {
+    "Counter": "dotnet.process.cpu.time (s / 1 sec)[cpu.mode=system]",
+    "Mean5k": 0.3105,
+    "Peak5k": 1.140625,
+    "Mean8k": 0.5945,
+    "Peak8k": 1.4375
+  },
+  {
+    "Counter": "dotnet.process.cpu.time (s / 1 sec)[cpu.mode=user]",
+    "Mean5k": 0.6435,
+    "Peak5k": 2.328125,
+    "Mean8k": 0.8753,
+    "Peak8k": 2.15625
+  },
+  {
+    "Counter": "dotnet.process.memory.working_set (By)",
+    "Mean5k": 366923297.2468,
+    "Peak5k": 533463040.0,
+    "Mean8k": 324570607.4839,
+    "Peak8k": 420737024.0
+  },
+  {
+    "Counter": "dotnet.thread_pool.queue.length ({work_item} / 1 sec)",
+    "Mean5k": 0.0,
+    "Peak5k": 767.0,
+    "Mean8k": 0.0,
+    "Peak8k": 2271.0
+  },
+  {
+    "Counter": "dotnet.thread_pool.thread.count ({thread} / 1 sec)",
+    "Mean5k": 0.3766,
+    "Peak5k": 20.0,
+    "Mean8k": 0.4098,
+    "Peak8k": 17.0
+  },
+  {
+    "Counter": "dotnet.thread_pool.work_item.count ({work_item} / 1 sec)",
+    "Mean5k": 3253.8077,
+    "Peak5k": 12938.0,
+    "Mean8k": 7264.371,
+    "Peak8k": 14876.0
+  },
+  {
+    "Counter": "http.server.active_requests ({request})[http.request.method=GET;url.scheme=http]",
+    "Mean5k": 2225.6984,
+    "Peak5k": 4096.0,
+    "Mean8k": 2333.0862,
+    "Peak8k": 4095.0
+  },
+  {
+    "Counter": "http.server.active_requests ({request})[http.request.method=POST;url.scheme=http]",
+    "Mean5k": 0.1067,
+    "Peak5k": 1.0,
+    "Mean8k": 0.0484,
+    "Peak8k": 1.0
+  },
+  {
+    "Counter": "http.server.request.duration (s)[error.type=Npgsql.NpgsqlException;http.request.method=GET;http.response.status_code=500;GET-orders-id;Percentile=50]",
+    "Mean5k": 16.026,
+    "Peak5k": 17.34375,
+    "Mean8k": null,
+    "Peak8k": null
+  },
+  {
+    "Counter": "http.server.request.duration (s)[error.type=Npgsql.NpgsqlException;http.request.method=GET;http.response.status_code=500;GET-orders-id;Percentile=95]",
+    "Mean5k": 16.1953,
+    "Peak5k": 17.625,
+    "Mean8k": null,
+    "Peak8k": null
+  },
+  {
+    "Counter": "http.server.request.duration (s)[error.type=Npgsql.NpgsqlException;http.request.method=GET;http.response.status_code=500;GET-orders-id;Percentile=99]",
+    "Mean5k": 16.2656,
+    "Peak5k": 17.625,
+    "Mean8k": null,
+    "Peak8k": null
+  },
+  {
+    "Counter": "http.server.request.duration (s)[http.request.method=GET;http.response.status_code=200;GET-orders-id;Percentile=50]",
+    "Mean5k": 2.9059,
+    "Peak5k": 9.4375,
+    "Mean8k": 1.2506,
+    "Peak8k": 2.1796875
+  },
+  {
+    "Counter": "http.server.request.duration (s)[http.request.method=GET;http.response.status_code=200;GET-orders-id;Percentile=95]",
+    "Mean5k": 3.8226,
+    "Peak5k": 12.421875,
+    "Mean8k": 1.7715,
+    "Peak8k": 6.0703125
+  },
+  {
+    "Counter": "http.server.request.duration (s)[http.request.method=GET;http.response.status_code=200;GET-orders-id;Percentile=99]",
+    "Mean5k": 6.0586,
+    "Peak5k": 17.5,
+    "Mean8k": 2.6784,
+    "Peak8k": 6.9296875
+  },
+  {
+    "Counter": "http.server.request.duration (s)[http.request.method=GET;http.response.status_code=499;GET-orders-id;Percentile=50]",
+    "Mean5k": 6.8226,
+    "Peak5k": 13.03125,
+    "Mean8k": 0.5195,
+    "Peak8k": 0.779296875
+  },
+  {
+    "Counter": "http.server.request.duration (s)[http.request.method=GET;http.response.status_code=499;GET-orders-id;Percentile=95]",
+    "Mean5k": 7.0181,
+    "Peak5k": 13.125,
+    "Mean8k": 0.6768,
+    "Peak8k": 1.07421875
+  },
+  {
+    "Counter": "http.server.request.duration (s)[http.request.method=GET;http.response.status_code=499;GET-orders-id;Percentile=99]",
+    "Mean5k": 7.053,
+    "Peak5k": 13.234375,
+    "Mean8k": 0.6792,
+    "Peak8k": 1.076171875
+  },
+  {
+    "Counter": "http.server.request.duration (s)[http.request.method=POST;http.response.status_code=201;POST-orders;Percentile=50]",
+    "Mean5k": 0.0326,
+    "Peak5k": 0.28564453125,
+    "Mean8k": 0.0069,
+    "Peak8k": 0.00725555419921875
+  },
+  {
+    "Counter": "http.server.request.duration (s)[http.request.method=POST;http.response.status_code=201;POST-orders;Percentile=95]",
+    "Mean5k": 0.0434,
+    "Peak5k": 0.28564453125,
+    "Mean8k": 0.0086,
+    "Peak8k": 0.0095977783203125
+  },
+  {
+    "Counter": "http.server.request.duration (s)[http.request.method=POST;http.response.status_code=201;POST-orders;Percentile=99]",
+    "Mean5k": 0.0507,
+    "Peak5k": 0.28564453125,
+    "Mean8k": 0.011,
+    "Peak8k": 0.0124359130859375
+  }
+]

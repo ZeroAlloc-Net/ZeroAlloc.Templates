@@ -70,6 +70,7 @@ Any RPS claim in `content/za-clean/README.md` or `content/za-vertical-slice/READ
 | 2026-06-07 | [189-mediator-dispatch-vs.md](2026-06-07-189-mediator-dispatch-vs.md) | BDN micro | #189 mirror for vs (vs is 6.5× faster at this layer) |
 | 2026-06-07 | [189-read-pipeline-clean.md](2026-06-07-189-read-pipeline-clean.md) | HTTP-level BDN | #189 — full HTTP-stack single-request bench via WebApplicationFactory, za-clean |
 | 2026-06-07 | [189-read-pipeline-vs.md](2026-06-07-189-read-pipeline-vs.md) | HTTP-level BDN | #189 mirror for vs (vs is 30% faster per request — load-coupled gap localized) |
+| 2026-06-08 | [189-dotnet-counters-vs.md](2026-06-08-189-dotnet-counters-vs.md) | NBomber capacity (counters) | #189 — dotnet-counters capture under sustained load on vs; identifies Npgsql pool exhaustion as the dominant bottleneck |
 
 ### Runbooks (not reports)
 
