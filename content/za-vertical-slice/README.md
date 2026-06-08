@@ -44,6 +44,12 @@ The API boots, applies its ZA.ORM-managed embedded SQL migrations, and listens o
 
 > Pipeline + primitive numbers measured in CI on Ubuntu 24.04 / AMD EPYC / .NET 10.0.8 via [`Benchmarks (manual)` run 26778623747](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/actions/runs/26778623747). NBomber-Postgres at 5,000-RPS open-model inject sustains 4,312 RPS / 0 failures (p50 37 ms, p99 1,319 ms; full table in [docs/za-vertical-slice.md](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/blob/main/docs/za-vertical-slice.md#load-testing-against-postgres)).
 
+> ⚠️ **Regression-net numbers, not capacity.** The CI bench co-locates load
+> generator + SUT + Postgres on the same runner. See
+> [docs/benchmarks/README.md](../../docs/benchmarks/README.md) for context and
+> [docs/benchmarks/capacity-recipe.md](../../docs/benchmarks/capacity-recipe.md)
+> for the decoupled recipe.
+
 ## Layout
 
 ```

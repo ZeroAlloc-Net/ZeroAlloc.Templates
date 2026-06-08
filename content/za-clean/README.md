@@ -72,6 +72,15 @@ The NBomber load test scenario (read RPS, open-model 5,000-RPS inject for 30s + 
 |---:|---:|---:|---:|---:|---|
 | 247 ms | 189 ms | 679 ms | 1,137 ms | **4,312** | 172,500 OK / 0 fail. Captured in CI on AMD EPYC 7763. |
 
+> ⚠️ **Regression-net numbers.** The CI workflow that produces these numbers
+> co-locates NBomber, Kestrel, and Postgres on the same GitHub runner — the
+> "4,312 RPS" plateau is the NBomber injector cap on that hardware, not the
+> SUT's actual capacity. See [docs/benchmarks/README.md](../../docs/benchmarks/README.md)
+> for the distinction; [docs/benchmarks/capacity-recipe.md](../../docs/benchmarks/capacity-recipe.md)
+> documents the decoupled recipe that measures real capacity. Actual ceiling
+> on a 16-core i9 is ~6,900 RPS — see
+> [docs/benchmarks/2026-06-05-nbomber-ceiling-sweep.md](../../docs/benchmarks/2026-06-05-nbomber-ceiling-sweep.md).
+
 ZA.ORM has no change tracker — reads materialise straight from `IAsyncDbConnection` with zero overhead; Postgres + open-model inject sustains 4.3k RPS with zero failures. The wider tail vs the EF-era closed-model baseline reflects the load-shape change (open-model `Inject` removes the closed-loop backpressure that previously bounded p99). The harness is shipped so adopters measure on *their* data layer choice and load shape.
 
 **Reproduce:**

@@ -196,8 +196,9 @@ jobs:
         # nbomber-postgres-clean: generator + SUT + Postgres share this runner's
         # few vCPUs, so the code's 10k/s default would just starve the SUT. 5000/s
         # overshoots the historical closed-loop baseline enough to expose the
-        # post-tuning ceiling. For a true ceiling, run the generator off-box and
-        # raise LOADTEST_TARGET_RPS to 10000.
+        # post-tuning ceiling. This is a regression net, not a capacity measurement — see
+        # docs/benchmarks/README.md and docs/benchmarks/capacity-recipe.md for
+        # the decoupled local recipe that produces real capacity numbers.
         env:
           LOADTEST_TARGET_RPS: "5000"
           LOADTEST_DURATION_S: "30"
@@ -324,8 +325,9 @@ jobs:
         # produce a timeout storm as the co-located generator starves the SUT.
         # 5000/s is a meaningful overshoot of the historical ~2,809 RPS closed-
         # loop baseline: it exposes the post-tuning ceiling on this hardware
-        # without melting the shared box. For a true single-box ceiling, run the
-        # generator on a separate machine and raise LOADTEST_TARGET_RPS to 10000.
+        # without melting the shared box. This is a regression net, not a capacity measurement — see
+        # docs/benchmarks/README.md and docs/benchmarks/capacity-recipe.md for
+        # the decoupled local recipe that produces real capacity numbers.
         env:
           LOADTEST_TARGET_RPS: "5000"
           LOADTEST_DURATION_S: "30"
