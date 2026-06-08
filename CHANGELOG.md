@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.14.2](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/compare/ZeroAlloc.Templates-v0.14.1...ZeroAlloc.Templates-v0.14.2) (2026-06-08)
+
+
+### Documentation
+
+* **bench:** decoupled-generator capacity recipe + framing ([#191](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/issues/191)) ([74b3ef5](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/commit/74b3ef5c9d0424c1ef2bca24ab62fc7645efc4b9))
+
 ## [0.14.1](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/compare/ZeroAlloc.Templates-v0.14.0...ZeroAlloc.Templates-v0.14.1) (2026-06-05)
 
 
