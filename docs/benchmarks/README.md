@@ -11,14 +11,14 @@ The project has three categories of benchmark, each answering a different questi
 Single-threaded, deterministic. Run in-process against in-memory backends. Measure the cost of one isolated operation (a mediator dispatch, a security-context read, an ORM materialization) with `MemoryDiagnoser` reporting allocations per call.
 
 **Use to answer:** "How much does this operation cost on the hot path?" — alloc bytes, ns per op.
-**Examples in this folder:** `2026-06-04-za-clean-sec-context-alloc.md`, `2026-06-04-flat-read-model-alloc.md`.
+**Examples in this folder:** `2026-06-04-za-clean-sec-context-alloc.md`, `2026-06-04-flat-read-model-alloc.md`, `2026-06-07-189-mediator-dispatch-*.md`.
 
 ### 2. HTTP-level BDN (single request through the full stack)
 
 BDN benchmarks that boot a `WebApplicationFactory<Program>` SUT and fire one HTTP request per iteration. Kestrel, JWT, JSON serialization, mediator, repo, response — all included. Single-request semantics (no concurrency).
 
 **Use to answer:** "What's the per-request CPU + alloc cost end-to-end, ignoring concurrency effects?"
-**Examples in this folder:** none yet — the first HTTP-level BDN reports will land with [#189](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/issues/189) investigation results.
+**Examples in this folder:** `2026-06-07-189-read-pipeline-*.md`.
 
 ### 3. NBomber load tests (concurrent throughput + latency under load)
 
@@ -66,6 +66,10 @@ Any RPS claim in `content/za-clean/README.md` or `content/za-vertical-slice/READ
 | 2026-06-04 | [za-vertical-slice-sec-context-alloc.md](2026-06-04-za-vertical-slice-sec-context-alloc.md) | BDN micro | #172 mirror for vs template |
 | 2026-06-04 | [flat-read-model-alloc.md](2026-06-04-flat-read-model-alloc.md) | BDN micro | #173 — `ReadHotPathBench` post flat read model |
 | 2026-06-05 | [nbomber-ceiling-sweep.md](2026-06-05-nbomber-ceiling-sweep.md) | NBomber capacity | Laptop rate-sweep finding actual SUT ceilings — za-clean sustains ~6.9k RPS; za-vs collapses just above 5k target (see [#189](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/issues/189)) |
+| 2026-06-07 | [189-mediator-dispatch-clean.md](2026-06-07-189-mediator-dispatch-clean.md) | BDN micro | #189 — in-process mediator dispatch (no HTTP/JWT/Kestrel), za-clean |
+| 2026-06-07 | [189-mediator-dispatch-vs.md](2026-06-07-189-mediator-dispatch-vs.md) | BDN micro | #189 mirror for vs (vs is 6.5× faster at this layer) |
+| 2026-06-07 | [189-read-pipeline-clean.md](2026-06-07-189-read-pipeline-clean.md) | HTTP-level BDN | #189 — full HTTP-stack single-request bench via WebApplicationFactory, za-clean |
+| 2026-06-07 | [189-read-pipeline-vs.md](2026-06-07-189-read-pipeline-vs.md) | HTTP-level BDN | #189 mirror for vs (vs is 30% faster per request — load-coupled gap localized) |
 
 ### Runbooks (not reports)
 
