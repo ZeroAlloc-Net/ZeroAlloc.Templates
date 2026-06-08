@@ -156,6 +156,21 @@ builder.Services.ConfigureHttpJsonOptions(o =>
     o.SerializerOptions.AddZeroAllocValueObjectConverters();
 });
 
+// ---------------------------------------------------------------------------
+// Output caching — absorbs concurrent same-id reads to relieve Npgsql pool
+// pressure under load (see docs/benchmarks/2026-06-08-189-dotnet-counters-vs.md).
+// TTL is config-tunable so adopters trade freshness vs. pool-relief without
+// recompiling. Tag-based eviction: any write to /orders evicts ALL cached
+// /orders/{id} responses. Conservative — always correct, simpler than per-id
+// invalidation; a real production app might prefer Tag($"order:{id}") for
+// precision but the simpler form is enough for the educational reference.
+// ---------------------------------------------------------------------------
+var orderByIdTtl = builder.Configuration.GetValue<int?>("OutputCache:OrderByIdTtlSeconds") ?? 30;
+builder.Services.AddOutputCache(opt =>
+{
+    opt.AddPolicy("OrderById", b => b.Tag("orders").Expire(TimeSpan.FromSeconds(orderByIdTtl)));
+});
+
 var app = builder.Build();
 
 // Apply schema on startup. `Database:SchemaStrategy` controls how:
@@ -213,6 +228,8 @@ if (!string.Equals(schemaStrategy, "Skip", StringComparison.OrdinalIgnoreCase))
 
 app.UseAuthentication();
 app.UseAuthorization();
+
+app.UseOutputCache();
 
 app.MapOrders();
 // Use a concrete record type rather than an anonymous object so the
