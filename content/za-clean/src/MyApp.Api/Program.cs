@@ -168,7 +168,20 @@ builder.Services.ConfigureHttpJsonOptions(o =>
 var orderByIdTtl = builder.Configuration.GetValue<int?>("OutputCache:OrderByIdTtlSeconds") ?? 30;
 builder.Services.AddOutputCache(opt =>
 {
-    opt.AddPolicy("OrderById", b => b.Tag("orders").Expire(TimeSpan.FromSeconds(orderByIdTtl)));
+    // The framework default policy refuses to cache requests with an
+    // Authorization header — a sane default for shared caches, but EVERY
+    // /orders/{id} request is JWT-authenticated, so default-policy means
+    // zero hits in production. The CacheAuthenticatedGetsPolicy below opts
+    // in explicitly: cache only GET/HEAD, only 200 responses, only when no
+    // Set-Cookie header was emitted, and ignore Authorization. The cached
+    // payload depends only on the route id, not on the caller's identity:
+    // a customer reading order #42 sees the same bytes as any other
+    // authenticated reader. If per-caller responses ever diverge (e.g.
+    // role-masked fields), switch to `.SetVaryByHeader("Authorization")`
+    // and restore the default policy.
+    opt.AddPolicy("OrderById",
+        b => b.AddPolicy<CacheAuthenticatedGetsPolicy>().Tag("orders").Expire(TimeSpan.FromSeconds(orderByIdTtl)),
+        excludeDefaultPolicy: true);
 });
 
 var app = builder.Build();

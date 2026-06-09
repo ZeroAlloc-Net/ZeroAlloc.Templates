@@ -21,7 +21,7 @@ namespace MyApp.IntegrationTests;
 /// is short-circuited via <c>Database:SchemaStrategy=Skip</c> so it does not
 /// try to apply migrations against a transient connection.
 /// </summary>
-public sealed class MyAppFactory : WebApplicationFactory<Program>
+public class MyAppFactory : WebApplicationFactory<Program>
 {
     // Connection opened once per fixture and kept alive for the test session;
     // SQLite's :memory: database is bound to the connection's lifetime.
