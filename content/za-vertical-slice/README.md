@@ -42,13 +42,16 @@ curl http://localhost:5000/healthz
 
 The API boots, applies its ZA.ORM-managed embedded SQL migrations, and listens on the Kestrel default. OpenTelemetry traces stream to the console.
 
-> Pipeline + primitive numbers measured in CI on Ubuntu 24.04 / AMD EPYC / .NET 10.0.8 via [`Benchmarks (manual)` run 26778623747](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/actions/runs/26778623747). NBomber-Postgres at 5,000-RPS open-model inject sustains 4,312 RPS / 0 failures (p50 37 ms, p99 1,319 ms; full table in [docs/za-vertical-slice.md](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/blob/main/docs/za-vertical-slice.md#load-testing-against-postgres)).
+> Pipeline + primitive numbers measured in CI on Ubuntu 24.04 / AMD EPYC / .NET 10.0.8 via [`Benchmarks (manual)` run 26778623747](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/actions/runs/26778623747). NBomber-Postgres at 5,000-RPS open-model inject (2026-06-10 capacity-recipe run on i9-12900HK) sustains 4,312 RPS / 0 failures (mean 2.7 ms, p50 1.1 ms, p95 4.0 ms, p99 13.6 ms; raw report: [`docs/benchmarks/2026-06-10-template-capacity-za-vs.md`](../../docs/benchmarks/2026-06-10-template-capacity-za-vs.md)).
 
-> ⚠️ **Regression-net numbers, not capacity.** The CI bench co-locates load
-> generator + SUT + Postgres on the same runner. See
-> [docs/benchmarks/README.md](../../docs/benchmarks/README.md) for context and
-> [docs/benchmarks/capacity-recipe.md](../../docs/benchmarks/capacity-recipe.md)
-> for the decoupled recipe.
+> ⚠️ **Capacity-recipe local numbers, not capacity claims.** The NBomber
+> numbers above are from a single-laptop [`docs/benchmarks/capacity-recipe.md`](../../docs/benchmarks/capacity-recipe.md)
+> run (i9-12900HK, Postgres pinned cores 0–1, SUT pinned cores 2–5, NBomber
+> unpinned on host). The 4,312 RPS plateau is NBomber's per-machine injector
+> cap at a 5 k target — see [`docs/benchmarks/2026-06-05-nbomber-ceiling-sweep.md`](../../docs/benchmarks/2026-06-05-nbomber-ceiling-sweep.md)
+> for the rate-sweep that locates the actual SUT ceiling. Single-machine
+> measurement has known variance — for production capacity numbers, run the
+> recipe on your target hardware (two-machine LAN variant is gold-standard).
 
 ## Layout
 
