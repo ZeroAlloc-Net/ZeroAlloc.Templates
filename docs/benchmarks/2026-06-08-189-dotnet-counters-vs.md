@@ -102,3 +102,14 @@ All artifacts live alongside this doc in `docs/benchmarks/`:
 - `2026-06-08-189-analyze-counters.ps1` — reproducible analysis script (pwsh)
 - `2026-06-08-189-counter-comparison.json` — machine-readable side-by-side
 - `2026-06-08-189-nbomber-5k.log`, `2026-06-08-189-nbomber-8k.log` — NBomber stdout for each leg
+
+## Response — OutputCaching shipped in v0.15.0
+
+The findings above led to PR landing OutputCaching on both templates' GET-by-id endpoints with tag-based eviction on writes. Cache hits skip the Npgsql round-trip entirely, absorbing the pool pressure that motivated this investigation for the common "many concurrent reads of the same id" workload.
+
+The structural question — why does vs hit the pool harder than clean at the same workload — remains open as a deferred investigation. The hypothesis is that vs's `IAsyncDbConnection`-direct DI shape holds connections marginally longer than clean's `IOrderRepository`-wrapped pattern, but a connection-lifecycle micro-bench wasn't built; if a real-world workload surfaces where caching isn't enough, reopen the question.
+
+During implementation, two notable findings emerged:
+
+- **DefaultPolicy refuses authenticated GETs.** ASP.NET Core OutputCache's `DefaultPolicy` declines to cache any response with an `Authorization` header — fatal for JWT-protected endpoints (production cache hit rate = 0%). Both templates ship a custom `CacheAuthenticatedGetsPolicy` to bypass that check, with the documented trade-off that cached payloads must be identity-independent.
+- **`ConfigureAppConfiguration` doesn't propagate under minimal-host `WebApplicationFactory<Program>`.** Test-only TTL overrides for cache-expiry tests use `IWebHostBuilder.UseSetting(...)` instead.
