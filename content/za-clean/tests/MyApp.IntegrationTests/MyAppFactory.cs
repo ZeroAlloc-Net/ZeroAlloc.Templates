@@ -48,19 +48,16 @@ public class MyAppFactory : WebApplicationFactory<Program>
     {
         builder.UseEnvironment("Testing");
 
-        builder.ConfigureAppConfiguration((_, cfg) =>
-        {
-            cfg.AddInMemoryCollection(new Dictionary<string, string?>
-            {
-                ["Jwt:DevSigningKey"] = TestJwt.DevKey,
-                // Migrations were applied in the fixture ctor against the
-                // kept-alive connection. Tell Program.cs's startup block to
-                // skip its own migration apply (which would otherwise build a
-                // transient connection against the configured string and miss
-                // the in-memory database entirely).
-                ["Database:SchemaStrategy"] = "Skip",
-            });
-        });
+        // Use UseSetting (not ConfigureAppConfiguration) so the overrides reach
+        // Program.cs's top-level Configuration reads under minimal-host
+        // WebApplicationFactory<Program>. ConfigureAppConfiguration callbacks fire
+        // after the WebApplicationBuilder has already finished reading top-level
+        // config — too late for the migration-skip override to take effect, which
+        // silently caused Program.cs to run a duplicate (no-op) migration against
+        // a transient connection on every test factory creation. UseSetting writes
+        // to the host configuration that the minimal-host bridge does observe.
+        builder.UseSetting("Jwt:DevSigningKey", TestJwt.DevKey);
+        builder.UseSetting("Database:SchemaStrategy", "Skip");
 
         builder.ConfigureServices(services =>
         {
