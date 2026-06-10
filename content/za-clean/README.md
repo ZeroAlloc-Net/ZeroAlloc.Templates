@@ -70,18 +70,21 @@ The NBomber load test scenario (read RPS, open-model 5,000-RPS inject for 30s + 
 
 | Mean | p50 | p95 | p99 | RPS | Notes |
 |---:|---:|---:|---:|---:|---|
-| 247 ms | 189 ms | 679 ms | 1,137 ms | **4,312** | 172,500 OK / 0 fail. Captured in CI on AMD EPYC 7763. |
+| 11 ms | 1.4 ms | 14 ms | 61 ms | **4,312** | 172,500 OK / 0 fail. 2026-06-10 capacity-recipe run on i9-12900HK. |
 
-> ⚠️ **Regression-net numbers.** The CI workflow that produces these numbers
-> co-locates NBomber, Kestrel, and Postgres on the same GitHub runner — the
-> "4,312 RPS" plateau is the NBomber injector cap on that hardware, not the
-> SUT's actual capacity. See [docs/benchmarks/README.md](../../docs/benchmarks/README.md)
-> for the distinction; [docs/benchmarks/capacity-recipe.md](../../docs/benchmarks/capacity-recipe.md)
-> documents the decoupled recipe that measures real capacity. Actual ceiling
-> on a 16-core i9 is ~6,900 RPS — see
-> [docs/benchmarks/2026-06-05-nbomber-ceiling-sweep.md](../../docs/benchmarks/2026-06-05-nbomber-ceiling-sweep.md).
+> ⚠️ **Capacity-recipe local numbers, not capacity claims.** Captured on
+> 2026-06-10 via [`docs/benchmarks/capacity-recipe.md`](../../docs/benchmarks/capacity-recipe.md)
+> on a single laptop (i9-12900HK, 16 cores) — Postgres pinned to cores 0–1,
+> SUT (published `MyApp.Api.exe`) pinned to cores 2–5, NBomber on the host.
+> See [`docs/benchmarks/2026-06-10-template-capacity-za-clean.md`](../../docs/benchmarks/2026-06-10-template-capacity-za-clean.md)
+> for the raw NBomber report. The 4,312 RPS plateau is the NBomber injector
+> cap on this machine at a 5 k target rate (see [`docs/benchmarks/2026-06-05-nbomber-ceiling-sweep.md`](../../docs/benchmarks/2026-06-05-nbomber-ceiling-sweep.md)
+> for the rate-sweep showing actual SUT ceiling ≈ 6,900 RPS), not the SUT's
+> sustainable ceiling. Single-machine measurement has known variance — for
+> production capacity numbers, run the recipe on your target hardware (the
+> two-machine LAN variant in the recipe is the gold-standard).
 
-ZA.ORM has no change tracker — reads materialise straight from `IAsyncDbConnection` with zero overhead; Postgres + open-model inject sustains 4.3k RPS with zero failures. The wider tail vs the EF-era closed-model baseline reflects the load-shape change (open-model `Inject` removes the closed-loop backpressure that previously bounded p99). The harness is shipped so adopters measure on *their* data layer choice and load shape.
+ZA.ORM has no change tracker — reads materialise straight from `IAsyncDbConnection` with zero overhead, and the post-#197 output-cache layer absorbs concurrent same-id reads so p99 sits two orders of magnitude below the pre-cache numbers. The harness is shipped so adopters measure on *their* data layer choice and load shape.
 
 **Reproduce:**
 

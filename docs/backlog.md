@@ -125,12 +125,11 @@ vs's path to AOT now needs only B5's source-generated endpoint discovery (step 1
 
 **Carry-forward items:**
 
-> **Status check (2026-06-09):** CLN2/CLN3/CLN4 are resolved; CLN1 remains the
-> only open carry-forward (covered by [#187](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/pull/187)'s
-> regression-net disclaimer until a fresh capacity-recipe run replaces the
-> in-template numbers).
+> **Status check (2026-06-10):** all four B6-CLN carry-forwards are now resolved.
+> CLN1's stale CI numbers were replaced by a fresh `docs/benchmarks/capacity-recipe.md`
+> run on 2026-06-10 (post-#197 output caching).
 
-- **B6-CLN1 — Benchmark refresh.** 🚧 **Still open.** Both templates' README benchmark tables were captured pre-swap. The [#187](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/pull/187) regression-net disclaimer flags them as not-capacity, but replacing the numbers with output from `docs/benchmarks/capacity-recipe.md` is still maintainer follow-up.
+- **B6-CLN1 — Benchmark refresh.** ✅ **Shipped.** Both READMEs now carry capacity-recipe numbers from the 2026-06-10 single-laptop run (i9-12900HK, Postgres-pinned, SUT-pinned). Raw NBomber reports live at [`docs/benchmarks/2026-06-10-template-capacity-za-clean.md`](benchmarks/2026-06-10-template-capacity-za-clean.md) and [`docs/benchmarks/2026-06-10-template-capacity-za-vs.md`](benchmarks/2026-06-10-template-capacity-za-vs.md). p99 collapsed from the stale 1,137/1,319 ms (regression-net co-located CI) to 61/14 ms thanks to the #197 output-caching layer.
 - **B6-CLN2 — AOT publish smoke verification.** ✅ **Verified via CI.** `aot-publish-smoke` and `aot-publish-smoke-vs` checks have run green on every PR since [#197](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/pull/197) — both templates AOT-publish cleanly.
 - **B6-CLN3 — AGENTS.md refresh.** ✅ **Effectively done.** Both AGENTS.md files were rewritten against the ZA.ORM stack during the swap and subsequent template work. Only a single historical reference remains in za-clean's AGENTS.md ("No EF Core compiled-model dance" — deliberately preserved as a contrast note); no active EF recipes survive.
 - **B6-CLN4 — JsonContext SYSLIB1220 / SYSLIB1030 warnings.** ✅ **Resolved.** Fresh Release builds of both templates show zero SYSLIB warnings.
