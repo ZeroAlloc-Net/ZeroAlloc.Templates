@@ -1,0 +1,15 @@
+{
+  "$schema": "http://json.schemastore.org/template",
+  "author": "Marcel Roozekrans",
+  "classifications": ["Web", "API", "CQRS", "Event Sourcing", "ZeroAlloc"],
+  "identity": "ZeroAlloc.Templates.Cqrs.Es",
+  "name": "ZeroAlloc CQRS+ES Web API",
+  "shortName": "za-cqrs-es",
+  "tags": { "language": "C#", "type": "solution" },
+  "sourceName": "MyApp",
+  "preferNameDirectory": true,
+  "symbols": {
+    "EnableSwagger": { "type": "parameter", "datatype": "bool", "defaultValue": "true" },
+    "IncludeDocker": { "type": "parameter", "datatype": "bool", "defaultValue": "false" }
+  }
+}

@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>MyApp.Domain</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="ZeroAlloc.ValueObjects" />
+    <PackageReference Include="ZeroAlloc.Results" />
+    <!-- Source generator that emits transparent JsonConverters for [ValueObject]
+         partial structs declared here plus the per-assembly
+         AddZeroAllocValueObjectConverters() extension method. -->
+    <PackageReference Include="ZeroAlloc.Serialisation" />
+    <PackageReference Include="ZeroAlloc.Serialisation.SystemTextJson" />
+    <!-- Event sourcing base types: Aggregate<TId, TState>, IAggregateState<T>,
+         StreamId, StreamPosition, IEventStore, plus the source generator that
+         routes ApplyEvent over partial aggregate classes. -->
+    <PackageReference Include="ZeroAlloc.EventSourcing" />
+    <PackageReference Include="ZeroAlloc.EventSourcing.Aggregates" />
+    <!-- Domain events implement ZA.Mediator's INotification so the
+         ZA.EventSourcing.Mediator bridge in Infrastructure can republish committed
+         events to projection handlers via IMediator.Publish<T>. Pure marker
+         interface — no behaviour leaks from Application back into Domain. -->
+    <PackageReference Include="ZeroAlloc.Mediator" />
+    <PackageReference Include="ZeroAlloc.EventSourcing.Generators">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
+    </PackageReference>
+    <!-- ZA.StateMachine [StateMachine] + [Transition] companion FSM for aggregate
+         status transitions. Pure source-generated; AOT-safe. -->
+    <PackageReference Include="ZeroAlloc.StateMachine" />
+  </ItemGroup>
+</Project>

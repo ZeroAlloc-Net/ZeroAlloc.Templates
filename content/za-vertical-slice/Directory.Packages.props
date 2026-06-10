@@ -24,6 +24,14 @@
     <PackageVersion Include="ZeroAlloc.Mediator.Authorization" Version="4.1.4" />
     <PackageVersion Include="ZeroAlloc.Mediator.Generator" Version="4.1.4" />
     <PackageVersion Include="ZeroAlloc.Inject.Generator" Version="1.7.1" />
+    <!-- ZeroAlloc.EventSourcing.* + ZA.StateMachine — CQRS+ES building blocks. -->
+    <PackageVersion Include="ZeroAlloc.EventSourcing" Version="1.1.0" />
+    <PackageVersion Include="ZeroAlloc.EventSourcing.Aggregates" Version="1.0.0" />
+    <PackageVersion Include="ZeroAlloc.EventSourcing.InMemory" Version="1.0.0" />
+    <PackageVersion Include="ZeroAlloc.EventSourcing.Mediator" Version="1.0.0" />
+    <PackageVersion Include="ZeroAlloc.EventSourcing.Telemetry" Version="1.0.0" />
+    <PackageVersion Include="ZeroAlloc.EventSourcing.Generators" Version="1.0.0" />
+    <PackageVersion Include="ZeroAlloc.StateMachine" Version="1.5.1" />
     <!-- ZeroAlloc.ORM 1.5.0 + AdoNet.Async substrate (replaces EF Core 10).
          1.5.0 adds: optional IAsyncDbTransaction parameter on [Command]
          partial methods so multi-statement aggregate writes participate

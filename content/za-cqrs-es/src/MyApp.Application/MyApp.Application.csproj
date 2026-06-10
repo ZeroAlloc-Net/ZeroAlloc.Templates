@@ -1,0 +1,48 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>MyApp.Application</RootNamespace>
+    <!-- ZAM003: record-struct vs class request types are both fine here.
+         ZAM008: handlers intentionally take constructor dependencies — they are resolved via DI. -->
+    <NoWarn>$(NoWarn);ZAM003;ZAM008</NoWarn>
+    <!-- This project declares [Policy] / [RequirePolicy] — the canonical owner
+         of the per-template authorization policies. Pairs with the
+         <ZeroAllocAuthorizationDisableBundledAnalyzer>true</> set in
+         Directory.Build.props for all sibling projects. -->
+    <ZeroAllocAuthorizationOwnsPolicies>true</ZeroAllocAuthorizationOwnsPolicies>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="ZeroAlloc.Mediator" />
+    <PackageReference Include="ZeroAlloc.Mediator.Generator">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="ZeroAlloc.Mediator.Validation" />
+    <PackageReference Include="ZeroAlloc.Authorization" />
+    <PackageReference Include="ZeroAlloc.Authorization.Generator" />
+    <PackageReference Include="ZeroAlloc.Mediator.Authorization" />
+    <PackageReference Include="ZeroAlloc.Validation" />
+    <PackageReference Include="ZeroAlloc.Validation.Generator">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="ZeroAlloc.Results" />
+    <PackageReference Include="ZeroAlloc.Inject" />
+    <PackageReference Include="ZeroAlloc.Inject.Generator">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
+    </PackageReference>
+    <!-- IAggregateRepository<TAggregate, TId> used by command handlers to load
+         / save aggregates against the event store. -->
+    <PackageReference Include="ZeroAlloc.EventSourcing" />
+    <PackageReference Include="ZeroAlloc.EventSourcing.Aggregates" />
+    <ProjectReference Include="../MyApp.Domain/MyApp.Domain.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="MyApp.Api" />
+    <InternalsVisibleTo Include="MyApp.Infrastructure" />
+    <InternalsVisibleTo Include="MyApp.Benchmarks" />
+    <InternalsVisibleTo Include="MyApp.IntegrationTests" />
+    <InternalsVisibleTo Include="MyApp.UnitTests" />
+  </ItemGroup>
+</Project>

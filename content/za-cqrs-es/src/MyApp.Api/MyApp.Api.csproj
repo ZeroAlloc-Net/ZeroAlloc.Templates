@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>MyApp.Api</RootNamespace>
+    <NoWarn>$(NoWarn);ZAM003;SYSLIB1220;SYSLIB1030</NoWarn>
+    <PublishAot>true</PublishAot>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <TrimmerSingleWarn>true</TrimmerSingleWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="ZeroAlloc.Mapping">
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+    <PackageReference Include="OpenTelemetry.Exporter.Console" />
+    <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" />
+    <PackageReference Include="OpenTelemetry.Extensions.Hosting" />
+    <PackageReference Include="OpenTelemetry.Instrumentation.AspNetCore" />
+    <PackageReference Include="OpenTelemetry.Instrumentation.Http" />
+    <ProjectReference Include="../MyApp.Application/MyApp.Application.csproj" />
+    <ProjectReference Include="../MyApp.Infrastructure/MyApp.Infrastructure.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="MyApp.IntegrationTests" />
+    <InternalsVisibleTo Include="MyApp.Benchmarks" />
+  </ItemGroup>
+</Project>

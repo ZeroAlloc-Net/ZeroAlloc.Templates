@@ -6,6 +6,7 @@ public class TemplateScaffoldsAndBuildsTests
     [Theory]
     [InlineData("za-clean")]
     [InlineData("za-vertical-slice")]
+    [InlineData("za-cqrs-es")]
     [Trait("Category", "Slow")]
     public async Task Template_installs_scaffolds_builds_and_tests_pass(string templateShortName)
     {

@@ -21,7 +21,7 @@ jobs:
         shell: bash
         run: |
           for file in Directory.Build.props Directory.Packages.props global.json; do
-            for template in za-clean za-vertical-slice; do
+            for template in za-clean za-vertical-slice za-cqrs-es; do
               if ! diff -q "$file" "content/$template/$file" > /dev/null; then
                 echo "::error::$file has drifted between repo root and content/$template/"
                 diff "$file" "content/$template/$file" || true
@@ -269,6 +269,94 @@ jobs:
       - name: Stop API
         if: always()
         run: kill $(cat /tmp/api.pid) 2>/dev/null || true
+
+  build-cqrs-es:
+    # Mirror of `build` / `build-vs` for content/za-cqrs-es. The CQRS+ES template
+    # ships an event-sourced reference using ZA.EventSourcing.* + ZA.StateMachine.
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Restore (content)
+        run: dotnet restore content/za-cqrs-es/MyApp.slnx
+
+      - name: Build (content)
+        run: dotnet build content/za-cqrs-es/MyApp.slnx --no-restore --configuration Release
+
+      - name: Test (content)
+        run: dotnet test content/za-cqrs-es/MyApp.slnx --no-build --configuration Release
+
+  aot-publish-smoke-cqrs-es:
+    # AOT publish smoke for the CQRS+ES template. Mirrors aot-publish-smoke
+    # with paths adjusted for the multi-project layout. /healthz is anonymous —
+    # this validates the AOT publish pipeline + boot path, not the auth-protected
+    # POST /orders endpoint.
+    runs-on: ubuntu-latest
+    needs: build-cqrs-es
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Install template from source
+        run: dotnet new install ./content/za-cqrs-es
+
+      - name: Scaffold a fresh app
+        run: |
+          mkdir -p /tmp/aot-smoke-cqrs-es
+          dotnet new za-cqrs-es -o /tmp/aot-smoke-cqrs-es/SmokeApp
+
+      - name: Publish AOT (linux-x64)
+        run: |
+          cd /tmp/aot-smoke-cqrs-es/SmokeApp
+          dotnet publish src/SmokeApp.Api -c Release -r linux-x64 -o ./aot-out
+
+      - name: Capture binary size
+        shell: bash
+        run: |
+          SIZE=$(stat -c%s /tmp/aot-smoke-cqrs-es/SmokeApp/aot-out/SmokeApp.Api)
+          SIZE_MB=$(echo "scale=1; $SIZE / 1024 / 1024" | bc)
+          echo "## AOT publish smoke (cqrs-es)" >> $GITHUB_STEP_SUMMARY
+          echo "- **Binary size**: ${SIZE_MB} MB" >> $GITHUB_STEP_SUMMARY
+
+      - name: Boot + smoke
+        shell: bash
+        run: |
+          cd /tmp/aot-smoke-cqrs-es/SmokeApp
+          START=$(date +%s%N)
+          Jwt__DevSigningKey=DEV-ONLY-KEY-DO-NOT-USE-IN-PRODUCTION-AT-LEAST-32-CHARS-LONG \
+            ./aot-out/SmokeApp.Api > /tmp/aot-server-cqrs-es.log 2>&1 &
+          PID=$!
+          for i in $(seq 1 1800); do
+            if curl -sf http://localhost:5000/healthz > /dev/null 2>&1; then
+              END=$(date +%s%N)
+              MS=$(( (END - START) / 1000000 ))
+              echo "- **Cold start**: ${MS} ms" >> $GITHUB_STEP_SUMMARY
+              curl -sf http://localhost:5000/healthz
+              kill $PID
+              exit 0
+            fi
+            sleep 0.05
+          done
+          echo "::error::AOT binary did not serve /healthz within 90s"
+          echo "--- server log ---"
+          cat /tmp/aot-server-cqrs-es.log
+          kill $PID 2>/dev/null || true
+          exit 1
 
   aot-publish-smoke-vs:
     # AOT publish smoke for the vertical-slice template. Mirrors aot-publish-smoke

@@ -1,0 +1,36 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>MyApp.Infrastructure</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="ZeroAlloc.ORM" />
+    <PackageReference Include="ZeroAlloc.ORM.Abstractions" />
+    <PackageReference Include="ZeroAlloc.ORM.Generator" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+    <PackageReference Include="AdoNet.Async" />
+    <PackageReference Include="AdoNet.Async.Adapters" />
+    <PackageReference Include="Microsoft.Data.Sqlite" />
+    <PackageReference Include="Npgsql" />
+    <PackageReference Include="ZeroAlloc.Inject" />
+    <PackageReference Include="ZeroAlloc.Inject.Generator">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
+    </PackageReference>
+    <!-- Event store + Mediator bridge wiring. -->
+    <PackageReference Include="ZeroAlloc.EventSourcing" />
+    <PackageReference Include="ZeroAlloc.EventSourcing.Aggregates" />
+    <PackageReference Include="ZeroAlloc.EventSourcing.InMemory" />
+    <ProjectReference Include="../MyApp.Application/MyApp.Application.csproj" />
+  </ItemGroup>
+
+  <!-- Embedded SQL migrations applied at startup by ZA.ORM's MigrationRunner.
+       Folder-scoped per provider: Migrations/Sqlite/*.sql for Sqlite. -->
+  <ItemGroup>
+    <EmbeddedResource Include="Persistence/Migrations/**/*.sql" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="MyApp.Api" />
+    <InternalsVisibleTo Include="MyApp.IntegrationTests" />
+  </ItemGroup>
+</Project>
