@@ -21,7 +21,7 @@ namespace MyApp.IntegrationTests;
 /// against a transient connection. Slices that need additional service overrides
 /// extend this fixture via <c>WithWebHostBuilder(...)</c>.
 /// </summary>
-public sealed class MyAppFactory : WebApplicationFactory<Program>
+public class MyAppFactory : WebApplicationFactory<Program>
 {
     // Connection opened once per fixture and kept alive for the test session;
     // SQLite's :memory: database is bound to the connection's lifetime.
