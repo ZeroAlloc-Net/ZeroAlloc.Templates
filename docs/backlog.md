@@ -123,12 +123,17 @@ vs's path to AOT now needs only B5's source-generated endpoint discovery (step 1
 4. **DI scope-disposal trap for shared `IAsyncDbConnection` in test fixtures.** Registering a kept-alive wrapper as **scoped** (via factory delegate) makes `Microsoft.Extensions.DependencyInjection` add it to the scope's disposable list. End of the first request scope calls `DisposeAsync` on the wrapper, which closes the underlying `SqliteConnection` and evaporates the `:memory:` database. Second request fails with "no such table". Fix: register as **singleton** in test fixtures — singleton-by-factory still tracks for disposal, but only at host shutdown. `SqliteConnection` tolerates the resulting double-dispose. ✅ **Pattern documented upstream** in the ZA.ORM cookbook (testing recipes).
 5. **`IAsyncDbConnection.CreateCommand()` returns `IAsyncDbCommand`, not `System.Data.Common.DbCommand`.** Tests asserting against the database directly should match the async surface. ✅ **Documented upstream** in the ZA.ORM AdoNet.Async cookbook.
 
-**Carry-forward items (deferred — not blocking 0.10.0):**
+**Carry-forward items:**
 
-- **B6-CLN1 — Benchmark refresh.** Both templates' README benchmark tables were captured pre-swap. Numbers should move (ZA.ORM has no change tracker). Marked inline with a footnote across all three READMEs.
-- **B6-CLN2 — AOT publish smoke verification.** za-clean's AOT pipeline ran ILC trim + native-code-generation cleanly; the final native-link step failed locally because `vswhere.exe` (VS 2022 Build Tools' lookup hook) wasn't installed. Code is AOT-clean; CI can confirm.
-- **B6-CLN3 — AGENTS.md refresh.** Both `content/za-clean/AGENTS.md` and `content/za-vertical-slice/AGENTS.md` contain substantial EF-Core-specific recipes (entity-modeling, "Add a DbSet<T>" instructions, AOT gotchas keyed to EF Core 10's compiled-model bugs). Need rewriting against the ZA.ORM stack. Separate PR.
-- **B6-CLN4 — JsonContext SYSLIB1220 / SYSLIB1030 warnings.** Pre-existing warnings on `CustomerId` / `OrderId` JSON converter wiring surfaced during the smoke build but are unrelated to the swap. Tracked for cleanup.
+> **Status check (2026-06-09):** CLN2/CLN3/CLN4 are resolved; CLN1 remains the
+> only open carry-forward (covered by [#187](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/pull/187)'s
+> regression-net disclaimer until a fresh capacity-recipe run replaces the
+> in-template numbers).
+
+- **B6-CLN1 — Benchmark refresh.** 🚧 **Still open.** Both templates' README benchmark tables were captured pre-swap. The [#187](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/pull/187) regression-net disclaimer flags them as not-capacity, but replacing the numbers with output from `docs/benchmarks/capacity-recipe.md` is still maintainer follow-up.
+- **B6-CLN2 — AOT publish smoke verification.** ✅ **Verified via CI.** `aot-publish-smoke` and `aot-publish-smoke-vs` checks have run green on every PR since [#197](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/pull/197) — both templates AOT-publish cleanly.
+- **B6-CLN3 — AGENTS.md refresh.** ✅ **Effectively done.** Both AGENTS.md files were rewritten against the ZA.ORM stack during the swap and subsequent template work. Only a single historical reference remains in za-clean's AGENTS.md ("No EF Core compiled-model dance" — deliberately preserved as a contrast note); no active EF recipes survive.
+- **B6-CLN4 — JsonContext SYSLIB1220 / SYSLIB1030 warnings.** ✅ **Resolved.** Fresh Release builds of both templates show zero SYSLIB warnings.
 
 **Diagnosis (the real root cause).** The pre-swap `OrderRepository.cs` in za-clean was the canonical example of the **manual hold-the-slot pattern** the swap was meant to cure: 17 lines of `var openedHere = conn.State != ConnectionState.Open; if (openedHere) await conn.OpenAsync(...); try { ... } finally { if (openedHere) await conn.CloseAsync(); }` surrounding 30 lines of hand-rolled ADO.NET. PR #145's open-model load test quantified the cost of that pattern, but the fix wasn't "tweak the manual code" — it was "stop writing it by hand." ZA.ORM's source generator emits the EF-style ref-counted lifecycle as a side effect of materializing the query, and the entire `openedHere` dance becomes dead code in a generated file.
 
