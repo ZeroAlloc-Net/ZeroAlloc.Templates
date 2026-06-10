@@ -1,5 +1,6 @@
 using System.Data.Async;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.OutputCaching;
 using Microsoft.AspNetCore.Routing;
 using MyApp.Common;
 using ZeroAlloc.Authorization;
@@ -46,12 +47,16 @@ public sealed partial class CreateCustomerHandler(IAsyncDbConnection conn)
 public static class CreateCustomerEndpoint
 {
     public static void Map(IEndpointRouteBuilder app) =>
-        app.MapPost("/customers", static async (CreateCustomerCommand cmd, IMediator mediator, CancellationToken ct) =>
+        app.MapPost("/customers", static async (CreateCustomerCommand cmd, IMediator mediator, IOutputCacheStore cache, CancellationToken ct) =>
             {
                 var result = await mediator.Send(cmd, ct).ConfigureAwait(false);
-                return result.IsSuccess
-                    ? Results.Created($"/customers/{result.Value.Value}", result.Value)
-                    : result.Error.ToProblem();
+                if (result.IsSuccess)
+                {
+                    await cache.EvictByTagAsync("customers", ct).ConfigureAwait(false);
+                    return Results.Created($"/customers/{result.Value.Value}", result.Value);
+                }
+
+                return result.Error.ToProblem();
             })
             .RequireAuthorization("CustomersWrite");
 }

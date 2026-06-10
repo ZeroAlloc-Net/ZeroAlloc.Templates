@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.OutputCaching;
 using MyApp.Api.Dtos;
 using MyApp.Api.Mappings;
 using MyApp.Application.GetOrderById;
@@ -12,13 +13,20 @@ public static class OrdersEndpoints
     {
         var group = app.MapGroup("/orders").WithTags("Orders");
 
-        group.MapPost("/", async (OrderRequest req, IMediator mediator, CancellationToken ct) =>
+        group.MapPost("/", async (OrderRequest req, IMediator mediator, IOutputCacheStore cache, CancellationToken ct) =>
         {
             var command = OrderRequestToCommand.Map(req);
             var result = await mediator.Send(command, ct).ConfigureAwait(false);
-            return result.IsSuccess
-                ? Results.Created($"/orders/{result.Value.Value}", new CreatedOrderResponse(result.Value))
-                : Results.Problem(result.Error.Message, statusCode: StatusCodes.Status400BadRequest);
+            if (result.IsSuccess)
+            {
+                // Evict all cached /orders/{id} responses so the next read picks up
+                // the new state. Tag-based bulk eviction is conservative — even an
+                // unrelated id's cache entry gets dropped — but it's always correct
+                // and dramatically simpler than per-id invalidation.
+                await cache.EvictByTagAsync("orders", ct).ConfigureAwait(false);
+                return Results.Created($"/orders/{result.Value.Value}", new CreatedOrderResponse(result.Value));
+            }
+            return Results.Problem(result.Error.Message, statusCode: StatusCodes.Status400BadRequest);
         }).RequireAuthorization("OrdersWrite");
 
         // Route binding stays `int` (per project ADR — keeps the HTTP shape stable
@@ -31,7 +39,7 @@ public static class OrdersEndpoints
             return result.IsSuccess
                 ? Results.Ok(ReadModelToResponse.Map(result.Value))
                 : Results.NotFound();
-        }).RequireAuthorization("OrdersRead");
+        }).RequireAuthorization("OrdersRead").CacheOutput("OrderById");
 
         return app;
     }

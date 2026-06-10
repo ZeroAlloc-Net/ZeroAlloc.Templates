@@ -165,6 +165,34 @@ builder.Services.ConfigureHttpJsonOptions(o =>
     o.SerializerOptions.AddZeroAllocValueObjectConverters();
 });
 
+// ---------------------------------------------------------------------------
+// Output caching — absorbs concurrent same-id reads to relieve Npgsql pool
+// pressure under load (see docs/benchmarks/2026-06-08-189-dotnet-counters-vs.md).
+// Two policies: OrderById (tag "orders", evicted by PlaceOrder + CancelOrder)
+// and CustomerById (tag "customers", evicted by CreateCustomer). TTLs
+// config-tunable via OutputCache:OrderByIdTtlSeconds /
+// OutputCache:CustomerByIdTtlSeconds (default 30s each).
+//
+// excludeDefaultPolicy: true + a custom CacheAuthenticatedGetsPolicy lets the
+// cache serve JWT-protected GETs. The framework's DefaultPolicy refuses any
+// response carrying an Authorization header — fine for shared CDN scenarios,
+// fatal for our same-shape-per-reader workload. The custom policy assumes
+// the cached payload is identity-independent (true for the demo orders +
+// customers, which are not user-scoped); endpoints whose body varies per
+// user would need .CacheOutput(o => o.SetVaryByHeader("Authorization")).
+// ---------------------------------------------------------------------------
+var orderByIdTtl = builder.Configuration.GetValue<int?>("OutputCache:OrderByIdTtlSeconds") ?? 30;
+var customerByIdTtl = builder.Configuration.GetValue<int?>("OutputCache:CustomerByIdTtlSeconds") ?? 30;
+builder.Services.AddOutputCache(opt =>
+{
+    opt.AddPolicy("OrderById",
+        b => b.AddPolicy<CacheAuthenticatedGetsPolicy>().Tag("orders").Expire(TimeSpan.FromSeconds(orderByIdTtl)),
+        excludeDefaultPolicy: true);
+    opt.AddPolicy("CustomerById",
+        b => b.AddPolicy<CacheAuthenticatedGetsPolicy>().Tag("customers").Expire(TimeSpan.FromSeconds(customerByIdTtl)),
+        excludeDefaultPolicy: true);
+});
+
 #if (EnableSwagger)
 builder.Services.AddEndpointsApiExplorer();
 #endif
@@ -224,6 +252,8 @@ if (!string.Equals(schemaStrategy, "Skip", StringComparison.OrdinalIgnoreCase))
 
 app.UseAuthentication();
 app.UseAuthorization();
+
+app.UseOutputCache();
 
 // Endpoint registrations — one Map call per slice, mirroring the
 // Features/<Area>/<UseCase>/ tree. AOT publish requires the explicit calls;

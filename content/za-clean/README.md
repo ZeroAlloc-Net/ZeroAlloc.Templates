@@ -96,6 +96,28 @@ dotnet run -c Release --project benchmarks/MyApp.LoadTest          # terminal 2
 
 Full methodology + per-package comparisons (ZA.Mapping vs Mapperly/AutoMapper, etc.): see [docs/za-clean.md](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/blob/main/docs/za-clean.md#benchmarks).
 
+## Output caching
+
+`GET /orders/{id}` is wrapped in ASP.NET Core OutputCaching with a configurable TTL (default 30 seconds). Concurrent same-id reads are served from the in-memory cache, absorbing pressure on the Npgsql connection pool under load — see [docs/benchmarks/2026-06-08-189-dotnet-counters-vs.md](../../docs/benchmarks/2026-06-08-189-dotnet-counters-vs.md) for the empirical investigation that motivated this layer.
+
+**Tuning:**
+
+```json
+{
+  "OutputCache": {
+    "OrderByIdTtlSeconds": 30
+  }
+}
+```
+
+Lower TTL = fresher data + less pool relief; higher = more pool relief + staler responses.
+
+**Eviction:** any successful POST `/orders` evicts ALL cached `/orders/{id}` responses via tag-based bulk eviction. Conservative — always correct, simpler than per-id invalidation; a production-grade app might prefer `EvictByTagAsync($"order:{id}")` for precision.
+
+**Authenticated GETs:** the framework's `DefaultPolicy` refuses to cache responses with an `Authorization` header. A custom `CacheAuthenticatedGetsPolicy` (in `MyApp.Api/CacheAuthenticatedGetsPolicy.cs`) bypasses that check — safe here because order payloads are not user-specific. If you add an endpoint whose body varies per user, use `.CacheOutput(o => o.SetVaryByHeader("Authorization"))` to key per-token instead.
+
+**Distributed caching:** the default cache is per-process in-memory. Multi-instance deployments need a distributed backing store (Redis is typical via `Microsoft.Extensions.Caching.StackExchangeRedis` + `AddStackExchangeRedisOutputCache`). Out of scope for this template.
+
 ## Extending
 
 - **AI agents**: [AGENTS.md](AGENTS.md) — orientation for Claude Code, Cursor, GitHub Copilot, Codex, Aider. Includes "how to add a command/query/endpoint/value object" recipes and the ZA-specific gotchas.

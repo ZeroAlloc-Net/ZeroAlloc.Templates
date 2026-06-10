@@ -149,6 +149,31 @@ To add a new use case — copy a slice file, rename, tweak. No other place in th
 
 Violations fail CI.
 
+## Output caching
+
+`GET /orders/{id}` and `GET /customers/{id}` are wrapped in ASP.NET Core OutputCaching with per-entity configurable TTL (defaults: 30 seconds each). Concurrent same-id reads are served from the in-memory cache, absorbing pressure on the Npgsql connection pool under load — see [docs/benchmarks/2026-06-08-189-dotnet-counters-vs.md](../../docs/benchmarks/2026-06-08-189-dotnet-counters-vs.md) for the empirical investigation that motivated this layer.
+
+**Tuning:**
+
+```json
+{
+  "OutputCache": {
+    "OrderByIdTtlSeconds": 30,
+    "CustomerByIdTtlSeconds": 30
+  }
+}
+```
+
+**Eviction:** writes evict the corresponding tag on success:
+- `PlaceOrder` and `CancelOrder` → `EvictByTagAsync("orders")`
+- `CreateCustomer` → `EvictByTagAsync("customers")`
+
+Tag-based bulk eviction is conservative (always correct, simpler than per-id) — a production-grade app might prefer per-id eviction for precision.
+
+**Authenticated GETs:** the framework's `DefaultPolicy` refuses to cache responses with an `Authorization` header. A custom `CacheAuthenticatedGetsPolicy` (in `MyApp/CacheAuthenticatedGetsPolicy.cs`) bypasses that check — safe here because the demo payloads are not user-specific. If you add an endpoint whose body varies per user, use `.CacheOutput(o => o.SetVaryByHeader("Authorization"))` to key per-token instead.
+
+**Distributed caching:** the default cache is per-process in-memory. Multi-instance deployments need a distributed backing store (Redis is typical via `Microsoft.Extensions.Caching.StackExchangeRedis` + `AddStackExchangeRedisOutputCache`). Out of scope for this template.
+
 ## Extending
 
 - **AI agents**: [AGENTS.md](AGENTS.md) — orientation for Claude Code, Cursor, GitHub Copilot, Codex, Aider. Includes "how to add a slice" recipes and the ZA-specific gotchas.

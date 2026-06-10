@@ -1,5 +1,6 @@
 using System.Data.Async;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.OutputCaching;
 using Microsoft.AspNetCore.Routing;
 using MyApp.Common;
 using ZeroAlloc.Authorization;
@@ -61,5 +62,6 @@ public static class GetCustomerEndpoint
                     ? Results.Ok(result.Value)
                     : result.Error.ToProblem();
             })
-            .RequireAuthorization("CustomersRead");
+            .RequireAuthorization("CustomersRead")
+            .CacheOutput("CustomerById");
 }

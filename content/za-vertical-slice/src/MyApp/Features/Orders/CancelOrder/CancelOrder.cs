@@ -1,5 +1,6 @@
 using System.Data.Async;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.OutputCaching;
 using Microsoft.AspNetCore.Routing;
 using MyApp.Common;
 using MyApp.Features.Orders.PlaceOrder;
@@ -62,12 +63,16 @@ public sealed partial class CancelOrderHandler(IAsyncDbConnection conn)
 public static class CancelOrderEndpoint
 {
     public static void Map(IEndpointRouteBuilder app) =>
-        app.MapDelete("/orders/{id:int}", static async (int id, IMediator mediator, CancellationToken ct) =>
+        app.MapDelete("/orders/{id:int}", static async (int id, IMediator mediator, IOutputCacheStore cache, CancellationToken ct) =>
             {
                 var result = await mediator.Send(new CancelOrderCommand(new OrderId(id)), ct).ConfigureAwait(false);
-                return result.IsSuccess
-                    ? Results.NoContent()
-                    : result.Error.ToProblem();
+                if (result.IsSuccess)
+                {
+                    await cache.EvictByTagAsync("orders", ct).ConfigureAwait(false);
+                    return Results.NoContent();
+                }
+
+                return result.Error.ToProblem();
             })
             .RequireAuthorization("OrdersWrite");
 }

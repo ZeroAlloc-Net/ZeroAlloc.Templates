@@ -1,5 +1,6 @@
 using System.Data.Async;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.OutputCaching;
 using Microsoft.AspNetCore.Routing;
 using MyApp.Common;
 using MyApp.Persistence;
@@ -64,12 +65,16 @@ public sealed partial class PlaceOrderHandler(IAsyncDbConnection conn)
 public static class PlaceOrderEndpoint
 {
     public static void Map(IEndpointRouteBuilder app) =>
-        app.MapPost("/orders", static async (PlaceOrderCommand cmd, IMediator mediator, CancellationToken ct) =>
+        app.MapPost("/orders", static async (PlaceOrderCommand cmd, IMediator mediator, IOutputCacheStore cache, CancellationToken ct) =>
             {
                 var result = await mediator.Send(cmd, ct).ConfigureAwait(false);
-                return result.IsSuccess
-                    ? Results.Created($"/orders/{result.Value.Value}", result.Value)
-                    : result.Error.ToProblem();
+                if (result.IsSuccess)
+                {
+                    await cache.EvictByTagAsync("orders", ct).ConfigureAwait(false);
+                    return Results.Created($"/orders/{result.Value.Value}", result.Value);
+                }
+
+                return result.Error.ToProblem();
             })
             .RequireAuthorization("OrdersWrite");
 }
