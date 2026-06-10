@@ -1,5 +1,6 @@
 using System.Data.Async;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.OutputCaching;
 using Microsoft.AspNetCore.Routing;
 using MyApp.Common;
 using MyApp.Persistence;
@@ -71,5 +72,6 @@ public static class GetOrderEndpoint
                     ? Results.Ok(result.Value)
                     : result.Error.ToProblem();
             })
-            .RequireAuthorization("OrdersRead");
+            .RequireAuthorization("OrdersRead")
+            .CacheOutput("OrderById");
 }
