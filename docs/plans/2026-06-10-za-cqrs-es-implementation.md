@@ -4,12 +4,28 @@
 
 **Goal:** Build a new `content/za-cqrs-es/` template in the ZA.Templates pack — a CQRS + Event Sourcing reference using the same Orders + Customers domain as the existing templates.
 
-**Architecture:** Mirror za-clean's Clean-Architecture flavor (Domain / Application / Infrastructure / Api). Two aggregates (Order, Customer) via `Aggregate<TId, TState>`. SQL-backed event store (`ZeroAlloc.EventSourcing.Sql`). Projections as `INotificationHandler<TEvent>` materializing denormalized read tables read via ZA.ORM. Cross-aggregate flow via Outbox + Mediator notification bridge. Output caching on GET endpoints with eviction wired AFTER projection materialization.
+**Architecture:** Mirror za-clean's Clean-Architecture flavor (Domain / Application / Infrastructure / Api). Two aggregates (Order, Customer) via `Aggregate<TId, TState>`. SQLite event store (via the yet-to-be-shipped SQLite adapter — see Upstream prerequisites below). Projections as `INotificationHandler<TEvent>` materializing denormalized read tables read via ZA.ORM, fanned out via direct `IMediator.Publish` post-`SaveAsync` (not the `EventStoreMediatorBridge`, which is a known-stream subscription model — wrong fit for per-aggregate fan-out). Cross-aggregate flow via the Outbox package (also yet-to-ship). Output caching on GET endpoints with eviction wired AFTER projection materialization.
 
 **Tech Stack:** .NET 10, ZA.EventSourcing (core + .Aggregates + .Sql + .Outbox + .Mediator + .Telemetry), ZA.Mediator (.Authorization, .Validation), ZA.StateMachine, ZA.Validation, ZA.Results, ZA.ValueObjects, ZA.Inject, ZA.Telemetry, ZA.Serialisation, ZA.ORM, ZA.Cache, ZA.Mapping, ZA.TestHelpers, xUnit, BenchmarkDotNet, NBomber, NetArchTest. PublishAot=true throughout.
 
 **Design reference:** [docs/plans/2026-06-10-za-cqrs-es-design.md](2026-06-10-za-cqrs-es-design.md) (commit `15d83f2`)
 **Branch:** `feat/za-cqrs-es-template` off `main` at post-v0.15.0.
+
+---
+
+## Upstream prerequisites (blocking — added 2026-06-10 after Task 1 first attempt)
+
+Task 1's first attempt (commit `fef3f2f`) surfaced three upstream gaps in the ZA package set. The plan below assumes these are resolved; until they ship, the template either workarounds or stays paused.
+
+1. **No `ZeroAlloc.EventSourcing.Outbox` package.** No project, no `[OutboxEvent]` attribute, no dispatcher. Needed by **Task 5** (cross-aggregate `OrderShipped → LoyaltyPointsCredited`). Until it ships, Task 5 is blocked; the template wires direct `IMediator.Publish` post-`SaveAsync` for synchronous projections (which is correct for in-process Task 1–4 needs anyway).
+2. **No SQLite event-store adapter.** `ZeroAlloc.EventSourcing.PostgreSql` and `.SqlServer` ship `IEventStore` implementations; `.Sql` ships only Snapshot/Checkpoint/Projection/DeadLetter stores. There is no SQLite `IEventStore`. Task 1's first attempt fell back to `InMemoryEventStoreAdapter` for the integration test path. Production-shape SQLite default requires the new adapter.
+3. **`ZeroAlloc.ValueObjects.[TypedId]` + STJ source-gen.** `[TypedId(Strategy = IdStrategy.Uuid7)]` emits an `internal sealed` nested `TypedIdJsonConverter` which `JsonSerializerContext` source-gen rejects (SYSLIB1220 + SYSLIB1030 — converter not accessible / no parameterless ctor). Until the generator emits a public converter (or the runtime registration path is documented), Guid-backed IDs use plain `readonly record struct OrderId(Guid Value)` which serializes naturally as `{"Value":"guid"}`.
+
+Two implementer-side claims that were not real gaps:
+- ❌ **"Guid doesn't expose `ToString(InvariantCulture)`"** — false. The proper attribute for Guid-backed IDs is `[TypedId]` not `[ValueObject]`; the dedicated `TypedIdGuidWriter` emits `Value.ToString("D", CultureInfo.InvariantCulture)` which compiles fine. The STJ source-gen integration is the real gap (see above).
+- ❌ **"`EventStoreMediatorBridge` single-stream is a bug"** — by design, not a bug. The bridge is for known-stream subscriptions, not per-aggregate fan-out. For per-aggregate stream topologies (`order-{guid}`), direct `IMediator.Publish(event, ct)` after `repo.SaveAsync()` is the canonical projection wiring — what Task 1 ships and what later tasks build on.
+
+The two real upstream packages (Outbox + SQLite event store) get their own brainstorm + plan + ship cycles in separate sessions before Task 1 is redone and Tasks 2–8 proceed.
 
 ---
 

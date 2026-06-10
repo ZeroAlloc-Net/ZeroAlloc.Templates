@@ -19,13 +19,13 @@ namespace MyApp.Application.Orders.PlaceOrder;
 /// <c>OrderListingsProjection</c> that materializes the denormalized read row.
 /// </summary>
 /// <remarks>
-/// Direct in-process publishing (handler → mediator) is used here rather than
-/// the per-stream EventStoreMediatorBridge: the bridge subscribes to a single
-/// fixed StreamId, which does not match the per-aggregate stream topology this
-/// template uses (<c>order-{guid}</c>). A subsequent task may layer in an
-/// Outbox-backed background dispatcher once that infrastructure ships — the
-/// projection contract on the <see cref="INotificationHandler{TNotification}"/>
-/// side is unchanged either way.
+/// Direct in-process <c>IMediator.Publish</c> after <c>SaveAsync</c> is the
+/// canonical projection wiring for per-aggregate stream topologies
+/// (<c>order-{guid}</c>). The <see cref="ZeroAlloc.EventSourcing.Mediator.EventStoreMediatorBridge"/>
+/// is for known-stream subscriptions, not per-aggregate fan-out. Task 5
+/// adds <c>[OutboxEvent]</c>-driven asynchronous dispatch on top — the
+/// <see cref="INotificationHandler{TNotification}"/> contract on the
+/// projection side is unchanged when that lands.
 /// </remarks>
 public sealed class PlaceOrderHandler(
     IAggregateRepository<Order, OrderId> repo,

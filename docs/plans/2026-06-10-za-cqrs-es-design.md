@@ -1,9 +1,9 @@
 # `za-cqrs-es` Template — Design
 
-**Status:** approved 2026-06-10
+**Status:** approved 2026-06-10; **paused 2026-06-10 after Task 1 first attempt surfaced 3 upstream gaps** — see Implementation plan's "Upstream prerequisites" section. Resumes once the Outbox package, SQLite event-store adapter, and `[TypedId]` + STJ source-gen integration ship.
 **Scope:** New `content/za-cqrs-es/` template in the ZeroAlloc.Templates pack (NOT a separate repo).
 **Target version:** ZA.Templates v0.16.0 (minor — adds a new template feature; `feat:` squash).
-**Estimated scope:** 5-6 days of focused work, multi-session shipping.
+**Estimated scope:** 5-6 days of focused work, multi-session shipping (plus upstream prerequisite work in separate sessions).
 **Branch:** `feat/za-cqrs-es-template` off `main` at post-v0.15.0.
 
 ## Background
@@ -18,6 +18,8 @@ ZA.Templates currently ships two templates — `za-clean` (Clean Architecture) a
 - `ZeroAlloc.Mediator` (with `.Authorization` + `.Validation` extensions)
 
 This template demonstrates the *full* CQRS+ES pattern end-to-end with the same Orders + Customers domain the existing templates use, enabling direct architectural-lens comparison.
+
+**Note (2026-06-10):** The "all blocking dependencies are now shipped" claim above was the framing at design time. Task 1's first attempt found three packages either don't exist yet (`ZeroAlloc.EventSourcing.Outbox`, SQLite event-store adapter) or have integration gaps (`[TypedId]` + STJ source-gen). See the implementation plan's "Upstream prerequisites" section for the breakdown. The Outbox + Mediator bridge + StateMachine + Aggregates portions of the dependency list ARE shipped — just not the specific Outbox/SQLite/TypedId integration surfaces this template needs.
 
 ## Decision
 

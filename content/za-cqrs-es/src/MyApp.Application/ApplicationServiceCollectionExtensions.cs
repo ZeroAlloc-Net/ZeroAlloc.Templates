@@ -12,10 +12,11 @@ namespace MyApp.Application;
 
 /// <summary>
 /// Composition entry point for the Application assembly. Wires up the ZA.Mediator
-/// dispatcher with per-request <c>[RequirePolicy]</c> enforcement, the
-/// <c>[Scoped]</c> handlers/services emitted by ZA.Inject's per-assembly
-/// extension, and the explicit handler/projection registrations (manual rather
-/// than reflection-based so NativeAOT can statically wire them).
+/// dispatcher with per-request <c>[RequirePolicy]</c> enforcement plus explicit
+/// handler/projection registrations. Mirrors za-clean's pattern: ZA.Mediator's
+/// <c>RegisterHandlersFromAssembly</c> uses reflection-based scanning that is
+/// incompatible with NativeAOT, so each <c>IRequestHandler&lt;,&gt;</c> and
+/// <c>INotificationHandler&lt;T&gt;</c> is wired by hand.
 /// </summary>
 public static class ApplicationServiceCollectionExtensions
 {
