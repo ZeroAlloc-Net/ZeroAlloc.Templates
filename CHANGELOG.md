@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.15.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/compare/ZeroAlloc.Templates-v0.14.2...ZeroAlloc.Templates-v0.15.0) (2026-06-10)
+
+
+### Features
+
+* **templates:** output caching for GET-by-id endpoints ([#197](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/issues/197)) ([b48e500](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/commit/b48e500919fcbcac52d5bcdd733085e7e4ba60e2))
+
+
+### Bug Fixes
+
+* **tests:** use UseSetting for MyAppFactory config overrides ([#198](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/issues/198)) ([f5cd83c](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/commit/f5cd83c5cc3a5b3b4d9633ffae1dc15637131f32))
+
+
+### Documentation
+
+* **aggregator:** weekly refresh from upstream sources ([#194](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/issues/194)) ([6f0afd0](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/commit/6f0afd0d612cddf0d521f08f31a89bd51b994af1))
+
 ## [0.14.2](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/compare/ZeroAlloc.Templates-v0.14.1...ZeroAlloc.Templates-v0.14.2) (2026-06-08)
 
 
