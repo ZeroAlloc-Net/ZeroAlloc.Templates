@@ -5,6 +5,7 @@ using MyApp.Api;
 using MyApp.Api.Authorization;
 using MyApp.Api.Endpoints;
 using MyApp.Application;
+using MyApp.Domain.ValueObjects;
 using MyApp.Infrastructure;
 using MyApp.Infrastructure.Projections;
 using OpenTelemetry.Metrics;
@@ -90,9 +91,16 @@ builder.Services.AddOpenTelemetry()
             m.AddOtlpExporter();
     });
 
-// AOT: source-generated JSON for DTOs.
+// AOT: source-generated JSON for DTOs. The [TypedId] converters must be
+// registered explicitly — STJ's source generator does not observe
+// [JsonConverter] attributes emitted by another source generator (Roslyn
+// runs generators in parallel against the original compilation), so
+// without these Converters.Add lines OrderId/CustomerId would silently
+// serialise as {} via STJ's POCO fallback.
 builder.Services.ConfigureHttpJsonOptions(o =>
 {
+    o.SerializerOptions.Converters.Add(new OrderId.TypedIdJsonConverter());
+    o.SerializerOptions.Converters.Add(new CustomerId.TypedIdJsonConverter());
     o.SerializerOptions.TypeInfoResolverChain.Insert(0, JsonContext.Default);
 });
 
