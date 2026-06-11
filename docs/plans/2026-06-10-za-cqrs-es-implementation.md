@@ -13,19 +13,69 @@
 
 ---
 
-## Upstream prerequisites (blocking — added 2026-06-10 after Task 1 first attempt)
+## Upstream prerequisites (resolved 2026-06-11 — Task 1 redo unblocked)
 
-Task 1's first attempt (commit `fef3f2f`) surfaced three upstream gaps in the ZA package set. The plan below assumes these are resolved; until they ship, the template either workarounds or stays paused.
+Task 1's first attempt (commit `fef3f2f`) surfaced three upstream gaps in the ZA package set. As of 2026-06-11 all three have been addressed in their respective repos; the Task 1 redo subsection at the bottom of this section describes the mechanical workaround flip.
 
-1. **No `ZeroAlloc.EventSourcing.Outbox` package.** No project, no `[OutboxEvent]` attribute, no dispatcher. Needed by **Task 5** (cross-aggregate `OrderShipped → LoyaltyPointsCredited`). Until it ships, Task 5 is blocked; the template wires direct `IMediator.Publish` post-`SaveAsync` for synchronous projections (which is correct for in-process Task 1–4 needs anyway).
-2. **No SQLite event-store adapter.** `ZeroAlloc.EventSourcing.PostgreSql` and `.SqlServer` ship `IEventStore` implementations; `.Sql` ships only Snapshot/Checkpoint/Projection/DeadLetter stores. There is no SQLite `IEventStore`. Task 1's first attempt fell back to `InMemoryEventStoreAdapter` for the integration test path. Production-shape SQLite default requires the new adapter.
-3. **`ZeroAlloc.ValueObjects.[TypedId]` + STJ source-gen.** `[TypedId(Strategy = IdStrategy.Uuid7)]` emits an `internal sealed` nested `TypedIdJsonConverter` which `JsonSerializerContext` source-gen rejects (SYSLIB1220 + SYSLIB1030 — converter not accessible / no parameterless ctor). Until the generator emits a public converter (or the runtime registration path is documented), Guid-backed IDs use plain `readonly record struct OrderId(Guid Value)` which serializes naturally as `{"Value":"guid"}`.
+1. ✅ **`ZeroAlloc.EventSourcing.Outbox v0.1.0`** shipped via `ZeroAlloc.EventSourcing` PR #185. `[OutboxEvent]` attribute + dispatcher are available. Required by Task 5 (cross-aggregate flow); Task 1 still uses direct `IMediator.Publish` post-`SaveAsync` because synchronous in-process projections do not need Outbox.
+2. ✅ **`ZeroAlloc.EventSourcing.Sqlite v0.1.0`** shipped via `ZeroAlloc.EventSourcing` PR #187 + #192 (`*` global stream consistency across all 4 adapters). The SQLite `IEventStore` exists; the Task 1 redo swaps `.UseInMemoryEventStore()` → SQLite.
+3. ✅ **`ZeroAlloc.ValueObjects [TypedId]` cross-assembly converter.** Shipped in `ZeroAlloc.ValueObjects 1.7.1` (PR #53 — `fix(gen): emit public JsonConverter`). The converter is now `public sealed`, instantiable cross-assembly.
+   - ⚠️ **Important correction to the original gap framing.** The shipped fix does NOT enable automatic STJ source-gen discovery of `[JsonConverter]`. Roslyn does not propagate cross-generator output to STJ's source generator, so a `[JsonSerializable(typeof(OrderId))]` declaration alone silently produces POCO serialization (`{}` output, not the converter-driven string form). The working pattern is **explicit converter registration**: `options.Converters.Add(new OrderId.TypedIdJsonConverter())` plus `[JsonSerializable(typeof(OrderId))]` plus `options.TypeInfoResolver = AppJsonContext.Default`. See [ZeroAlloc.ValueObjects/docs/typed-id/json.md#source-gen-contexts-jsonserializercontext](https://github.com/ZeroAlloc-Net/ZeroAlloc.ValueObjects/blob/main/docs/typed-id/json.md#source-gen-contexts-jsonserializercontext) and the postmortem in `ZeroAlloc.ValueObjects/docs/plans/2026-06-11-typedid-stj-sourcegen-design.md` for the full story.
 
 Two implementer-side claims that were not real gaps:
-- ❌ **"Guid doesn't expose `ToString(InvariantCulture)`"** — false. The proper attribute for Guid-backed IDs is `[TypedId]` not `[ValueObject]`; the dedicated `TypedIdGuidWriter` emits `Value.ToString("D", CultureInfo.InvariantCulture)` which compiles fine. The STJ source-gen integration is the real gap (see above).
+- ❌ **"Guid doesn't expose `ToString(InvariantCulture)`"** — false. The proper attribute for Guid-backed IDs is `[TypedId]` not `[ValueObject]`; the dedicated `TypedIdGuidWriter` emits `Value.ToString("D", CultureInfo.InvariantCulture)` which compiles fine. The STJ source-gen integration was the real gap (see above).
 - ❌ **"`EventStoreMediatorBridge` single-stream is a bug"** — by design, not a bug. The bridge is for known-stream subscriptions, not per-aggregate fan-out. For per-aggregate stream topologies (`order-{guid}`), direct `IMediator.Publish(event, ct)` after `repo.SaveAsync()` is the canonical projection wiring — what Task 1 ships and what later tasks build on.
 
-The two real upstream packages (Outbox + SQLite event store) get their own brainstorm + plan + ship cycles in separate sessions before Task 1 is redone and Tasks 2–8 proceed.
+### Task 1 redo (post-upstream-merge)
+
+With `ZeroAlloc.ValueObjects 1.7.1` released to NuGet (2026-06-11), the Task 1 redo is a focused PR with the following diff:
+
+1. **Bump `content/za-cqrs-es/Directory.Packages.props`**: `ZeroAlloc.ValueObjects 1.7.0` → `1.7.1`. The existing pin is one version short of the fix.
+2. **`content/za-cqrs-es/src/MyApp.Domain/ValueObjects/OrderId.cs`** — flip workaround to `[TypedId]`:
+   ```csharp
+   [TypedId(Strategy = IdStrategy.Uuid7)]
+   public readonly partial record struct OrderId;
+   ```
+   Drop the hand-rolled `New()` factory (generator emits it). Remove the workaround `<remarks>` block.
+3. **`content/za-cqrs-es/src/MyApp.Domain/ValueObjects/CustomerId.cs`** — same flip.
+4. **`content/za-cqrs-es/src/MyApp.Api/Program.cs:94-97`** — register converters explicitly before the resolver chain insert:
+   ```csharp
+   builder.Services.ConfigureHttpJsonOptions(o =>
+   {
+       o.SerializerOptions.Converters.Add(new OrderId.TypedIdJsonConverter());
+       o.SerializerOptions.Converters.Add(new CustomerId.TypedIdJsonConverter());
+       o.SerializerOptions.TypeInfoResolverChain.Insert(0, JsonContext.Default);
+   });
+   ```
+   This is the **load-bearing line** — without it, STJ source-gen silently serializes OrderId/CustomerId as `{}`.
+5. **`content/za-cqrs-es/src/MyApp.Infrastructure/EventStore/MyAppEventSerializer.cs`** — events flowing through the event-store payload path have the same registration requirement. Refactor to use a shared `JsonSerializerOptions`:
+   ```csharp
+   private static readonly JsonSerializerOptions _options = new()
+   {
+       Converters =
+       {
+           new MyApp.Domain.ValueObjects.OrderId.TypedIdJsonConverter(),
+           new MyApp.Domain.ValueObjects.CustomerId.TypedIdJsonConverter(),
+       },
+       TypeInfoResolver = MyAppEventJsonContext.Default,
+   };
+   // Then: JsonSerializer.SerializeToUtf8Bytes(p, typeof(OrderPlaced), _options)
+   ```
+   The `MyAppEventJsonContext` partial class declarations stay as-is.
+6. **`content/za-cqrs-es/src/MyApp.Infrastructure/InfrastructureServiceCollectionExtensions.cs:54`** — swap event store:
+   ```csharp
+   services.AddEventSourcing()
+           .UseSqliteEventStore(connectionString)   // was: .UseInMemoryEventStore()
+           .UseAggregateRepository<Order, OrderId>(...)
+   ```
+   Verify the actual API surface against the `ZeroAlloc.EventSourcing.Sqlite v0.1.0` package — extension method name and `connectionString` parameter shape may differ.
+7. **`content/za-cqrs-es/tests/MyApp.IntegrationTests/PlaceOrderEndpointTests.cs`** — JSON shape changes from `{"Value":"guid"}` (record-struct natural shape) to bare `"hex-guid"` (TypedId converter shape). Any assertion that pins the envelope shape needs updating. Side-effect assertions (status codes, projection row lookups) are unaffected.
+
+**Commit shape:** single PR squashed as `chore(za-cqrs-es): adopt [TypedId] + SQLite event store now that upstream gaps shipped` — patch-equivalent, no version bump (per the validated empirical release-please mapping that `chore:` produces no bump).
+
+**Verification:** integration test suite green, `aot-publish-smoke-cqrs-es` CI job green, manual `dotnet new za-cqrs-es && dotnet run` smoke against `POST /orders` returns a hex-string ID (not the `{"Value":...}` envelope).
+
+**Not in this PR:** the brief's "fixup in place" option is OFF — `fef3f2f` was merged via #189 already, so we land the redo as a new commit on `feat/za-cqrs-es-template` rather than rewriting history.
 
 ---
 
