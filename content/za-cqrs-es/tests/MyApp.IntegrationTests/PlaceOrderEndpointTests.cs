@@ -44,6 +44,16 @@ public sealed class PlaceOrderEndpointTests : IClassFixture<MyAppFactory>
         var idStr = location!.AsSpan("/orders/".Length).ToString();
         var orderId = new OrderId(Guid.Parse(idStr, System.Globalization.CultureInfo.InvariantCulture));
 
+        // Response body shape regression guard. CreatedOrderResponse(OrderId Id)
+        // serialises as {"Id":"<guid>"} only when the OrderId [TypedId]
+        // converter is registered on the HTTP JsonOptions in Program.cs. If
+        // that registration is dropped, STJ source-gen's POCO fallback emits
+        // {"Id":{}} silently — pin both the positive shape and the absence
+        // of the wrapped {"Value":...} envelope.
+        var body = await resp.Content.ReadAsStringAsync();
+        Assert.Contains($"\"{idStr}\"", body, StringComparison.Ordinal);
+        Assert.DoesNotContain("\"Value\":", body, StringComparison.Ordinal);
+
         using var scope = _factory.Services.CreateScope();
         var repo = scope.ServiceProvider.GetRequiredService<IOrderListingsRepository>();
         var listing = await repo.GetByIdAsync(orderId, CancellationToken.None);
