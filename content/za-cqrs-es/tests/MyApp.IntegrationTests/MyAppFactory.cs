@@ -5,16 +5,19 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.DependencyInjection;
 using MyApp.Infrastructure.Projections;
+using ZeroAlloc.EventSourcing;
+using ZeroAlloc.EventSourcing.InMemory;
 using ZeroAlloc.ORM.Migrations;
 
 namespace MyApp.IntegrationTests;
 
 /// <summary>
 /// Hosts the API with a kept-alive in-memory SQLite connection for the read-side
-/// projection storage. The event store stays as the in-memory adapter (default
-/// composition in Program.cs). ZA.ORM migrations are applied once during
-/// fixture construction; the startup migration runner in Program.cs is
-/// short-circuited via <c>Database:SchemaStrategy=Skip</c>.
+/// projection storage and the in-memory event-store adapter (overriding the
+/// SQLite/Postgres adapter selected in production composition). ZA.ORM
+/// migrations are applied once during fixture construction; the startup
+/// migration runner in Program.cs is short-circuited via
+/// <c>Database:SchemaStrategy=Skip</c>.
 /// </summary>
 public class MyAppFactory : WebApplicationFactory<Program>
 {
@@ -53,6 +56,16 @@ public class MyAppFactory : WebApplicationFactory<Program>
                 services.Remove(dbDescriptor);
             }
             services.AddSingleton<IAsyncDbConnection>(_ => _asyncConn);
+
+            // Replace the production SQLite event-store adapter with the in-memory one
+            // so tests don't touch the filesystem. Production composition uses
+            // UseSqliteEventStore(connectionString) which would point at app.db.
+            var esDescriptor = services.SingleOrDefault(d => d.ServiceType == typeof(IEventStoreAdapter));
+            if (esDescriptor is not null)
+            {
+                services.Remove(esDescriptor);
+            }
+            services.AddSingleton<IEventStoreAdapter, InMemoryEventStoreAdapter>();
         });
     }
 

@@ -16,10 +16,14 @@
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
     </PackageReference>
-    <!-- Event store + Mediator bridge wiring. -->
+    <!-- Event store + Mediator bridge wiring. Sqlite is the default adapter
+         (matches the projection DB default), PostgreSql covers the production
+         Provider=Postgres path, InMemory stays for tests/fixtures. -->
     <PackageReference Include="ZeroAlloc.EventSourcing" />
     <PackageReference Include="ZeroAlloc.EventSourcing.Aggregates" />
     <PackageReference Include="ZeroAlloc.EventSourcing.InMemory" />
+    <PackageReference Include="ZeroAlloc.EventSourcing.PostgreSql" />
+    <PackageReference Include="ZeroAlloc.EventSourcing.Sqlite" />
     <ProjectReference Include="../MyApp.Application/MyApp.Application.csproj" />
   </ItemGroup>
 

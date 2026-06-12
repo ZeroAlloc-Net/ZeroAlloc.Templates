@@ -9,15 +9,16 @@ using MyApp.Infrastructure.EventStore;
 using Npgsql;
 using ZeroAlloc.EventSourcing;
 using ZeroAlloc.EventSourcing.Aggregates;
-using ZeroAlloc.EventSourcing.InMemory;
+using ZeroAlloc.EventSourcing.PostgreSql;
+using ZeroAlloc.EventSourcing.Sqlite;
 
 namespace MyApp.Infrastructure;
 
 /// <summary>
 /// Composition entry point for the Infrastructure assembly. Wires up the ZA.ORM
 /// <see cref="IAsyncDbConnection"/> (used by projection repositories), the
-/// in-memory event store (Task 5 swaps this for a SQL adapter once the upstream
-/// package ships), and the per-aggregate repositories.
+/// event store (Sqlite or PostgreSql adapter selected by <c>Database:Provider</c>),
+/// and the per-aggregate repositories.
 /// </summary>
 public static class InfrastructureServiceCollectionExtensions
 {
@@ -50,11 +51,18 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddSingleton<IEventSerializer, MyAppEventSerializer>();
         services.AddSingleton<IEventTypeRegistry, MyAppEventTypeRegistry>();
 
-        services.AddEventSourcing()
-                .UseInMemoryEventStore()
-                .UseAggregateRepository<Order, OrderId>(
-                    factory: () => new Order(),
-                    streamIdFactory: id => new StreamId("order-" + id.Value.ToString("D", System.Globalization.CultureInfo.InvariantCulture)));
+        var es = services.AddEventSourcing();
+        if (isPostgres)
+        {
+            es.UsePostgreSqlEventStore(connectionString);
+        }
+        else
+        {
+            es.UseSqliteEventStore(connectionString);
+        }
+        es.UseAggregateRepository<Order, OrderId>(
+            factory: () => new Order(),
+            streamIdFactory: id => new StreamId("order-" + id.Value.ToString("D", System.Globalization.CultureInfo.InvariantCulture)));
 
         return services;
     }

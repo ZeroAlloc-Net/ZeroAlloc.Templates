@@ -9,6 +9,9 @@
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
     <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
     <PackageReference Include="System.IdentityModel.Tokens.Jwt" />
+    <!-- Event store override in MyAppFactory uses the in-memory adapter. -->
+    <PackageReference Include="ZeroAlloc.EventSourcing" />
+    <PackageReference Include="ZeroAlloc.EventSourcing.InMemory" />
     <ProjectReference Include="../../src/MyApp.Api/MyApp.Api.csproj" />
   </ItemGroup>
 </Project>

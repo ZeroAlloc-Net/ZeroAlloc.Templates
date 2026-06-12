@@ -8,8 +8,8 @@
     <PackageVersion Include="ZeroAlloc.Mediator" Version="4.1.4" />
     <PackageVersion Include="ZeroAlloc.Results" Version="1.2.0" />
     <PackageVersion Include="ZeroAlloc.ValueObjects" Version="1.7.1" />
-    <PackageVersion Include="ZeroAlloc.Serialisation" Version="2.3.3" />
-    <PackageVersion Include="ZeroAlloc.Serialisation.SystemTextJson" Version="2.3.3" />
+    <PackageVersion Include="ZeroAlloc.Serialisation" Version="2.4.0" />
+    <PackageVersion Include="ZeroAlloc.Serialisation.SystemTextJson" Version="2.4.0" />
     <PackageVersion Include="ZeroAlloc.Validation" Version="1.5.3" />
     <PackageVersion Include="ZeroAlloc.Validation.Generator" Version="1.5.3" />
     <PackageVersion Include="ZeroAlloc.Inject" Version="1.7.1" />
@@ -24,11 +24,16 @@
     <PackageVersion Include="ZeroAlloc.Mediator.Authorization" Version="4.1.4" />
     <PackageVersion Include="ZeroAlloc.Mediator.Generator" Version="4.1.4" />
     <PackageVersion Include="ZeroAlloc.Inject.Generator" Version="1.7.1" />
-    <!-- ZeroAlloc.EventSourcing.* + ZA.StateMachine — CQRS+ES building blocks. -->
-    <PackageVersion Include="ZeroAlloc.EventSourcing" Version="1.1.0" />
+    <!-- ZeroAlloc.EventSourcing.* + ZA.StateMachine — CQRS+ES building blocks.
+         Sqlite is the default event-store adapter (matches the projection DB
+         default); PostgreSql variant covers the production "Database:Provider=Postgres"
+         path. InMemory stays available for tests/fixtures that want zero IO. -->
+    <PackageVersion Include="ZeroAlloc.EventSourcing" Version="1.2.0" />
     <PackageVersion Include="ZeroAlloc.EventSourcing.Aggregates" Version="1.0.0" />
-    <PackageVersion Include="ZeroAlloc.EventSourcing.InMemory" Version="1.0.0" />
-    <PackageVersion Include="ZeroAlloc.EventSourcing.Mediator" Version="1.0.0" />
+    <PackageVersion Include="ZeroAlloc.EventSourcing.InMemory" Version="1.2.0" />
+    <PackageVersion Include="ZeroAlloc.EventSourcing.Mediator" Version="1.0.1" />
+    <PackageVersion Include="ZeroAlloc.EventSourcing.PostgreSql" Version="1.1.0" />
+    <PackageVersion Include="ZeroAlloc.EventSourcing.Sqlite" Version="1.0.0" />
     <PackageVersion Include="ZeroAlloc.EventSourcing.Telemetry" Version="1.0.0" />
     <PackageVersion Include="ZeroAlloc.EventSourcing.Generators" Version="1.0.0" />
     <PackageVersion Include="ZeroAlloc.StateMachine" Version="1.5.1" />
@@ -42,7 +47,7 @@
     <PackageVersion Include="ZeroAlloc.ORM.Generator" Version="1.5.0" />
     <PackageVersion Include="AdoNet.Async" Version="1.3.0" />
     <PackageVersion Include="AdoNet.Async.Adapters" Version="1.3.0" />
-    <PackageVersion Include="Microsoft.Data.Sqlite" Version="10.0.8" />
+    <PackageVersion Include="Microsoft.Data.Sqlite" Version="10.0.9" />
     <PackageVersion Include="Npgsql" Version="10.0.3" />
     <!-- Microsoft / ASP.NET Core (latest stable for net10). -->
     <PackageVersion Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.8" />
