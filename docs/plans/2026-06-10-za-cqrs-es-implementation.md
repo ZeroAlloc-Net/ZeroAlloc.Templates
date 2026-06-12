@@ -13,22 +13,22 @@
 
 ---
 
-## Upstream prerequisites (resolved 2026-06-11 — Task 1 redo unblocked)
+## Upstream prerequisites (status as of 2026-06-12)
 
-Task 1's first attempt (commit `fef3f2f`) surfaced three upstream gaps in the ZA package set. As of 2026-06-11 all three have been addressed in their respective repos; the Task 1 redo subsection at the bottom of this section describes the mechanical workaround flip.
+Task 1's first attempt (commit `fef3f2f`) surfaced three upstream gaps in the ZA package set. Status varies per package — only #3 is currently on NuGet.
 
-1. ✅ **`ZeroAlloc.EventSourcing.Outbox v0.1.0`** shipped via `ZeroAlloc.EventSourcing` PR #185. `[OutboxEvent]` attribute + dispatcher are available. Required by Task 5 (cross-aggregate flow); Task 1 still uses direct `IMediator.Publish` post-`SaveAsync` because synchronous in-process projections do not need Outbox.
-2. ✅ **`ZeroAlloc.EventSourcing.Sqlite v0.1.0`** shipped via `ZeroAlloc.EventSourcing` PR #187 + #192 (`*` global stream consistency across all 4 adapters). The SQLite `IEventStore` exists; the Task 1 redo swaps `.UseInMemoryEventStore()` → SQLite.
-3. ✅ **`ZeroAlloc.ValueObjects [TypedId]` cross-assembly converter.** Shipped in `ZeroAlloc.ValueObjects 1.7.1` (PR #53 — `fix(gen): emit public JsonConverter`). The converter is now `public sealed`, instantiable cross-assembly.
+1. ⏳ **`ZeroAlloc.EventSourcing.Outbox`** — tagged `v1.0.0` in the source repo, **not yet on NuGet** (publish workflow pending). `[OutboxEvent]` attribute + dispatcher exist in source. Required by Task 5 (cross-aggregate flow); Task 1 still uses direct `IMediator.Publish` post-`SaveAsync` because synchronous in-process projections do not need Outbox, so this gap does not block Task 1.
+2. ⏳ **`ZeroAlloc.EventSourcing.Sqlite`** — on the active feature branch `feat/eventsourcing-sqlite` in source, **no release tag, not on NuGet**. The latest branch commit (`4420ad2 feat(sqlite): builder extension, health check, AOT smoke + README — v0.1.0 ready`) reads as release-ready. Until it ships, the Task 1 redo retains `.UseInMemoryEventStore()`; the SQLite swap stays deferred.
+3. ✅ **`ZeroAlloc.ValueObjects [TypedId]` cross-assembly converter.** **Shipped to NuGet** as `ZeroAlloc.ValueObjects 1.7.1` (PR #53 — `fix(gen): emit public JsonConverter`). The converter is `public sealed`, instantiable cross-assembly.
    - ⚠️ **Important correction to the original gap framing.** The shipped fix does NOT enable automatic STJ source-gen discovery of `[JsonConverter]`. Roslyn does not propagate cross-generator output to STJ's source generator, so a `[JsonSerializable(typeof(OrderId))]` declaration alone silently produces POCO serialization (`{}` output, not the converter-driven string form). The working pattern is **explicit converter registration**: `options.Converters.Add(new OrderId.TypedIdJsonConverter())` plus `[JsonSerializable(typeof(OrderId))]` plus `options.TypeInfoResolver = AppJsonContext.Default`. See [ZeroAlloc.ValueObjects/docs/typed-id/json.md#source-gen-contexts-jsonserializercontext](https://github.com/ZeroAlloc-Net/ZeroAlloc.ValueObjects/blob/main/docs/typed-id/json.md#source-gen-contexts-jsonserializercontext) and the postmortem in `ZeroAlloc.ValueObjects/docs/plans/2026-06-11-typedid-stj-sourcegen-design.md` for the full story.
 
 Two implementer-side claims that were not real gaps:
 - ❌ **"Guid doesn't expose `ToString(InvariantCulture)`"** — false. The proper attribute for Guid-backed IDs is `[TypedId]` not `[ValueObject]`; the dedicated `TypedIdGuidWriter` emits `Value.ToString("D", CultureInfo.InvariantCulture)` which compiles fine. The STJ source-gen integration was the real gap (see above).
 - ❌ **"`EventStoreMediatorBridge` single-stream is a bug"** — by design, not a bug. The bridge is for known-stream subscriptions, not per-aggregate fan-out. For per-aggregate stream topologies (`order-{guid}`), direct `IMediator.Publish(event, ct)` after `repo.SaveAsync()` is the canonical projection wiring — what Task 1 ships and what later tasks build on.
 
-### Task 1 redo (post-upstream-merge)
+### Task 1 redo (TypedId portion shipped 2026-06-11, SQLite portion deferred)
 
-With `ZeroAlloc.ValueObjects 1.7.1` released to NuGet (2026-06-11), the Task 1 redo is a focused PR with the following diff:
+The TypedId portion of the redo shipped on the feat branch as commit `d72bb45` once `ZeroAlloc.ValueObjects 1.7.1` indexed on NuGet (2026-06-11). The SQLite event-store portion stays deferred until `ZeroAlloc.EventSourcing.Sqlite` ships (see #2 above). The full redo diff, for reference and for the eventual SQLite-portion follow-up:
 
 1. **Bump `content/za-cqrs-es/Directory.Packages.props`**: `ZeroAlloc.ValueObjects 1.7.0` → `1.7.1`. The existing pin is one version short of the fix.
 2. **`content/za-cqrs-es/src/MyApp.Domain/ValueObjects/OrderId.cs`** — flip workaround to `[TypedId]`:
