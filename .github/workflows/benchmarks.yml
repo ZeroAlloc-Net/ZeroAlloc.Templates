@@ -65,7 +65,7 @@ jobs:
             filter: "*WritePipelineBench*"
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v5
@@ -118,7 +118,7 @@ jobs:
     # and NBomber RPS collapsed from 2,329 to 154.
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v5
@@ -248,7 +248,7 @@ jobs:
     # Same pattern as nbomber-postgres-vs — see that job for the rationale.
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v5
