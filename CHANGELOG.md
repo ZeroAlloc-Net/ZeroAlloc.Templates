@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.15.2](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/compare/ZeroAlloc.Templates-v0.15.1...ZeroAlloc.Templates-v0.15.2) (2026-06-22)
+
+
+### Bug Fixes
+
+* **deps:** pin SQLitePCLRaw.lib.e_sqlite3 to 3.50.3 (CVE-2025-6965) ([#219](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/issues/219)) ([edb2636](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/commit/edb2636b75af3d2ed1fce35eaaa70cd77c42d078))
+
 ## [0.15.1](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/compare/ZeroAlloc.Templates-v0.15.0...ZeroAlloc.Templates-v0.15.1) (2026-06-16)
 
 
