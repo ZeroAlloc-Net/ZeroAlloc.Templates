@@ -1,6 +1,9 @@
 <Project>
   <PropertyGroup>
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+    <!-- Allow pinning transitively-resolved package versions (used below to
+         override the vulnerable native SQLite binary pulled in by Microsoft.Data.Sqlite). -->
+    <CentralPackageTransitivePinningEnabled>true</CentralPackageTransitivePinningEnabled>
   </PropertyGroup>
   <ItemGroup>
     <!-- ZeroAlloc.* ecosystem (confirmed shipped versions). -->
@@ -35,6 +38,12 @@
     <PackageVersion Include="AdoNet.Async" Version="1.3.1" />
     <PackageVersion Include="AdoNet.Async.Adapters" Version="1.3.1" />
     <PackageVersion Include="Microsoft.Data.Sqlite" Version="10.0.9" />
+    <!-- CVE-2025-6965 / GHSA-2m69-gcr7-jv3q: Microsoft.Data.Sqlite pulls
+         SQLitePCLRaw.lib.e_sqlite3 2.1.11 (bundles SQLite < 3.50.2). Pin the native
+         binary to 3.50.3 (SQLite 3.50.3) via transitive pinning. core/provider stay
+         on 2.x (the sqlite3 C ABI is stable). Drop once Microsoft.Data.Sqlite ships
+         a bumped SQLitePCLRaw. -->
+    <PackageVersion Include="SQLitePCLRaw.lib.e_sqlite3" Version="3.50.3" />
     <PackageVersion Include="Npgsql" Version="10.0.3" />
     <!-- Microsoft / ASP.NET Core (latest stable for net10). -->
     <PackageVersion Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.9" />
