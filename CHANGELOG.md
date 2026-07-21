@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.15.7](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/compare/ZeroAlloc.Templates-v0.15.6...ZeroAlloc.Templates-v0.15.7) (2026-07-21)
+
+
+### Documentation
+
+* **aggregator:** weekly refresh from upstream sources ([#253](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/issues/253)) ([02c9e0a](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/commit/02c9e0ac1c64e051c4c8e6e27b09b4415c6a00cf))
+
 ## [0.15.6](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/compare/ZeroAlloc.Templates-v0.15.5...ZeroAlloc.Templates-v0.15.6) (2026-07-13)
 
 
