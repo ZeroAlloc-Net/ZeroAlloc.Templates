@@ -11,7 +11,7 @@
     <PackageVersion Include="ZeroAlloc.Mediator" Version="4.1.4" />
     <PackageVersion Include="ZeroAlloc.Results" Version="1.2.0" />
     <PackageVersion Include="ZeroAlloc.ValueObjects" Version="1.7.1" />
-    <PackageVersion Include="ZeroAlloc.Serialisation" Version="2.4.0" />
+    <PackageVersion Include="ZeroAlloc.Serialisation" Version="2.4.1" />
     <PackageVersion Include="ZeroAlloc.Serialisation.SystemTextJson" Version="2.4.0" />
     <PackageVersion Include="ZeroAlloc.Validation" Version="1.5.3" />
     <PackageVersion Include="ZeroAlloc.Validation.Generator" Version="1.5.3" />
