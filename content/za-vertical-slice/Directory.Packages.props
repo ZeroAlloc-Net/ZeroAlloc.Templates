@@ -8,7 +8,7 @@
   <ItemGroup>
     <!-- ZeroAlloc.* ecosystem (confirmed shipped versions). -->
     <PackageVersion Include="ZeroAlloc.Mapping" Version="1.6.0" />
-    <PackageVersion Include="ZeroAlloc.Mediator" Version="4.1.4" />
+    <PackageVersion Include="ZeroAlloc.Mediator" Version="5.0.0" />
     <PackageVersion Include="ZeroAlloc.Results" Version="1.2.0" />
     <PackageVersion Include="ZeroAlloc.ValueObjects" Version="1.7.2" />
     <PackageVersion Include="ZeroAlloc.Serialisation" Version="2.4.1" />
