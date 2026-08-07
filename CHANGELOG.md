@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.15.10](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/compare/ZeroAlloc.Templates-v0.15.9...ZeroAlloc.Templates-v0.15.10) (2026-08-07)
+
+
+### Tests
+
+* **za-clean:** correct the denominator, JWT is ~4% not ~31% ([#283](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/issues/283)) ([ee249e8](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/commit/ee249e874b8f16efc12fb831d889015976e89b2d))
+* **za-clean:** measure JWT validation cost ([#171](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/issues/171)) ([#281](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/issues/281)) ([49eac1c](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/commit/49eac1c79d930e1106dc0d6967b495b5be0d9d61))
+
 ## [0.15.9](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/compare/ZeroAlloc.Templates-v0.15.8...ZeroAlloc.Templates-v0.15.9) (2026-08-04)
 
 
