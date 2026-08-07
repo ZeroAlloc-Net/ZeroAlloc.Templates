@@ -2,8 +2,10 @@
 
 Issue #171 asks whether JWT bearer validation is a large enough share of
 per-request CPU to justify caching validated tokens, and says explicitly
-that a measurement should drive the call rather than an intuition. This
-is that measurement.
+that a measurement should drive the call rather than an intuition.
+
+**Answer: no. JWT validation is ~4% of per-request CPU. The cache is not
+worth its security surface in a template.**
 
 ## What was measured
 
@@ -16,7 +18,7 @@ template actually runs: `AddJwtBearer` does not override the handler, and
 it is the framework default on .NET 8 and later. Benchmarking the legacy
 `JwtSecurityTokenHandler` would have measured a path no request takes.
 
-## Result
+### JWT cost in isolation
 
 | Method                   | Mean      | Ratio | Allocated |
 |--------------------------|-----------|-------|-----------|
@@ -25,64 +27,79 @@ it is the framework default on .NET 8 and later. Benchmarking the legacy
 | CacheHit_HashKey         |  1,051 ns | 0.09  |   336 B   |
 | CacheHit_TokenKey        |     70 ns | 0.006 |     0 B   |
 
-12th Gen Intel Core i9-12900HK, .NET 10.0.10, X64 RyuJIT.
+### The denominator
 
-## Reading it
+The share only means something against a whole request.
+`ReadPipelineBench` is that measurement — `GET /orders/{id}` end-to-end
+through ASP.NET middleware, JWT auth, mediator dispatch, the ZA.ORM
+repository read, and JSON serialisation. It already contains the JWT
+validation being weighed. Both templates re-measured on this machine, in
+the same session as the JWT numbers above:
 
-**JWT validation costs ~11.8 µs and 4.4 KB per authenticated request.**
-Against the ~26 µs read hot path from `ReadHotPathBench`, that puts JWT
-at roughly **31% of per-request CPU** on `GET /orders/{id}` — and about
-64% of the allocations, which is the more striking number for a template
-that advertises a low-allocation hot path.
+| Template          | Full request | Allocated | JWT share (CPU) | JWT share (alloc) |
+|-------------------|--------------|-----------|-----------------|-------------------|
+| za-clean          | 278.3 µs     | 24.69 KB  | **4.3%**        | 17.4%             |
+| za-vertical-slice | 293.6 µs     | 25.39 KB  | **4.0%**        | 16.9%             |
 
-**There is no cheaper targeted fix.** Splitting the cost shows 8.3 µs in
-signature verification and parsing, and ~3.5 µs in `ClaimsPrincipal`
-construction. Neither dominates enough to fix on its own: eliminating
-claims materialization entirely would recover under a third of the cost,
-and the cryptographic work cannot be made cheaper without skipping it.
-Caching is the only lever that moves the 8.3 µs.
+## Verdict
 
-**A cache would recover almost all of it.** A hit costs 1.05 µs with the
-hash-keyed design the issue proposes — a 91% saving, and 336 B against
-4,400 B.
+**Not material on CPU.** At 4% of a request, a cache that eliminated JWT
+validation entirely would return about 10.8 µs of 278 µs — under 4% of
+request time. That does not buy a cache which skips signature
+verification.
 
-**Hashing dominates the hit path.** Keyed by the token directly, a hit is
-70 ns and allocation-free; the SHA-256 hash is therefore ~93% of the
-cache-hit cost. That does not change the verdict — 1.05 µs against
-11.8 µs is still overwhelming — but it means the hash is a deliberate
-security trade (not holding raw bearer tokens as dictionary keys) bought
-at 15× the lookup cost, not a free choice.
+**Allocations are the more interesting number, and still do not justify
+it.** 4.4 KB of a ~25 KB request is ~17%. Worth knowing for a template
+that advertises a low-allocation hot path, but the request allocates
+25 KB regardless; JWT is not what drives it.
 
-## The case is stronger than these numbers alone
+**No cheaper targeted fix exists either.** Splitting the cost shows
+8.3 µs in signature verification and parsing, ~3.5 µs in
+`ClaimsPrincipal` construction. Neither dominates, and the cryptographic
+work cannot be made cheaper without skipping it. There is nothing to
+tune here — which is fine, because at 4% there is nothing worth tuning.
 
-Issue #171 notes this matters most **combined with** output caching on
-the read path. That is what the split implies: once reads are served
-from an output cache, the ~26 µs disappears on a hit and JWT validation
-becomes the dominant remaining per-request cost, not a third of it.
+## Both templates, one measurement
 
-## Verdict on the first acceptance criterion
+`za-clean` and `za-vertical-slice` have byte-identical
+`TokenValidationParameters` and both use the framework-default handler,
+so JWT validation costs the same 11.8 µs in each. Their per-request
+denominators differ by less than the run-to-run noise. A second copy of
+this benchmark in `za-vertical-slice` would re-measure the same number
+against the same denominator, so the finding is recorded once and
+applies to both. `za-cqrs-es` has no JWT bearer auth at all.
 
-Material. ~31% of per-request CPU and ~64% of allocations today, and the
-per-request floor once reads are cached.
+## Secondary finding: hashing dominates the hit path
 
-## What this measurement does not settle
+Recorded because it would matter if this decision is ever revisited. The
+hash-keyed cache design in the issue serves a hit in 1.05 µs; keyed by
+the token directly a hit is 70 ns and allocation-free. SHA-256 hashing is
+therefore ~93% of the cache-hit cost, 15× the dictionary lookup. Anyone
+reopening this should know the hash is a deliberate security trade — not
+holding raw bearer tokens as dictionary keys — bought at a real multiple,
+rather than a free choice.
 
-Whether a template *should* ship a validated-token cache is a separate
-question from whether it would be faster. A cache that skips signature
-verification has to cache only successfully validated tokens, bound
-entries by the token's own `exp`, never serve a principal for an expired
-token, and stay bounded in size so that a flood of distinct tokens cannot
-grow it without limit. A template is copied by people who may not read
-the invalidation rules, and getting them wrong fails open.
+## What would change the answer
 
-That trade — real throughput against security surface in code meant as a
-starting point — is a judgement call for the maintainer, which is why the
-issue offers "or document why not" as an acceptable outcome. This
-document is the measurement half; the decision is recorded separately.
+The 4% share is what makes this a no. Two things could move it:
+
+- **Output caching on reads.** #171 notes this matters most combined
+  with output caching. That is directionally right — remove the database
+  and serialisation work and JWT's share rises. But the ASP.NET
+  middleware and Kestrel costs remain, so JWT does not become a
+  per-request *floor*; it becomes a larger slice of a smaller request.
+  Re-measure before acting on it.
+- **Asymmetric key signing.** These numbers are HMAC-SHA256 with a
+  symmetric key. RSA or ECDSA signature verification is substantially
+  more expensive, and an app validating RS256 tokens could land somewhere
+  the trade looks different.
 
 ## Reproducing
 
 ```bash
 cd content/za-clean
 dotnet run --project benchmarks/MyApp.Benchmarks -c Release -- --filter "*JwtValidationBench*"
+dotnet run --project benchmarks/MyApp.Benchmarks -c Release -- --filter "*ReadPipelineBench*"
 ```
+
+12th Gen Intel Core i9-12900HK, .NET 10.0.10, X64 RyuJIT.

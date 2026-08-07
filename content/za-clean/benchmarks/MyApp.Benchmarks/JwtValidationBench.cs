@@ -21,9 +21,11 @@ namespace MyApp.Benchmarks;
 /// </para>
 ///
 /// <para>
-/// The comparison that matters is against the read hot path, which
-/// <see cref="ReadHotPathBench"/> puts at roughly 26 μs. JWT validation is only worth caching if
-/// it is a meaningful fraction of that.
+/// The comparison that matters is against a whole request, which is <see cref="ReadPipelineBench"/>
+/// at roughly 278 μs — not <see cref="ReadHotPathBench"/>, which times the repository read in
+/// isolation and is not a per-request cost. Measured that way JWT validation is about 4% of a
+/// request, which is what makes the answer no; see
+/// <c>docs/benchmarks/2026-08-07-171-jwt-validation-cost.md</c>.
 /// </para>
 ///
 /// <para>
