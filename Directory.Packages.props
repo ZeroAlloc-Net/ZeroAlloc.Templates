@@ -32,9 +32,9 @@
          partial methods so multi-statement aggregate writes participate
          in a single transaction across providers (#111). Used by
          OrderRepository.AddAsync. -->
-    <PackageVersion Include="ZeroAlloc.ORM" Version="1.6.2" />
-    <PackageVersion Include="ZeroAlloc.ORM.Abstractions" Version="1.6.2" />
-    <PackageVersion Include="ZeroAlloc.ORM.Generator" Version="1.6.2" />
+    <PackageVersion Include="ZeroAlloc.ORM" Version="1.6.3" />
+    <PackageVersion Include="ZeroAlloc.ORM.Abstractions" Version="1.6.3" />
+    <PackageVersion Include="ZeroAlloc.ORM.Generator" Version="1.6.3" />
     <PackageVersion Include="AdoNet.Async" Version="1.3.3" />
     <PackageVersion Include="AdoNet.Async.Adapters" Version="1.3.3" />
     <PackageVersion Include="Microsoft.Data.Sqlite" Version="10.0.10" />
