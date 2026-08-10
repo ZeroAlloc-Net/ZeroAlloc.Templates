@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.15.12](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/compare/ZeroAlloc.Templates-v0.15.11...ZeroAlloc.Templates-v0.15.12) (2026-08-10)
+
+
+### Bug Fixes
+
+* **template:** grant Benchmarks.Primitives internals access for Mediator v5 ([#296](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/issues/296)) ([a31ed60](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/commit/a31ed602c6f6983c680670161942a64546c96216))
+
 ## [0.15.11](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/compare/ZeroAlloc.Templates-v0.15.10...ZeroAlloc.Templates-v0.15.11) (2026-08-10)
 
 
