@@ -45,6 +45,10 @@
   <ItemGroup>
     <InternalsVisibleTo Include="MyApp.Api" />
     <InternalsVisibleTo Include="MyApp.Benchmarks" />
+    <!-- Same reason as MyApp.Benchmarks above: FakeMediator implements the generated
+         IMediator, which ZeroAlloc.Mediator emits assembly-local. Omitting this only
+         compiled under Generator 4.x, which emitted it public by mistake (Mediator#100). -->
+    <InternalsVisibleTo Include="MyApp.Benchmarks.Primitives" />
     <InternalsVisibleTo Include="MyApp.IntegrationTests" />
     <InternalsVisibleTo Include="MyApp.UnitTests" />
   </ItemGroup>
