@@ -66,6 +66,6 @@
     <PackageVersion Include="NBomber.Http" Version="6.2.1" />
     <!-- Analyzers (injected by Directory.Build.props for non-template projects). -->
     <PackageVersion Include="Meziantou.Analyzer" Version="3.0.140" />
-    <PackageVersion Include="Roslynator.Analyzers" Version="4.15.0" />
+    <PackageVersion Include="Roslynator.Analyzers" Version="4.16.0" />
   </ItemGroup>
 </Project>
