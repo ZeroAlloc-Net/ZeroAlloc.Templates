@@ -13,8 +13,8 @@
     <PackageVersion Include="ZeroAlloc.ValueObjects" Version="2.0.3" />
     <PackageVersion Include="ZeroAlloc.Serialisation" Version="2.4.1" />
     <PackageVersion Include="ZeroAlloc.Serialisation.SystemTextJson" Version="2.4.1" />
-    <PackageVersion Include="ZeroAlloc.Validation" Version="1.5.5" />
-    <PackageVersion Include="ZeroAlloc.Validation.Generator" Version="1.5.5" />
+    <PackageVersion Include="ZeroAlloc.Validation" Version="1.5.6" />
+    <PackageVersion Include="ZeroAlloc.Validation.Generator" Version="1.5.6" />
     <PackageVersion Include="ZeroAlloc.Inject" Version="1.7.2" />
     <PackageVersion Include="ZeroAlloc.Authorization" Version="2.1.0" />
     <PackageVersion Include="ZeroAlloc.Authorization.Generator" Version="2.1.0" />
