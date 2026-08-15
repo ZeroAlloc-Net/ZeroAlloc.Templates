@@ -15,7 +15,7 @@
     <PackageVersion Include="ZeroAlloc.Serialisation.SystemTextJson" Version="2.4.1" />
     <PackageVersion Include="ZeroAlloc.Validation" Version="1.5.6" />
     <PackageVersion Include="ZeroAlloc.Validation.Generator" Version="1.5.6" />
-    <PackageVersion Include="ZeroAlloc.Inject" Version="1.7.2" />
+    <PackageVersion Include="ZeroAlloc.Inject" Version="1.7.3" />
     <PackageVersion Include="ZeroAlloc.Authorization" Version="2.1.0" />
     <PackageVersion Include="ZeroAlloc.Authorization.Generator" Version="2.1.0" />
     <PackageVersion Include="ZeroAlloc.Telemetry" Version="1.6.1" />
@@ -26,7 +26,7 @@
     <PackageVersion Include="ZeroAlloc.Mediator.Validation" Version="5.0.0" />
     <PackageVersion Include="ZeroAlloc.Mediator.Authorization" Version="5.0.0" />
     <PackageVersion Include="ZeroAlloc.Mediator.Generator" Version="5.0.0" />
-    <PackageVersion Include="ZeroAlloc.Inject.Generator" Version="1.7.2" />
+    <PackageVersion Include="ZeroAlloc.Inject.Generator" Version="1.7.3" />
     <!-- ZeroAlloc.ORM 1.5.0 + AdoNet.Async substrate (replaces EF Core 10).
          1.5.0 adds: optional IAsyncDbTransaction parameter on [Command]
          partial methods so multi-statement aggregate writes participate
