@@ -9,7 +9,7 @@
     <!-- ZeroAlloc.* ecosystem (confirmed shipped versions). -->
     <PackageVersion Include="ZeroAlloc.Mapping" Version="1.6.1" />
     <PackageVersion Include="ZeroAlloc.Mediator" Version="5.0.1" />
-    <PackageVersion Include="ZeroAlloc.Results" Version="1.2.1" />
+    <PackageVersion Include="ZeroAlloc.Results" Version="1.2.3" />
     <PackageVersion Include="ZeroAlloc.ValueObjects" Version="2.0.5" />
     <PackageVersion Include="ZeroAlloc.Serialisation" Version="2.4.1" />
     <PackageVersion Include="ZeroAlloc.Serialisation.SystemTextJson" Version="2.4.1" />
