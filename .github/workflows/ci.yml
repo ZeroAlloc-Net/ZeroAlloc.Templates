@@ -33,6 +33,10 @@ jobs:
       - name: Setup .NET
         uses: actions/setup-dotnet@v6
         with:
+          # Installs the SDK global.json pins. Without it the job never installs
+          # that SDK at all and only works when the runner image happens to ship one
+          # satisfying the pin, which is how a publish failed on a lagging image.
+          global-json-file: global.json
           dotnet-version: 10.0.x
 
       - name: Restore (content)
@@ -91,6 +95,10 @@ jobs:
       - name: Setup .NET
         uses: actions/setup-dotnet@v6
         with:
+          # Installs the SDK global.json pins. Without it the job never installs
+          # that SDK at all and only works when the runner image happens to ship one
+          # satisfying the pin, which is how a publish failed on a lagging image.
+          global-json-file: global.json
           dotnet-version: 10.0.x
 
       - name: Restore (content)
@@ -124,6 +132,10 @@ jobs:
       - name: Setup .NET
         uses: actions/setup-dotnet@v6
         with:
+          # Installs the SDK global.json pins. Without it the job never installs
+          # that SDK at all and only works when the runner image happens to ship one
+          # satisfying the pin, which is how a publish failed on a lagging image.
+          global-json-file: global.json
           dotnet-version: 10.0.x
 
       - name: Install template from source
@@ -195,6 +207,10 @@ jobs:
       - name: Setup .NET
         uses: actions/setup-dotnet@v6
         with:
+          # Installs the SDK global.json pins. Without it the job never installs
+          # that SDK at all and only works when the runner image happens to ship one
+          # satisfying the pin, which is how a publish failed on a lagging image.
+          global-json-file: global.json
           dotnet-version: 10.0.x
 
       - name: Install template from source
@@ -285,6 +301,10 @@ jobs:
       - name: Setup .NET
         uses: actions/setup-dotnet@v6
         with:
+          # Installs the SDK global.json pins. Without it the job never installs
+          # that SDK at all and only works when the runner image happens to ship one
+          # satisfying the pin, which is how a publish failed on a lagging image.
+          global-json-file: global.json
           dotnet-version: 10.0.x
 
       - name: Install template from source
@@ -349,6 +369,10 @@ jobs:
       - name: Setup .NET
         uses: actions/setup-dotnet@v6
         with:
+          # Installs the SDK global.json pins. Without it the job never installs
+          # that SDK at all and only works when the runner image happens to ship one
+          # satisfying the pin, which is how a publish failed on a lagging image.
+          global-json-file: global.json
           dotnet-version: 10.0.x
 
       - name: Install template from source
