@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.15.15](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/compare/ZeroAlloc.Templates-v0.15.14...ZeroAlloc.Templates-v0.15.15) (2026-09-21)
+
+
+### Bug Fixes
+
+* **deps:** move to Mediator 5.1.4 so the API starts again ([#383](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/issues/383)) ([ccf837c](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/commit/ccf837c584f32a16881dbaab928ecdcafd5d2d06))
+
+## [0.15.14](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/compare/ZeroAlloc.Templates-v0.15.13...ZeroAlloc.Templates-v0.15.14) (2026-09-21)
+
+
+### Bug Fixes
+
+* **ci:** pin the SDK floor at the .NET 10 GA band, not the newest patch ([#372](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/issues/372)) ([9d98e24](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/commit/9d98e24bd9afe28cf64db90267774b309081cc3f))
+
 ## [0.15.13](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/compare/ZeroAlloc.Templates-v0.15.12...ZeroAlloc.Templates-v0.15.13) (2026-09-15)
 
 
