@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.15.15](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/compare/ZeroAlloc.Templates-v0.15.14...ZeroAlloc.Templates-v0.15.15) (2026-09-21)
+
+
+### Bug Fixes
+
+* **deps:** move to Mediator 5.1.4 so the API starts again ([#383](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/issues/383)) ([ccf837c](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/commit/ccf837c584f32a16881dbaab928ecdcafd5d2d06))
+
 ## [0.15.14](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/compare/ZeroAlloc.Templates-v0.15.13...ZeroAlloc.Templates-v0.15.14) (2026-09-21)
 
 
