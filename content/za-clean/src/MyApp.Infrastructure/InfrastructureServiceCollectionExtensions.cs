@@ -62,8 +62,7 @@ public static class InfrastructureServiceCollectionExtensions
             IShippingQuoteHttpClientResilienceProxy>(
             (inner, sp) => new IShippingQuoteHttpClientResilienceProxy(
                 inner,
-                sp.GetRequiredService<ZeroAlloc.Resilience.RetryPolicy>(),
-                sp.GetRequiredService<ZeroAlloc.Resilience.TimeoutPolicy>()),
+                sp.GetRequiredService<ShippingQuoteHttpClientResiliencePolicies>()),
             opts =>
             {
                 opts.BaseAddress = new Uri(shippingBaseUrl);
@@ -72,12 +71,11 @@ public static class InfrastructureServiceCollectionExtensions
                 opts.UseSerializer<SystemTextJsonSerializer>();
             });
 
-        // Register the resilience policies as singletons; AddRestResilience doesn't
-        // register them (only the per-interface AddXxxResilience<TImpl>() generator
-        // extension does), so add them explicitly here. Values mirror the [Retry] and
-        // [Timeout] attributes on IShippingQuoteHttpClient.
-        services.AddSingleton(new ZeroAlloc.Resilience.RetryPolicy(maxAttempts: 3, backoffMs: 200, jitter: true, perAttemptTimeoutMs: 0));
-        services.AddSingleton(new ZeroAlloc.Resilience.TimeoutPolicy(5_000));
+        // The proxy's policy settings, generated from the [Retry] and [Timeout] attributes on
+        // IShippingQuoteHttpClient. AddRestResilience registers IShippingQuoteHttpClient itself,
+        // so only the policies are registered here, not the full AddShippingQuoteHttpClientResilience.
+        // Pass a configure callback to change the values at startup, for example from IOptions.
+        services.AddShippingQuoteHttpClientResiliencePolicies();
 
         return services;
     }
