@@ -23,7 +23,7 @@ jobs:
         with:
           # Manifest mode: read release-please-config.json + .release-please-manifest.json
           # from the repo root. Matches the convention used across ZeroAlloc-Net repos.
-          # The csproj <Version> is overridden at pack time via -p:PackageVersion=,
+          # The csproj <Version> is overridden at pack time via -p:Version=,
           # so release-please doesn't need to edit the csproj.
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
@@ -54,7 +54,9 @@ jobs:
         run: dotnet test content/za-clean/MyApp.slnx --no-build --configuration Release
 
       - name: Pack template
-        run: dotnet pack ZeroAlloc.Templates.csproj -c Release -p:PackageVersion=${{ needs.release-please.outputs.version }} -o ./nupkg -warnaserror
+        # -p:Version, not -p:PackageVersion: the version guard in ZeroAlloc.Templates.csproj fails a
+        # pack whose assembly does not carry the package version. See ZeroAlloc-Net/.github#36.
+        run: dotnet pack ZeroAlloc.Templates.csproj -c Release -p:Version=${{ needs.release-please.outputs.version }} -o ./nupkg -warnaserror
 
       - name: Restore (smoke test)
         run: dotnet restore tests/ZeroAlloc.Templates.SmokeTests/ZeroAlloc.Templates.SmokeTests.csproj
