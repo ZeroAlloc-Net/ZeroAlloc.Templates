@@ -24,6 +24,12 @@ csharp_indent_case_contents = true
 csharp_indent_switch_labels = true
 dotnet_sort_system_directives_first = true
 
+# Readonly structs and members, enforced in the build for the repo's own code only.
+# Template content does not turn on EnforceCodeStyleInBuild.
+[tests/**.cs]
+dotnet_diagnostic.IDE0250.severity = warning
+dotnet_diagnostic.IDE0251.severity = warning
+
 # EF Core generates migration files with timestamps in their names; the contained
 # type name (e.g. InitialCreate) intentionally does not match the file name.
 [**/Persistence/Migrations/*.cs]

@@ -7,7 +7,7 @@
     <RootNamespace>MyApp.Benchmarks</RootNamespace>
     <ServerGarbageCollection>true</ServerGarbageCollection>
     <ConcurrentGarbageCollection>true</ConcurrentGarbageCollection>
-    <NoWarn>$(NoWarn);MA0002;MA0004;MA0006;MA0047;MA0048;EPC12;CA1812;CA1822</NoWarn>
+    <NoWarn>$(NoWarn);MA0002;MA0004;MA0006;MA0047;MA0048;CA1812;CA1822</NoWarn>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="BenchmarkDotNet" />
