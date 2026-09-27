@@ -48,19 +48,19 @@ jobs:
         run: dotnet restore content/za-clean/MyApp.slnx
 
       - name: Build (content)
-        run: dotnet build content/za-clean/MyApp.slnx --no-restore --configuration Release
+        run: dotnet build content/za-clean/MyApp.slnx --no-restore --configuration Release -warnaserror
 
       - name: Test (content)
         run: dotnet test content/za-clean/MyApp.slnx --no-build --configuration Release
 
       - name: Pack template
-        run: dotnet pack ZeroAlloc.Templates.csproj -c Release -p:PackageVersion=${{ needs.release-please.outputs.version }} -o ./nupkg
+        run: dotnet pack ZeroAlloc.Templates.csproj -c Release -p:PackageVersion=${{ needs.release-please.outputs.version }} -o ./nupkg -warnaserror
 
       - name: Restore (smoke test)
         run: dotnet restore tests/ZeroAlloc.Templates.SmokeTests/ZeroAlloc.Templates.SmokeTests.csproj
 
       - name: Test (smoke)
-        run: dotnet test tests/ZeroAlloc.Templates.SmokeTests --configuration Release
+        run: dotnet test tests/ZeroAlloc.Templates.SmokeTests --configuration Release -warnaserror
 
       - name: Push to NuGet
         # Requires repo secret NUGET_API_KEY (nuget.org push-only API key for

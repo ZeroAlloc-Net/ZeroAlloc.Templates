@@ -43,7 +43,7 @@ jobs:
         run: dotnet restore content/za-clean/MyApp.slnx
 
       - name: Build (content)
-        run: dotnet build content/za-clean/MyApp.slnx --no-restore --configuration Release
+        run: dotnet build content/za-clean/MyApp.slnx --no-restore --configuration Release -warnaserror
 
       - name: Test (content)
         run: dotnet test content/za-clean/MyApp.slnx --no-build --configuration Release
@@ -59,7 +59,7 @@ jobs:
         run: dotnet run -c Release --no-build -- --filter "*" --job dry
 
       - name: Pack template
-        run: dotnet pack ZeroAlloc.Templates.csproj -c Release -o ./nupkg
+        run: dotnet pack ZeroAlloc.Templates.csproj -c Release -o ./nupkg -warnaserror
 
       - name: Restore (smoke test)
         run: dotnet restore tests/ZeroAlloc.Templates.SmokeTests/ZeroAlloc.Templates.SmokeTests.csproj
@@ -69,7 +69,7 @@ jobs:
         # temp directory, then builds + tests the scaffolded solution. This is
         # the gate that catches "we changed a ZA package and the template no
         # longer scaffolds."
-        run: dotnet test tests/ZeroAlloc.Templates.SmokeTests --configuration Release
+        run: dotnet test tests/ZeroAlloc.Templates.SmokeTests --configuration Release -warnaserror
 
       - name: Upload nupkg artifact
         if: github.ref == 'refs/heads/main'
@@ -105,7 +105,7 @@ jobs:
         run: dotnet restore content/za-vertical-slice/MyApp.slnx
 
       - name: Build (content)
-        run: dotnet build content/za-vertical-slice/MyApp.slnx --no-restore --configuration Release
+        run: dotnet build content/za-vertical-slice/MyApp.slnx --no-restore --configuration Release -warnaserror
 
       - name: Test (content)
         run: dotnet test content/za-vertical-slice/MyApp.slnx --no-build --configuration Release
@@ -149,7 +149,7 @@ jobs:
       - name: Publish AOT (linux-x64)
         run: |
           cd /tmp/aot-smoke/SmokeApp
-          dotnet publish src/SmokeApp.Api -c Release -r linux-x64 -o ./aot-out
+          dotnet publish src/SmokeApp.Api -c Release -r linux-x64 -o ./aot-out -warnaserror
 
       - name: Capture binary size
         shell: bash
@@ -221,6 +221,11 @@ jobs:
           mkdir -p /tmp/real-run-smoke
           dotnet new za-clean -o /tmp/real-run-smoke/SmokeApp
 
+      - name: Build scaffolded app (warnings as errors)
+        # Built here rather than by dotnet run so warnings fail the job; the boot step
+        # then runs with --no-build.
+        run: dotnet build /tmp/real-run-smoke/SmokeApp/src/SmokeApp.Api -c Release -warnaserror
+
       - name: Boot API (JIT) and wait for /healthz
         shell: bash
         env:
@@ -228,7 +233,7 @@ jobs:
           Shipping__UseStub: 'true'
         run: |
           cd /tmp/real-run-smoke/SmokeApp
-          dotnet run --project src/SmokeApp.Api -c Release > /tmp/api.log 2>&1 &
+          dotnet run --project src/SmokeApp.Api -c Release --no-build > /tmp/api.log 2>&1 &
           echo $! > /tmp/api.pid
           for i in $(seq 1 1800); do
             if curl -sf http://localhost:5000/healthz > /dev/null 2>&1; then
@@ -318,7 +323,7 @@ jobs:
       - name: Publish AOT (linux-x64)
         run: |
           cd /tmp/aot-smoke-vs/SmokeApp
-          dotnet publish src/SmokeApp -c Release -r linux-x64 -o ./aot-out
+          dotnet publish src/SmokeApp -c Release -r linux-x64 -o ./aot-out -warnaserror
 
       - name: Capture binary size
         shell: bash
@@ -383,13 +388,18 @@ jobs:
           mkdir -p /tmp/real-run-smoke-vs
           dotnet new za-vertical-slice -o /tmp/real-run-smoke-vs/SmokeApp
 
+      - name: Build scaffolded app (warnings as errors)
+        # Built here rather than by dotnet run so warnings fail the job; the boot step
+        # then runs with --no-build.
+        run: dotnet build /tmp/real-run-smoke-vs/SmokeApp/src/SmokeApp -c Release -warnaserror
+
       - name: Boot API (JIT) and wait for /healthz
         shell: bash
         env:
           Jwt__DevSigningKey: DEV-ONLY-KEY-DO-NOT-USE-IN-PRODUCTION-AT-LEAST-32-CHARS-LONG
         run: |
           cd /tmp/real-run-smoke-vs/SmokeApp
-          dotnet run --project src/SmokeApp -c Release > /tmp/api-vs.log 2>&1 &
+          dotnet run --project src/SmokeApp -c Release --no-build > /tmp/api-vs.log 2>&1 &
           echo $! > /tmp/api-vs.pid
           for i in $(seq 1 1800); do
             if curl -sf http://localhost:5000/healthz > /dev/null 2>&1; then

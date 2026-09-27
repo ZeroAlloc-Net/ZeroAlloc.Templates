@@ -24,8 +24,9 @@ public class TemplateScaffoldsAndBuildsTests
             Directory.CreateDirectory(scaffoldDir);
             await Run("dotnet", $"new {templateShortName} -o \"{scaffoldDir}\" --name {scaffoldName}", repoRoot);
 
-            // 3. Build the scaffolded app
-            await Run("dotnet", $"build \"{Path.Combine(scaffoldDir, $"{scaffoldName}.slnx")}\"", scaffoldDir);
+            // 3. Build the scaffolded app. -warnaserror fails the test on any warning in the generated
+            //    code: the template itself ships without TreatWarningsAsErrors.
+            await Run("dotnet", $"build \"{Path.Combine(scaffoldDir, $"{scaffoldName}.slnx")}\" -warnaserror", scaffoldDir);
 
             // 4. Test the scaffolded app
             await Run("dotnet", $"test \"{Path.Combine(scaffoldDir, $"{scaffoldName}.slnx")}\" --no-build", scaffoldDir);
