@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.15.16](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/compare/ZeroAlloc.Templates-v0.15.15...ZeroAlloc.Templates-v0.15.16) (2026-09-27)
+
+
+### Bug Fixes
+
+* **templates:** bump ZeroAlloc.Serialisation to 2.4.5 and drop stale version notes ([#427](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/issues/427)) ([0a734fe](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/commit/0a734fe00a268dbce76e645b4871722c7b187de7))
+* **templates:** move to ZeroAlloc.Validation 2 and drop the separate generator reference ([#423](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/issues/423)) ([df3902e](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/commit/df3902e4d568f132cd52ce090a367f8c96557662))
+
 ## [0.15.15](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/compare/ZeroAlloc.Templates-v0.15.14...ZeroAlloc.Templates-v0.15.15) (2026-09-21)
 
 
