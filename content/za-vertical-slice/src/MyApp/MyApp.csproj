@@ -51,10 +51,6 @@
     <PackageReference Include="ZeroAlloc.Authorization" />
     <PackageReference Include="ZeroAlloc.Authorization.Generator" />
     <PackageReference Include="ZeroAlloc.Validation" />
-    <PackageReference Include="ZeroAlloc.Validation.Generator">
-      <PrivateAssets>all</PrivateAssets>
-      <IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
-    </PackageReference>
 
     <!-- ZeroAlloc: primitives + Mapping + Inject + Telemetry/Resilience/Rest -->
     <PackageReference Include="ZeroAlloc.Results" />
