@@ -147,7 +147,7 @@ builder.Services.AddOpenTelemetry()
 // AOT: source-generated JSON for DTOs. Insert JsonContext.Default at index 0
 // so the generated resolver wins over the reflection-based default.
 // AddZeroAllocValueObjectConverters registers the typed-ID converters emitted
-// by ZeroAlloc.Serialisation 2.3.1's source generator — STJ consults
+// by ZeroAlloc.Serialisation's source generator — STJ consults
 // options.Converters before the context's typeinfo, so CustomerId/OrderId
 // serialize as bare integers instead of wrapped { "Value": 42 } objects.
 builder.Services.ConfigureHttpJsonOptions(o =>

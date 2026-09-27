@@ -156,7 +156,7 @@ builder.Services.AddOpenTelemetry()
 // reflection. When you add a slice, register its request/response types in
 // JsonContext or the host fails to start.
 // AddZeroAllocValueObjectConverters registers the typed-ID converters
-// emitted by ZeroAlloc.Serialisation 2.3.1's source generator. STJ checks
+// emitted by ZeroAlloc.Serialisation's source generator. STJ checks
 // options.Converters before the context's typeinfo, so CustomerId/OrderId
 // serialize as bare integers instead of wrapped { "Value": 42 } objects.
 builder.Services.ConfigureHttpJsonOptions(o =>
