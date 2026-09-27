@@ -58,8 +58,10 @@ jobs:
         working-directory: content/za-clean/benchmarks/MyApp.Benchmarks.Primitives
         run: dotnet run -c Release --no-build -- --filter "*" --job dry
 
+      # An explicit CI version: the version guard in ZeroAlloc.Templates.csproj fails a pack with
+      # none, which here shipped the csproj's placeholder 0.1.0. See ZeroAlloc-Net/.github#36.
       - name: Pack template
-        run: dotnet pack ZeroAlloc.Templates.csproj -c Release -o ./nupkg -warnaserror
+        run: dotnet pack ZeroAlloc.Templates.csproj -c Release -p:Version=0.0.0-ci.${{ github.run_number }} -o ./nupkg -warnaserror
 
       - name: Restore (smoke test)
         run: dotnet restore tests/ZeroAlloc.Templates.SmokeTests/ZeroAlloc.Templates.SmokeTests.csproj
