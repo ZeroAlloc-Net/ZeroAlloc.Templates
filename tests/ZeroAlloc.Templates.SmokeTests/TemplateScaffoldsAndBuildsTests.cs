@@ -41,7 +41,8 @@ public class TemplateScaffoldsAndBuildsTests
     private static string FindRepoRoot()
     {
         var dir = AppContext.BaseDirectory;
-        while (dir is not null && !Directory.Exists(Path.Combine(dir, ".git")))
+        // A git worktree has a .git file, not a directory, so test for either.
+        while (dir is not null && !Path.Exists(Path.Combine(dir, ".git")))
             dir = Path.GetDirectoryName(dir);
         return dir ?? throw new InvalidOperationException("Repo root not found");
     }
