@@ -3,5 +3,24 @@
   "extends": [
     "config:recommended",
     "github>ZeroAlloc-Net/.github"
+  ],
+  "packageRules": [
+    {
+      "description": [
+        "Re-enable ZeroAlloc major updates for the root props files.",
+        "",
+        "The shared preset disables ZeroAlloc majors in a root Directory.Packages.props",
+        "and Directory.Build.props, which is right for a library keeping its dependency",
+        "floors. Here the root files are copies of content/<template>/ that CI's drift",
+        "check requires to stay identical, so a major that updates only the template",
+        "copies fails the build, as in #433 and #434. The templates always track the",
+        "newest ZeroAlloc major, so the root copies must too."
+      ],
+      "matchDatasources": ["nuget"],
+      "matchPackageNames": ["/^ZeroAlloc($|\.)/i"],
+      "matchUpdateTypes": ["major"],
+      "matchFileNames": ["Directory.Packages.props", "Directory.Build.props"],
+      "enabled": true
+    }
   ]
 }
