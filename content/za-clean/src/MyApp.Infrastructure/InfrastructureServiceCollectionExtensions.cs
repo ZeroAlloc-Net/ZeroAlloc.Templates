@@ -67,8 +67,9 @@ public static class InfrastructureServiceCollectionExtensions
             {
                 opts.BaseAddress = new Uri(shippingBaseUrl);
                 // IRestSerializer must be registered; otherwise ShippingQuoteHttpClientClient
-                // can't be activated by AddRestResilience's factory at request time.
-                opts.UseSerializer<SystemTextJsonSerializer>();
+                // can't be activated by AddRestResilience's factory at request time. The
+                // source-generated context keeps serialization free of reflection for Native AOT.
+                opts.UseSerializer(new SystemTextJsonSerializer(ShippingJsonContext.Default));
             });
 
         // The proxy's policy settings, generated from the [Retry] and [Timeout] attributes on
