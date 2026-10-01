@@ -11,9 +11,9 @@
     <PackageVersion Include="ZeroAlloc.Mediator" Version="6.0.0" />
     <PackageVersion Include="ZeroAlloc.Results" Version="1.2.4" />
     <PackageVersion Include="ZeroAlloc.ValueObjects" Version="2.0.12" />
-    <PackageVersion Include="ZeroAlloc.Serialisation" Version="2.4.6" />
-    <PackageVersion Include="ZeroAlloc.Serialisation.SystemTextJson" Version="2.4.6" />
-    <PackageVersion Include="ZeroAlloc.Validation" Version="2.0.2" />
+    <PackageVersion Include="ZeroAlloc.Serialisation" Version="2.5.1" />
+    <PackageVersion Include="ZeroAlloc.Serialisation.SystemTextJson" Version="2.5.1" />
+    <PackageVersion Include="ZeroAlloc.Validation" Version="2.1.0" />
     <PackageVersion Include="ZeroAlloc.Inject" Version="1.9.0" />
     <PackageVersion Include="ZeroAlloc.Authorization" Version="2.1.4" />
     <PackageVersion Include="ZeroAlloc.Authorization.Generator" Version="2.1.4" />
@@ -31,9 +31,9 @@
          parameter, so multi-statement aggregate writes participate
          in a single transaction across providers (#111). Used by
          OrderRepository.AddAsync. -->
-    <PackageVersion Include="ZeroAlloc.ORM" Version="2.1.1" />
-    <PackageVersion Include="ZeroAlloc.ORM.Abstractions" Version="2.1.1" />
-    <PackageVersion Include="ZeroAlloc.ORM.Generator" Version="2.1.1" />
+    <PackageVersion Include="ZeroAlloc.ORM" Version="2.2.0" />
+    <PackageVersion Include="ZeroAlloc.ORM.Abstractions" Version="2.2.0" />
+    <PackageVersion Include="ZeroAlloc.ORM.Generator" Version="2.2.0" />
     <PackageVersion Include="AdoNet.Async" Version="1.4.1" />
     <PackageVersion Include="AdoNet.Async.Adapters" Version="1.4.1" />
     <PackageVersion Include="Microsoft.Data.Sqlite" Version="10.0.12" />
