@@ -15,8 +15,8 @@
     <PackageVersion Include="ZeroAlloc.Serialisation.SystemTextJson" Version="2.5.1" />
     <PackageVersion Include="ZeroAlloc.Validation" Version="2.1.0" />
     <PackageVersion Include="ZeroAlloc.Inject" Version="1.10.0" />
-    <PackageVersion Include="ZeroAlloc.Authorization" Version="2.1.4" />
-    <PackageVersion Include="ZeroAlloc.Authorization.Generator" Version="2.1.4" />
+    <PackageVersion Include="ZeroAlloc.Authorization" Version="2.1.5" />
+    <PackageVersion Include="ZeroAlloc.Authorization.Generator" Version="2.1.5" />
     <PackageVersion Include="ZeroAlloc.Telemetry" Version="1.11.0" />
     <PackageVersion Include="ZeroAlloc.Resilience" Version="3.3.1" />
     <PackageVersion Include="ZeroAlloc.Rest" Version="3.1.0" />
