@@ -241,7 +241,7 @@ Per-primitive comparisons against the ecosystem alternatives. These blocks are r
 
 #### Mapping
 <!-- MAPPING:START -->
-_Imported from ZA.Mapping — last refreshed 2026-09-14._
+_Imported from ZA.Mapping — last refreshed 2026-10-05._
 
 _Last refreshed: 2026-05-10_
 
@@ -386,7 +386,7 @@ BenchmarkDotNet v0.15.8, Windows 11 (10.0.26200.8246/25H2/2025Update/HudsonValle
 
 #### Mediator
 <!-- MEDIATOR:START -->
-_Imported from ZA.Mediator — last refreshed 2026-09-14._
+_Imported from ZA.Mediator — last refreshed 2026-10-05._
 
 | Method | ZeroAlloc.Mediator | MediatR | Ratio | ZA Alloc | MediatR Alloc |
 |---|---:|---:|---:|---:|---:|
@@ -405,7 +405,7 @@ ZeroAlloc.Mediator is **40–160× faster** than MediatR across all measured pat
 
 #### Validation
 <!-- VALIDATION:START -->
-_Imported from ZA.Validation — last refreshed 2026-09-14._
+_Imported from ZA.Validation — last refreshed 2026-10-05._
 
 _Last refreshed: 2026-05-13_
 
@@ -420,7 +420,7 @@ ZeroAlloc.Validation is **49–143× faster** than FluentValidation on the valid
 
 #### Inject
 <!-- INJECT:START -->
-_Imported from ZA.Inject — last refreshed 2026-09-14._
+_Imported from ZA.Inject — last refreshed 2026-10-05._
 
 _Last refreshed: 2026-05-18_
 
@@ -444,13 +444,14 @@ The Container row dropped from 10,998 ns / 11,192 B (v1.6 and earlier) to 1,034 
 | Singleton | 6.3 ns | 6.9 ns | **5.4 ns** | 5.5 ns | 0 B |
 | Decorated transient | 44.5 ns | **21.1 ns** | 22.3 ns | 28.8 ns² | 48 B |
 | `IEnumerable<T>` (3 impls) | **67.8 ns** | 74.8 ns | 81.8 ns | 150.9 ns | 168 B |
-| Open generic (closed type) | 13.5 ns | (delegates to MS DI) | **7.7 ns** | N/A³ | 24 B |
+| Open generic (closed type) | 13.5 ns | not yet measured⁴ | **7.7 ns** | N/A³ | 24 B |
 | Create scope | 82 ns / 128 B | **60 ns / 96 B** | 58 ns / 88 B | **14 ns / 40 B** | — |
 | Resolve scoped (full lifecycle) | 7,181 ns / 304 B | 5,901 ns / 120 B | 4,851 ns / 120 B | **5,216 ns / 120 B** | — |
 
 _¹ Jab is constructor-only — no property injection._
 _² Jab decorator wired via factory (no first-class decorator attribute)._
 _³ Jab 0.10.x requires closed types at the `[ServiceProvider]` attribute level._
+_⁴ The container used to delegate open generics to MS DI; it now resolves the closed forms constructors ask for from its type switch, and the benchmark was added with that change._
 
 ZA.Inject is **competitive across every scenario** and the clear winner where the generator's domain knowledge matters most: property injection (2× MS DI), decorators (2.1× MS DI), open generics (1.8× MS DI). Jab leads on scope creation (its scope is the lightest of the four, by an order of magnitude), with ZA Standalone close behind on the full scoped-resolution lifecycle.
 
@@ -459,7 +460,7 @@ In v1.6 the **ZA.Inject Container** scope creation dropped from 123 ns / 216 B t
 
 #### Results
 <!-- RESULTS:START -->
-_Imported from ZA.Results — last refreshed 2026-09-14._
+_Imported from ZA.Results — last refreshed 2026-10-05._
 
 _Last refreshed: 2026-05-13_
 
@@ -485,7 +486,7 @@ ErrorOr and FluentResults allocate per-failure because their error types (`Error
 
 #### ValueObjects
 <!-- VALUEOBJECTS:START -->
-_Imported from ZA.ValueObjects — last refreshed 2026-09-14._
+_Imported from ZA.ValueObjects — last refreshed 2026-10-05._
 
 _Last refreshed: 2026-05-18_
 
@@ -506,7 +507,7 @@ History: the previous single-property `ToString` allocated ~72 B per call and `G
 
 #### Specification
 <!-- SPECIFICATION:START -->
-_Imported from ZA.Specification — last refreshed 2026-09-14._
+_Imported from ZA.Specification — last refreshed 2026-10-05._
 
 _Last refreshed: 2026-05-13_
 
@@ -525,7 +526,7 @@ ZA.Specification's `IsSatisfiedBy` is a direct virtual call on a struct value �
 
 #### StateMachine
 <!-- STATEMACHINE:START -->
-_Imported from ZA.StateMachine — last refreshed 2026-09-14._
+_Imported from ZA.StateMachine — last refreshed 2026-10-05._
 
 _Last refreshed: 2026-05-13_
 
@@ -545,7 +546,7 @@ This is the apples-to-apples comparison for cyclic state machines — a per-requ
 
 #### Resilience
 <!-- RESILIENCE:START -->
-_Imported from ZA.Resilience — last refreshed 2026-09-14._
+_Imported from ZA.Resilience — last refreshed 2026-10-05._
 
 _Last refreshed: 2026-05-18_
 
@@ -572,7 +573,7 @@ Rate-limit and timeout limits in the all-policies harness are set to `int.MaxVal
 
 #### Rest
 <!-- REST:START -->
-_Imported from ZA.Rest — last refreshed 2026-09-14._
+_Imported from ZA.Rest — last refreshed 2026-10-05._
 
 _Last refreshed: 2026-05-13_
 
@@ -600,7 +601,7 @@ ZeroAlloc.Rest is **1.7–3.6× faster than Refit** across every shape of call (
 
 #### Serialisation
 <!-- SERIALISATION:START -->
-_Imported from ZA.Serialisation — last refreshed 2026-09-14._
+_Imported from ZA.Serialisation — last refreshed 2026-10-05._
 
 _Last refreshed: 2026-05-13_
 
@@ -629,28 +630,28 @@ This is the cost of the abstraction. **The wrapper is fastest when the caller po
 
 #### Cache
 <!-- CACHE:START -->
-_Imported from ZA.Cache — last refreshed 2026-09-14._
+_Imported from ZA.Cache — last refreshed 2026-10-05._
 
-_Last refreshed: 2026-05-13_
+_Last refreshed: 2026-09-30_
 
-L1 (in-process) cache-hit comparison. .NET 10.0.7, i9-12900HK, BenchmarkDotNet v0.15.8. ZA.Cache wraps `IMemoryCache`, so the relevant comparisons are: hand-rolled `GetOrCreateAsync` (the pattern ZA replaces) and [FusionCache](https://github.com/ZiggyCreatures/FusionCache) 2.0 (the de-facto third-party L1+L2 caching library).
+L1 (in-process) cache-hit comparison. .NET 10.0.12, i9-12900HK, BenchmarkDotNet v0.15.8. ZA.Cache wraps `IMemoryCache`, so the relevant comparisons are: hand-rolled `GetOrCreateAsync` (the pattern ZA replaces) and [FusionCache](https://github.com/ZiggyCreatures/FusionCache) 2.9 (the de-facto third-party L1+L2 caching library). Each row returns the library's own task type directly, so no benchmark wrapper allocation is counted.
 
 | Library | Time | Allocated |
 |---|---:|---:|
-| Raw `IMemoryCache.GetOrCreateAsync` | 208 ns | 176 B |
-| **ZA.Cache proxy** | **434 ns** | **160 B** |
-| FusionCache | 989 ns | 112 B |
+| Raw `IMemoryCache.GetOrCreateAsync` | 157 ns | 104 B |
+| **ZA.Cache proxy** | **198 ns** | **0 B** |
+| FusionCache | 1,270 ns | 88 B |
 
-**ZA.Cache is 2.3× faster than FusionCache** with comparable allocation. The trade vs raw `IMemoryCache` is the ~2× cost of the typed `[Cache]` attribute abstraction (compile-time key building + async wrapper) — in exchange you don't write the cache-lookup boilerplate at every call site, and the key derivation is generated rather than hand-typed.
+**ZA.Cache is about 6× faster than FusionCache and the only row that allocates nothing.** The trade vs raw `IMemoryCache` is about 1.3× the time, the cost of the typed `[Cache]` abstraction: proxy dispatch, key formatting and telemetry. In exchange you don't write the cache-lookup boilerplate at every call site, and the key derivation is generated rather than hand-typed.
 
 **FusionCache** is heavier because it carries L2-cache, stampede protection, and adaptive-caching infrastructure even when only L1 is configured. For pure L1, ZA is the lighter choice; FusionCache's value is the L2 + advanced features that ZA does not implement.
 
-**Caveat on the raw row**: ZA's 2× premium over raw `IMemoryCache.GetOrCreateAsync` reflects the proxy dispatch + generated key composition. The raw row's 176 B allocation is the `(string, int)` tuple boxing the test uses for the key; ZA's 160 B is the generated `customer-42` string interpolation. Allocation parity is by design — both store roughly the same key shape.
+**Caveat on the raw row**: its 104 B is the `Task<string>` that `GetOrCreateAsync` returns plus the boxed `(string, int)` tuple the test uses as its key. ZA's hit returns a synchronously completed `ValueTask<string>` and looks the key up as a span, so it allocates nothing.
 <!-- CACHE:END -->
 
 #### Telemetry
 <!-- TELEMETRY:START -->
-_Imported from ZA.Telemetry — last refreshed 2026-09-14._
+_Imported from ZA.Telemetry — last refreshed 2026-10-05._
 
 _Last refreshed: 2026-05-13_
 
@@ -671,7 +672,7 @@ ZA.Telemetry's generator produces code **at parity with hand-written instrumenta
 
 #### Notify
 <!-- NOTIFY:START -->
-_Imported from ZA.Notify — last refreshed 2026-09-14._
+_Imported from ZA.Notify — last refreshed 2026-10-05._
 
 _Last refreshed: 2026-05-13_
 
@@ -693,7 +694,7 @@ _Last refreshed: 2026-05-13_
 
 #### Scheduling
 <!-- SCHEDULING:START -->
-_Imported from ZA.Scheduling — last refreshed 2026-09-14._
+_Imported from ZA.Scheduling — last refreshed 2026-10-05._
 
 _Last refreshed: 2026-05-14_
 
@@ -721,7 +722,7 @@ The takeaway: if you're considering ZA.Scheduling over a hand-rolled `Timer`, th
 
 #### Outbox
 <!-- OUTBOX:START -->
-_Imported from ZA.Outbox — last refreshed 2026-09-14._
+_Imported from ZA.Outbox — last refreshed 2026-10-05._
 
 _Last refreshed: 2026-05-14_
 
@@ -741,7 +742,7 @@ The value of the abstraction is the `[OutboxMessage]` attribute + the typed writ
 
 #### EventSourcing
 <!-- EVENTSOURCING:START -->
-_Imported from ZA.EventSourcing — last refreshed 2026-09-14._
+_Imported from ZA.EventSourcing — last refreshed 2026-10-05._
 
 _Last refreshed: 2026-05-14_
 
