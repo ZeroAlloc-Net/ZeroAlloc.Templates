@@ -34,7 +34,7 @@
     <PackageVersion Include="ZeroAlloc.ORM" Version="2.2.0" />
     <PackageVersion Include="ZeroAlloc.ORM.Abstractions" Version="2.2.0" />
     <PackageVersion Include="ZeroAlloc.ORM.Generator" Version="2.2.0" />
-    <PackageVersion Include="AdoNet.Async" Version="1.4.1" />
+    <PackageVersion Include="AdoNet.Async" Version="1.5.0" />
     <PackageVersion Include="AdoNet.Async.Adapters" Version="1.4.1" />
     <PackageVersion Include="Microsoft.Data.Sqlite" Version="10.0.12" />
     <!-- CVE-2025-6965 / GHSA-2m69-gcr7-jv3q: Microsoft.Data.Sqlite pulls
