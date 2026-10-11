@@ -12,7 +12,6 @@
          hand-listed via XxxEndpoint.Map(app) calls near the end of Program.cs.
          Each new slice adds one line to each list — see AGENTS.md §3. -->
     <PublishAot>true</PublishAot>
-    <TrimmerSingleWarn>true</TrimmerSingleWarn>
     <InvariantGlobalization>true</InvariantGlobalization>
     <!-- This project declares [Policy] / [RequirePolicy]. The vertical-slice
          layout has only one src project, so it owns policies (no sibling src
@@ -51,6 +50,9 @@
     <PackageReference Include="ZeroAlloc.Authorization" />
     <PackageReference Include="ZeroAlloc.Authorization.Generator" />
     <PackageReference Include="ZeroAlloc.Validation" />
+    <!-- Generates AddZeroAllocValidators(), which registers every [Validate]
+         validator as ValidatorFor<T> for the mediator validation behavior. -->
+    <PackageReference Include="ZeroAlloc.Validation.Inject" />
 
     <!-- ZeroAlloc: primitives + Mapping + Inject + Telemetry/Resilience/Rest -->
     <PackageReference Include="ZeroAlloc.Results" />

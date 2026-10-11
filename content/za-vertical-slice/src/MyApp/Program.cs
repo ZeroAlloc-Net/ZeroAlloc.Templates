@@ -35,6 +35,11 @@ builder.Services.AddHttpContextAccessor();
 builder.Services.AddHealthChecks();
 builder.Services.AddZeroAllocAuthorization();
 
+// UseAccessor<T> resolves the accessor from DI; it does not register it.
+builder.Services.AddScoped<HttpSecurityContextAccessor>();
+// Maps ValidationFailedException to 400 and AuthorizationDeniedException to 403.
+builder.Services.AddExceptionHandler<MyApp.Common.MediatorExceptionHandler>();
+builder.Services.AddProblemDetails();
 builder.Services.AddMyApp(o => o.UseAccessor<HttpSecurityContextAccessor>());
 
 // ---------------------------------------------------------------------------
@@ -250,6 +255,7 @@ if (!string.Equals(schemaStrategy, "Skip", StringComparison.OrdinalIgnoreCase))
     }
 }
 
+app.UseExceptionHandler();
 app.UseAuthentication();
 app.UseAuthorization();
 

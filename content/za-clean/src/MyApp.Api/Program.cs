@@ -58,6 +58,11 @@ builder.Services.AddHttpContextAccessor();
 // AddMyAppApplication's WithAuthorization() throws InvalidOperationException if this
 // call is missing or runs after AddMediator(). See ZeroAlloc.Authorization v2 docs.
 builder.Services.AddZeroAllocAuthorization();
+// UseAccessor<T> resolves the accessor from DI; it does not register it.
+builder.Services.AddScoped<HttpSecurityContextAccessor>();
+// Maps a mediator-level AuthorizationDeniedException to 403.
+builder.Services.AddExceptionHandler<MediatorExceptionHandler>();
+builder.Services.AddProblemDetails();
 builder.Services.AddMyAppApplication(opt => opt.UseAccessor<HttpSecurityContextAccessor>());
 
 // ---------------------------------------------------------------------------
@@ -239,6 +244,7 @@ if (!string.Equals(schemaStrategy, "Skip", StringComparison.OrdinalIgnoreCase))
     }
 }
 
+app.UseExceptionHandler();
 app.UseAuthentication();
 app.UseAuthorization();
 
