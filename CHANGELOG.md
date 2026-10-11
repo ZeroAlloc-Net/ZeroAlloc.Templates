@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.15.18](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/compare/ZeroAlloc.Templates-v0.15.17...ZeroAlloc.Templates-v0.15.18) (2026-10-11)
+
+
+### Performance Improvements
+
+* cut template hot-path allocations and benchmark the real mediator ([#479](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/issues/479)) ([6b1196f](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/commit/6b1196f9261c9bc0a7620074a1ecb8af122a0f48)), closes [#474](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/issues/474)
+
 ## [0.15.17](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/compare/ZeroAlloc.Templates-v0.15.16...ZeroAlloc.Templates-v0.15.17) (2026-10-11)
 
 
