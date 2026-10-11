@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.15.17](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/compare/ZeroAlloc.Templates-v0.15.16...ZeroAlloc.Templates-v0.15.17) (2026-10-11)
+
+
+### Bug Fixes
+
+* run mediator validation and authorization in scaffolded apps ([#475](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/issues/475)) ([b15cf47](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/commit/b15cf47a6532c6157641c9350c401b6cce16d359))
+
 ## [0.15.16](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/compare/ZeroAlloc.Templates-v0.15.15...ZeroAlloc.Templates-v0.15.16) (2026-09-27)
 
 
