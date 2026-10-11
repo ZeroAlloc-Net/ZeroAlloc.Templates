@@ -58,9 +58,8 @@ public sealed partial class PlaceOrderHandler(IAsyncDbConnection conn)
 }
 
 /// <summary>
-/// Minimal-API endpoint mapping. Picked up by the assembly walk in Program.cs
-/// because the type is a public static class ending in "Endpoint" with a
-/// matching <c>Map(IEndpointRouteBuilder)</c> method.
+/// Minimal-API endpoint mapping. Program.cs wires it with an explicit
+/// <c>PlaceOrderEndpoint.Map(app)</c> call, one per slice.
 /// </summary>
 public static class PlaceOrderEndpoint
 {

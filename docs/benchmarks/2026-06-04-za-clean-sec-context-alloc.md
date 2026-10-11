@@ -32,3 +32,20 @@ BenchmarkDotNet v0.15.8, Windows 11 (10.0.26200.8457/25H2/2025Update/HudsonValle
 | HasScope_SingleValue      | 288.60 ns | 22.881 ns |  67.46 ns | 277.69 ns | 0.0033 |     176 B |
 | HasScope_MultiValueClaims | 380.56 ns | 34.244 ns | 100.43 ns | 353.80 ns | 0.0052 |     248 B |
 | HasScope_Missing          |  46.34 ns |  5.048 ns |  14.88 ns |  44.17 ns | 0.0008 |      40 B |
+
+## Follow-up (#474, 2026-10-11)
+
+The remaining enumerator cost is gone. `ClaimsPrincipalSecurityContext` now indexes
+`ClaimsPrincipal.Identities` and each `ClaimsIdentity.Claims` list directly instead of calling
+`FindFirst` and `Claims`, whose boxed enumerators and iterator objects were the 176 B / 40 B
+above. Re-measured on the same i9-12900HK, .NET 10.0.12, `--inProcess`:
+
+| Method                    | Before    | After     |
+|-------------------------- |----------:|----------:|
+| HasScope_SingleValue      |     176 B |       0 B |
+| HasScope_MultiValueClaims |     248 B |      72 B |
+| HasScope_Missing          |      40 B |       0 B |
+
+The 72 B multi-value row is the joined `"orders.read orders.write"` string, which RFC 6749
+§3.3 semantics require. `HttpSecurityContextAccessor` also caches the context per request,
+so the 24 B context object is paid once per request instead of once per mediator dispatch.

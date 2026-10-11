@@ -55,8 +55,11 @@ public class ReadHotPathBench
         var order = Order.Create(new CustomerId(42));
         order.AddLine("SKU-A", 1, Money.TryCreate(10m, "EUR").Value);
         order.AddLine("SKU-B", 1, Money.TryCreate(5m, "EUR").Value);
-        _repo.AddAsync(order, default).GetAwaiter().GetResult();
-        _seededId = order.Id;
+        // AddAsync returns the DB-assigned id. order.Id stays at the OrderId(0)
+        // sentinel, and reading that id would benchmark the not-found path.
+        _seededId = _repo.AddAsync(order, default).GetAwaiter().GetResult();
+        if (_repo.GetByIdAsync(_seededId, default).GetAwaiter().GetResult() is not { Lines.Count: 2 })
+            throw new InvalidOperationException("Seeded order did not read back; the bench would measure a miss.");
     }
 
     // Hand-written baseline issuing the same ;-joined head+lines SELECT

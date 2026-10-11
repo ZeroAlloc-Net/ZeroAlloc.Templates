@@ -25,14 +25,14 @@ public class GetOrderByIdHandlerTests
         var repo = new FakeOrderRepository();
         var order = Order.Create(new CustomerId(7));
         order.AddLine("SKU-A", 2, Money.TryCreate(15m, "EUR").Value);
-        var saved = await repo.AddAsync(order, CancellationToken.None);
+        var savedId = await repo.AddAsync(order, CancellationToken.None);
 
         var handler = new GetOrderByIdHandler(repo);
-        var result = await handler.Handle(new GetOrderByIdQuery(saved.Id), CancellationToken.None);
+        var result = await handler.Handle(new GetOrderByIdQuery(savedId), CancellationToken.None);
 
         Assert.True(result.IsSuccess);
         var rm = result.Value;
-        Assert.Equal(saved.Id, rm.OrderId);
+        Assert.Equal(savedId, rm.OrderId);
         Assert.Equal(new CustomerId(7), rm.CustomerId);
         Assert.Equal("Pending", rm.Status);
         Assert.Equal("EUR", rm.Currency);

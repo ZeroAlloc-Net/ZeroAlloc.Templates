@@ -44,12 +44,16 @@ public sealed partial class ListOrdersHandler(IAsyncDbConnection conn)
         var rows = await ListOrdersAsync(query.PageSize, skip, ct).ConfigureAwait(false);
 
         var items = new List<OrderListItem>(rows.Count);
-        foreach (var row in rows)
+        // Indexed loop: foreach over the IReadOnlyList<T> interface would box the
+        // List<T> enumerator. The DTO carries the amount only, so the currency
+        // token is never parsed.
+        for (var i = 0; i < rows.Count; i++)
         {
+            var row = rows[i];
             items.Add(new OrderListItem(
                 new OrderId(row.Id),
                 new CustomerId(row.CustomerId),
-                MoneyConverter.FromStorage(row.Total).Amount));
+                MoneyConverter.AmountFromStorage(row.Total)));
         }
 
         return Result<OrderPage, Error>.Success(new OrderPage(query.Page, query.PageSize, total, items));

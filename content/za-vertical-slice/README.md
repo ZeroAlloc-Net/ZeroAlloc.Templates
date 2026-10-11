@@ -78,7 +78,7 @@ tests/
 └── MyApp.IntegrationTests/  WebApplicationFactory — endpoint roundtrips
 
 benchmarks/
-├── MyApp.Benchmarks.Primitives/  BenchmarkDotNet — ZA primitives in isolation (0 B framework cost)
+├── MyApp.Benchmarks.Primitives/  BenchmarkDotNet — ZA primitives in isolation
 ├── MyApp.Benchmarks/             BenchmarkDotNet — full ASP.NET + ZA.ORM pipeline cost
 └── MyApp.LoadTest/               NBomber — RPS under sustained concurrency
 ```
@@ -119,7 +119,7 @@ public sealed class PlaceOrderHandler(IAsyncDbConnection db)
     static partial ValueTask InsertOrderAsync(IAsyncDbConnection db, Order order, CancellationToken ct);
 }
 
-// Endpoint — picked up automatically by the assembly walk in Program.cs.
+// Endpoint — wired by one explicit PlaceOrderEndpoint.Map(app) call in Program.cs.
 public static class PlaceOrderEndpoint
 {
     public static void Map(IEndpointRouteBuilder app) =>
@@ -142,7 +142,7 @@ internal sealed class Order
 }
 ```
 
-To add a new use case — copy a slice file, rename, tweak. No other place in the codebase needs editing: `Program.cs`'s assembly walk picks up the new `*Endpoint` class automatically, `services.AddMediator().RegisterHandlersFromAssembly(...)` picks up the new handler automatically, the `[RequirePolicy]` declaration is enforced by `.UseAuthorization()` automatically.
+To add a new use case — copy a slice file, rename, tweak, and add one `XxxEndpoint.Map(app)` line to `Program.cs` (explicit, so endpoint mapping stays reflection-free for NativeAOT). The generated `services.AddMediator()` registers the new handler at compile time, and the `[RequirePolicy]` declaration is enforced by the mediator's authorization behaviour automatically.
 
 ## Conventions enforced by `MyApp.ConventionTests`
 

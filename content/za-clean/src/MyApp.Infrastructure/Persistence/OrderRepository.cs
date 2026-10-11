@@ -12,7 +12,7 @@ namespace MyApp.Infrastructure.Persistence;
 [Scoped]
 public sealed partial class OrderRepository(IAsyncDbConnection conn) : IOrderRepository
 {
-    public async Task<Order> AddAsync(Order order, CancellationToken ct)
+    public async Task<OrderId> AddAsync(Order order, CancellationToken ct)
     {
         // BeginTransactionAsync requires an open connection. The per-command
         // ref-counted prologue inside each emitted partial method sees
@@ -33,8 +33,12 @@ public sealed partial class OrderRepository(IAsyncDbConnection conn) : IOrderRep
                     tx,
                     ct).ConfigureAwait(false);
 
-                foreach (var line in order.Lines)
+                // Indexed loop: foreach over the IReadOnlyList<OrderLine> interface
+                // would box the List<T> enumerator on every write.
+                var lines = order.Lines;
+                for (var i = 0; i < lines.Count; i++)
                 {
+                    var line = lines[i];
                     await InsertOrderLineAsync(
                         orderId,
                         line.Sku,
@@ -47,12 +51,7 @@ public sealed partial class OrderRepository(IAsyncDbConnection conn) : IOrderRep
                 await tx.CommitAsync(ct).ConfigureAwait(false);
                 // Exception above propagates out of the `using` scope — tx
                 // DisposeAsync rolls back if CommitAsync wasn't reached.
-                return Order.Materialize(
-                    new OrderId(orderId),
-                    order.CustomerId,
-                    order.Status,
-                    order.Total,
-                    order.Lines);
+                return new OrderId(orderId);
             }
         }
         finally

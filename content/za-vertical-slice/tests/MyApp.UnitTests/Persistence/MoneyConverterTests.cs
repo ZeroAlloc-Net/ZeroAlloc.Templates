@@ -54,4 +54,38 @@ public class MoneyConverterTests
         Assert.Equal(0m, restored.Amount);
         Assert.Equal("USD", restored.Currency);
     }
+
+    [Fact]
+    public void FromStorage_reuses_the_currency_string_for_known_codes()
+    {
+        // The template only writes EUR and USD; reading them back must not
+        // substring a fresh currency string on every read.
+        const string stored = "99.99|EUR";
+        MoneyConverter.FromStorage(stored);
+
+        var before = GC.GetAllocatedBytesForCurrentThread();
+        for (var i = 0; i < 1_000; i++)
+            MoneyConverter.FromStorage(stored);
+        Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - before);
+    }
+
+    [Fact]
+    public void FromStorage_keeps_an_unknown_currency_code()
+    {
+        var restored = MoneyConverter.FromStorage("12.50|GBP");
+        Assert.Equal(12.50m, restored.Amount);
+        Assert.Equal("GBP", restored.Currency);
+    }
+
+    [Fact]
+    public void AmountFromStorage_parses_decimal_without_currency_alloc()
+    {
+        Assert.Equal(15m, MoneyConverter.AmountFromStorage("15|EUR"));
+        Assert.Equal(99.99m, MoneyConverter.AmountFromStorage("99.99|USD"));
+
+        var before = GC.GetAllocatedBytesForCurrentThread();
+        for (var i = 0; i < 1_000; i++)
+            MoneyConverter.AmountFromStorage("99.99|USD");
+        Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - before);
+    }
 }

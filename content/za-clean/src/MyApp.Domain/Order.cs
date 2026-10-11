@@ -14,9 +14,8 @@ public sealed class Order
         Total = Money.TryCreate(0m, "EUR").Value;
     }
 
-// Id is set once at construction. Order.Create() seeds the sentinel
-    // OrderId(0); OrderRepository.AddAsync returns a new Order built via
-    // Order.Materialize(...) carrying the DB-assigned id.
+    // Id is set once at construction. Order.Create() seeds the sentinel
+    // OrderId(0); OrderRepository.AddAsync returns the DB-assigned id.
     public OrderId Id { get; }
 
     public CustomerId CustomerId { get; }
@@ -37,9 +36,11 @@ public sealed class Order
     }
 
     /// <summary>
-    /// Re-hydration factory for infrastructure code that materialises an Order
-    /// from raw storage (e.g. the raw-SQL read path in
-    /// <c>OrderRepository.GetByIdAsync</c>). Bypasses domain invariants
+    /// Re-hydration factory for repository code that rebuilds an Order from
+    /// already-persisted state, such as a repository loading the aggregate for a
+    /// command or the in-memory repository in the unit tests. The query side does
+    /// not use it: <c>OrderRepository.GetByIdAsync</c> projects straight into the
+    /// read model. Bypasses domain invariants
     /// (totals are not recomputed from lines) because the caller is replaying
     /// already-validated persisted state, not running new business logic.
     /// Keep this out of the application layer's command/query handlers — use

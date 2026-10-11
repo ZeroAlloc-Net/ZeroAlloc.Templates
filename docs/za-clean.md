@@ -122,7 +122,7 @@ Extending the set is a copy-paste-rename. Common additions: ban `System.Reflecti
 
 Three harnesses, three questions.
 
-**`MyApp.Benchmarks.Primitives` (BenchmarkDotNet, in-isolation)** — `PrimitivesBench` exercises each ZA layer standalone: mapping, mediator dispatch, validator, value-object construction, and an end-to-end chain. No ASP.NET, no EF, no HTTP. These are the numbers that deliver on the "zero-allocation through the framework hot path" claim. Expect ns/op and 0 B/op for the framework primitives themselves.
+**`MyApp.Benchmarks.Primitives` (BenchmarkDotNet, in-isolation)** — `PrimitivesBench` exercises each ZA layer standalone: mapping, mediator dispatch, the handler alone, validator, value-object construction, and an end-to-end chain. No ASP.NET, no database, no HTTP. Mediator dispatch goes through the real source-generated `IMediator` from `AddMyAppApplication`, authorization and validation behaviours included, into the real `CreateOrderHandler` over zero-work stubs. The validator and value objects are 0 B; mapping, the handler and the mediator are not, and the table says by how much.
 
 **`MyApp.Benchmarks` (BenchmarkDotNet, in-process)** — `WritePipelineBench` hosts the API via `WebApplicationFactory<Program>` and measures `POST /orders` end-to-end through middleware, model binding, mediator dispatch, validation, the ZA.ORM `[Command]`-generated INSERT path against `IAsyncDbConnection`, and the outbound shipping call (stubbed). It reports allocation per request and median latency. In-process means you're measuring the *pipeline*, not the network — useful for spotting regressions, not capacity planning.
 
@@ -154,22 +154,31 @@ Measured in CI on GitHub Actions ubuntu-latest (AMD EPYC, .NET 10.0.8) via the `
 
 #### Primitives — ZA framework cost in isolation
 
-Measured with `MyApp.Benchmarks.Primitives` — no ASP.NET, no EF, just the ZA packages. These are the numbers that deliver on the "zero-allocation through the framework hot path" claim.
+Measured with `MyApp.Benchmarks.Primitives` — no ASP.NET, no database, just the ZA packages and the template's own handler.
 
 ```
-BenchmarkDotNet v0.15.8, Linux Ubuntu 24.04.4 LTS
-AMD EPYC 9V74 / 7763 (varies per CI run), .NET SDK 10.0.300, .NET 10.0.8 X64 RyuJIT
+BenchmarkDotNet v0.15.8, Windows 11 (10.0.26200), 12th Gen Intel Core i9-12900HK
+.NET SDK 10.0.401, .NET 10.0.12 X64 RyuJIT x86-64-v3, InProcessEmitToolchain
 ```
 
-| Method                    | Mean       | Error     | StdDev    | Gen0   | Allocated |
-|-------------------------- |-----------:|----------:|----------:|-------:|----------:|
-| `Mapping_RequestToCommand`|  44.649 ns | 0.5548 ns | 0.5190 ns | 0.0157 |     160 B |
-| `Mediator_DispatchOnly`   |  30.601 ns | 0.0690 ns | 0.0612 ns |      - |       0 B |
-| `Validator_Generated`     |  57.350 ns | 0.2782 ns | 0.2466 ns |      - |       0 B |
-| `ValueObject_TryCreate`   |   3.436 ns | 0.0138 ns | 0.0115 ns |      - |       0 B |
-| `EndToEndPrimitives`      | 125.274 ns | 1.0573 ns | 0.9890 ns | 0.0257 |       0 B |
+| Method                    | Mean          | Gen0   | Allocated |
+|-------------------------- |--------------:|-------:|----------:|
+| `Mapping_RequestToCommand`|  ~50 ns       | 0.0033 |     160 B |
+| `Mediator_Send`           | ~0.5–1.3 µs   | 0.0095 |     456 B |
+| `Handler_Direct`          | ~0.2–0.3 µs   | 0.0043 |     208 B |
+| `Validator_Generated`     |  ~50 ns       |      - |       0 B |
+| `ValueObject_TryCreate`   |   ~7 ns       |      - |       0 B |
+| `EndToEndPrimitives`      | ~0.7–1.5 µs   | 0.0124 |     616 B |
 
-The decisive datapoint: the validator + mediator dispatch + value-object construction through the chain allocate **zero bytes**. The 160 B caller cost in `Mapping_RequestToCommand` is the `CreateOrderCommand` record + nested `OrderItem[]` array — every framework pays it; ZA.Mapping does not add to it. `EndToEndPrimitives` chains the whole sequence in a context where the array materialisation is hoisted out, so the inner pipeline shows **0 B** even with the mapping primitive in the loop.
+Re-measured 2026-10-11 for #474 on a shared developer machine under load, so the timings swing between runs and are given as ranges; the allocation column is deterministic and is the one to read. Earlier versions of this table reported `Mediator_DispatchOnly` at 0 B and `EndToEndPrimitives` at 0 B. Both were wrong: the dispatch row called a hand-written `FakeMediator`, not ZA.Mediator, and the end-to-end row allocated 160 B per call, as its own Gen0 column showed.
+
+What the bytes are:
+
+- `Mapping_RequestToCommand`, 160 B: the `OrderItem[]` the command carries. Every framework pays this caller cost; ZA.Mapping does not add to it.
+- `Handler_Direct`, 208 B: `CreateOrderHandler` building the `Order` aggregate, its line list and the line record. This is application code, not framework cost.
+- `Mediator_Send`, 456 B: the handler's 208 B plus 248 B for the generated mediator's dispatch through the authorization and validation behaviours.
+- `EndToEndPrimitives`, 616 B: mapping 160 B plus the mediator send 456 B.
+- `Validator_Generated` and `ValueObject_TryCreate` allocate nothing.
 
 `Validator_Generated` measures the ZA.Validation-generated `CreateOrderCommandValidator` end-to-end, including the regex check on `ShippingZip`. As of [ZA.Validation 1.5.3](https://github.com/ZeroAlloc-Net/ZeroAlloc.Validation/pull/52), `[Matches]` emits a `private static readonly Regex` field initialised with `RegexOptions.Compiled` — JIT-compiled matcher, no per-call cache lookup, direct dispatch.
 

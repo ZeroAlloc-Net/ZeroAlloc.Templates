@@ -32,6 +32,9 @@ public class ReadModelToResponseTests
         Assert.Equal("Pending", resp.Status);
         Assert.Equal(25m, resp.Total);
         Assert.Equal("EUR", resp.Currency);
+        // The read model's lines are already the wire shape: passed through,
+        // not projected a second time.
+        Assert.Same(rm.Lines, resp.Lines);
         Assert.Equal(2, resp.Lines.Count);
         Assert.Equal("SKU-A", resp.Lines[0].Sku);
         Assert.Equal(1, resp.Lines[0].Quantity);

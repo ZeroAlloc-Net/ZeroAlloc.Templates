@@ -119,10 +119,10 @@ What remains AOT-relevant:
 - DTOs that cross the HTTP boundary must be registered in
   `MyApp.Api/JsonContext.cs` via `[JsonSerializable(typeof(...))]`. Forgetting
   surfaces at boot under AOT (the real-run-smoke CI job is the safety net).
-- Reflection-based handler scanning (e.g., ZA.Mediator's `RegisterHandlersFromAssembly`)
-  gets trimmed under AOT, so `ApplicationServiceCollectionExtensions` registers
-  handlers manually (`services.AddScoped<IRequestHandler<TReq, TResp>, ConcreteHandler>()`
-  per handler).
+- Handler registration is source-generated: the ZeroAlloc.Mediator generator
+  emits `AddMediator()` with every handler's concrete-type registration at
+  compile time, and `ApplicationServiceCollectionExtensions` calls it. No
+  assembly scan, so nothing for the trimmer to remove.
 - Trim-warnings from OpenTelemetry / Npgsql / SQLite are gated under
   `<TrimmerSingleWarn>true</TrimmerSingleWarn>` — they're invoked outside the
   hot path or guarded at runtime.
