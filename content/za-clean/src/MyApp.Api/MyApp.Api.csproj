@@ -15,11 +15,6 @@
     <NoWarn>$(NoWarn);ZAM003;SYSLIB1220;SYSLIB1030</NoWarn>
     <PublishAot>true</PublishAot>
     <InvariantGlobalization>true</InvariantGlobalization>
-    <!-- Collapse IL2xxx/IL3xxx warnings per source assembly into a single
-         summary line. Expected warnings come from OpenTelemetry
-         (RequiresDynamicCode for OTel SDK reflection), SQLite
-         (DependencyContext.LoadDefault under single-file) and Npgsql. -->
-    <TrimmerSingleWarn>true</TrimmerSingleWarn>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" />

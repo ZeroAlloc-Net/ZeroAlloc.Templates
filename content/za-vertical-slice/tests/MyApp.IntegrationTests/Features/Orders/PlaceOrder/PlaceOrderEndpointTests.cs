@@ -37,6 +37,26 @@ public sealed class PlaceOrderEndpointTests : IClassFixture<MyAppFactory>
         Assert.StartsWith("/orders/", resp.Headers.Location!.ToString(), StringComparison.Ordinal);
     }
 
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    public async Task POST_orders_with_non_positive_total_returns_400(int total)
+    {
+        // [Validate] runs as a mediator pipeline behavior; [GreaterThan(0)] must reject
+        // the command before the handler persists anything.
+        var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue(
+            "Bearer", TestJwt.Issue(["orders.write"]));
+
+        var resp = await client.PostAsJsonAsync("/orders", new
+        {
+            customerId = 42,
+            total,
+        });
+
+        Assert.Equal(HttpStatusCode.BadRequest, resp.StatusCode);
+    }
+
     [Fact]
     public async Task POST_orders_without_jwt_returns_401()
     {

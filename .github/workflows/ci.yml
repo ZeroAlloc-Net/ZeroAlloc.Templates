@@ -163,6 +163,9 @@ jobs:
 
       - name: Boot + smoke
         shell: bash
+        env:
+          VALID_BODY: '{"customerId":42,"items":[{"sku":"SKU-001","quantity":1,"unitPriceEur":9.99}],"shippingZip":"1234AB"}'
+          INVALID_BODY: '{"customerId":42,"items":[],"shippingZip":"not-a-zip"}'
         run: |
           cd /tmp/aot-smoke/SmokeApp
           START=$(date +%s%N)
@@ -176,9 +179,11 @@ jobs:
               END=$(date +%s%N)
               MS=$(( (END - START) / 1000000 ))
               echo "- **Cold start**: ${MS} ms" >> $GITHUB_STEP_SUMMARY
-              curl -sf http://localhost:5000/healthz
+              set +e
+              bash "$GITHUB_WORKSPACE/scripts/request-smoke.sh" http://localhost:5000 "$VALID_BODY" "$INVALID_BODY" /tmp/aot-server.log
+              RC=$?
               kill $PID
-              exit 0
+              exit $RC
             fi
             sleep 0.05
           done
@@ -194,10 +199,8 @@ jobs:
     # asserts 201 Created with a numeric Id in the response.
     #
     # Covers the auth + Mediator + [Validate] + EF Core + Application handler
-    # + DTO mapping path. aot-publish-smoke only hits /healthz (anonymous), so
-    # this job catches the bug classes the AOT smoke can't: JWT key wiring,
-    # env-var prefix, validation source-gen wiring, mediator pipeline behavior
-    # configuration, and the rest of the auth-protected request path.
+    # + DTO mapping path. scripts/request-smoke.sh runs the same 401/201/400
+    # checks against the NativeAOT binary in aot-publish-smoke.
     runs-on: ubuntu-latest
     needs: build
     steps:
@@ -249,45 +252,12 @@ jobs:
           kill $(cat /tmp/api.pid) 2>/dev/null || true
           exit 1
 
-      - name: Mint HS256 JWT
+      - name: Request smoke
         shell: bash
-        run: |
-          # Hand-crafts an HS256 JWT in bash. base64url = base64 with +/_= → -_ (no padding).
-          # Header + payload signed with HMAC-SHA256 using the template's DEV signing key.
-          KEY="DEV-ONLY-KEY-DO-NOT-USE-IN-PRODUCTION-AT-LEAST-32-CHARS-LONG"
-          b64url() { openssl base64 -A | tr '+/' '-_' | tr -d '='; }
-          HEADER='{"alg":"HS256","typ":"JWT"}'
-          EXP=$(($(date +%s) + 3600))
-          PAYLOAD="{\"scope\":\"orders.write\",\"sub\":\"smoke\",\"exp\":$EXP}"
-          H=$(printf '%s' "$HEADER"  | b64url)
-          P=$(printf '%s' "$PAYLOAD" | b64url)
-          SIG=$(printf '%s' "$H.$P" | openssl dgst -sha256 -hmac "$KEY" -binary | b64url)
-          echo "JWT=$H.$P.$SIG" >> $GITHUB_ENV
-
-      - name: POST /orders (real-run smoke)
-        shell: bash
-        run: |
-          BODY='{"customerId":42,"items":[{"sku":"SKU-001","quantity":1,"unitPriceEur":9.99}],"shippingZip":"1234AB"}'
-          RESPONSE=$(curl -sfS -X POST http://localhost:5000/orders \
-            -H "Authorization: Bearer $JWT" \
-            -H "Content-Type: application/json" \
-            -d "$BODY" \
-            -w "\n%{http_code}" 2>&1 || true)
-          STATUS=$(echo "$RESPONSE" | tail -n1)
-          BODY_OUT=$(echo "$RESPONSE" | sed '$d')
-          echo "HTTP $STATUS"
-          echo "Response body: $BODY_OUT"
-          if [ "$STATUS" != "201" ]; then
-            echo "::error::POST /orders returned $STATUS (expected 201)"
-            echo "--- api log ---"
-            cat /tmp/api.log
-            exit 1
-          fi
-          if ! echo "$BODY_OUT" | grep -qE '"[Ii]d"\s*:\s*[0-9]+'; then
-            echo "::error::Response body missing numeric Id: $BODY_OUT"
-            exit 1
-          fi
-          echo "✓ POST /orders → 201 Created with numeric Id"
+        env:
+          VALID_BODY: '{"customerId":42,"items":[{"sku":"SKU-001","quantity":1,"unitPriceEur":9.99}],"shippingZip":"1234AB"}'
+          INVALID_BODY: '{"customerId":42,"items":[],"shippingZip":"not-a-zip"}'
+        run: bash "$GITHUB_WORKSPACE/scripts/request-smoke.sh" http://localhost:5000 "$VALID_BODY" "$INVALID_BODY" /tmp/api.log
 
       - name: Stop API
         if: always()
@@ -337,6 +307,9 @@ jobs:
 
       - name: Boot + smoke
         shell: bash
+        env:
+          VALID_BODY: '{"customerId":42,"total":99.99}'
+          INVALID_BODY: '{"customerId":42,"total":0}'
         run: |
           cd /tmp/aot-smoke-vs/SmokeApp
           START=$(date +%s%N)
@@ -348,9 +321,11 @@ jobs:
               END=$(date +%s%N)
               MS=$(( (END - START) / 1000000 ))
               echo "- **Cold start**: ${MS} ms" >> $GITHUB_STEP_SUMMARY
-              curl -sf http://localhost:5000/healthz
+              set +e
+              bash "$GITHUB_WORKSPACE/scripts/request-smoke.sh" http://localhost:5000 "$VALID_BODY" "$INVALID_BODY" /tmp/aot-server-vs.log
+              RC=$?
               kill $PID
-              exit 0
+              exit $RC
             fi
             sleep 0.05
           done
@@ -415,49 +390,12 @@ jobs:
           kill $(cat /tmp/api-vs.pid) 2>/dev/null || true
           exit 1
 
-      - name: Mint HS256 JWT
+      - name: Request smoke
         shell: bash
-        run: |
-          KEY="DEV-ONLY-KEY-DO-NOT-USE-IN-PRODUCTION-AT-LEAST-32-CHARS-LONG"
-          b64url() { openssl base64 -A | tr '+/' '-_' | tr -d '='; }
-          HEADER='{"alg":"HS256","typ":"JWT"}'
-          EXP=$(($(date +%s) + 3600))
-          PAYLOAD="{\"scope\":\"orders.write\",\"sub\":\"smoke\",\"exp\":$EXP}"
-          H=$(printf '%s' "$HEADER"  | b64url)
-          P=$(printf '%s' "$PAYLOAD" | b64url)
-          SIG=$(printf '%s' "$H.$P" | openssl dgst -sha256 -hmac "$KEY" -binary | b64url)
-          echo "JWT=$H.$P.$SIG" >> $GITHUB_ENV
-
-      - name: POST /orders (real-run smoke)
-        shell: bash
-        run: |
-          # Vertical-slice PlaceOrderCommand body: flat {customerId, total}.
-          BODY='{"customerId":42,"total":99.99}'
-          RESPONSE=$(curl -sfS -X POST http://localhost:5000/orders \
-            -H "Authorization: Bearer $JWT" \
-            -H "Content-Type: application/json" \
-            -d "$BODY" \
-            -w "\n%{http_code}" 2>&1 || true)
-          STATUS=$(echo "$RESPONSE" | tail -n1)
-          BODY_OUT=$(echo "$RESPONSE" | sed '$d')
-          echo "HTTP $STATUS"
-          echo "Response body: $BODY_OUT"
-          if [ "$STATUS" != "201" ]; then
-            echo "::error::POST /orders returned $STATUS (expected 201)"
-            echo "--- api log ---"
-            cat /tmp/api-vs.log
-            exit 1
-          fi
-          # Under ZA.Serialisation 2.3.1+ the typed-ID converter writes
-          # OrderId as a bare integer on the wire — either the body is a
-          # bare integer (endpoint returns OrderId directly) or `"id":N`
-          # inside an object. The OLD wrapped form `{"id":{"value":N}}`
-          # was the bug 2.3.1/2.3.2 fixed; this assertion now rejects it.
-          if ! echo "$BODY_OUT" | grep -qE '^[0-9]+$|"[Ii]d"\s*:\s*[0-9]+'; then
-            echo "::error::Response body missing numeric OrderId (expected bare integer or numeric id field): $BODY_OUT"
-            exit 1
-          fi
-          echo "✓ POST /orders → 201 Created with numeric OrderId"
+        env:
+          VALID_BODY: '{"customerId":42,"total":99.99}'
+          INVALID_BODY: '{"customerId":42,"total":0}'
+        run: bash "$GITHUB_WORKSPACE/scripts/request-smoke.sh" http://localhost:5000 "$VALID_BODY" "$INVALID_BODY" /tmp/api-vs.log
 
       - name: Stop API
         if: always()

@@ -32,6 +32,25 @@ public sealed class CreateOrderEndpointTests : IClassFixture<MyAppFactory>
     }
 
     [Fact]
+    public async Task POST_orders_with_invalid_body_returns_400()
+    {
+        // Empty items and a malformed zip must be rejected by validation before
+        // anything is persisted.
+        var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue(
+            "Bearer", TestJwt.Issue(["orders.write"]));
+
+        var resp = await client.PostAsJsonAsync("/orders", new
+        {
+            customerId = 42,
+            items = Array.Empty<object>(),
+            shippingZip = "not-a-zip",
+        });
+
+        Assert.Equal(HttpStatusCode.BadRequest, resp.StatusCode);
+    }
+
+    [Fact]
     public async Task POST_orders_without_jwt_returns_401()
     {
         var client = _factory.CreateClient();

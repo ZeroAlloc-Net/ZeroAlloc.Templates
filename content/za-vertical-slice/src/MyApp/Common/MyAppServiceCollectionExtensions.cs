@@ -30,6 +30,10 @@ public static class MyAppServiceCollectionExtensions
                 .WithValidation()
                 .WithAuthorization(configureAuthorization);
 
+        // The validation behavior resolves ValidatorFor<TRequest> from DI and skips
+        // requests that have none, so every [Validate] validator must be registered.
+        services.AddZeroAllocValidators();
+
         // Per-slice handler registrations — keep in declaration order matching
         // the Features/<Area>/<UseCase>/ folder tree so adding a slice is
         // visually obvious.
