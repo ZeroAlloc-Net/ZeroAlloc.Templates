@@ -56,9 +56,16 @@ public sealed class OrderRepositoryAtomicityTests
         order.AddLine("SKU-A", 2, Money.TryCreate(10m, "EUR").Value);
         order.AddLine("SKU-B", 3, Money.TryCreate(5m, "EUR").Value);
 
-        await repo.AddAsync(order, CancellationToken.None);
+        var orderId = await repo.AddAsync(order, CancellationToken.None);
 
         var orderCount = await repo.CountAsync(CancellationToken.None);
         Assert.Equal(1, orderCount);
+
+        // The returned id is the DB-assigned one, not the OrderId(0) sentinel,
+        // and reads back the order with both lines.
+        var stored = await repo.GetByIdAsync(orderId, CancellationToken.None);
+        Assert.NotNull(stored);
+        Assert.Equal(orderId, stored.OrderId);
+        Assert.Equal(2, stored.Lines.Count);
     }
 }

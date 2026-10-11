@@ -37,7 +37,7 @@ public sealed class CreateOrderHandler(IOrderRepository repo, IShippingQuoteClie
             order.AddLine(item.Sku, item.Quantity, price.Value);
         }
 
-        var persisted = await repo.AddAsync(order, ct).ConfigureAwait(false);
-        return Result<OrderId, ApplicationError>.Success(persisted.Id);
+        var orderId = await repo.AddAsync(order, ct).ConfigureAwait(false);
+        return Result<OrderId, ApplicationError>.Success(orderId);
     }
 }

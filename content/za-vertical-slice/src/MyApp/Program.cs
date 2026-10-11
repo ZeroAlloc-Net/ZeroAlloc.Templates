@@ -6,6 +6,7 @@ using Microsoft.Data.Sqlite;
 using Microsoft.IdentityModel.Tokens;
 using MyApp;
 using MyApp.Authorization;
+using MyApp.Common;
 using MyApp.Features.Customers.CreateCustomer;
 using MyApp.Features.Customers.GetCustomer;
 using MyApp.Features.Orders.CancelOrder;
@@ -23,8 +24,9 @@ var builder = WebApplication.CreateBuilder(args);
 
 // ---------------------------------------------------------------------------
 // Mediator + Validation + Authorization. All handlers live inside this
-// assembly under Features/<Area>/<UseCase>/<UseCase>.cs — RegisterHandlersFrom
-// Assembly picks them up automatically.
+// assembly under Features/<Area>/<UseCase>/<UseCase>.cs. AddMyApp calls the
+// ZeroAlloc.Mediator-generated AddMediator(), which registers every handler
+// the generator found at compile time — no assembly scan, no reflection.
 //
 // AddZeroAllocAuthorization MUST run before AddMediator().UseAuthorization()
 // so the source-generated policy registry is registered before mediator's
@@ -130,7 +132,7 @@ builder.Services.AddOpenTelemetry()
             .AddAspNetCoreInstrumentation()
             .AddHttpClientInstrumentation()
             .AddSource("ZeroAlloc.Mediator")
-            .AddSource("MyApp");
+            .AddSource(Telemetry.SourceName);
         if (consoleTelemetry)
         {
             t.AddConsoleExporter();
@@ -143,7 +145,7 @@ builder.Services.AddOpenTelemetry()
     .WithMetrics(m =>
     {
         m.AddAspNetCoreInstrumentation()
-            .AddMeter("MyApp");
+            .AddMeter(Telemetry.SourceName);
         if (consoleTelemetry)
         {
             m.AddConsoleExporter();
@@ -262,9 +264,8 @@ app.UseAuthorization();
 app.UseOutputCache();
 
 // Endpoint registrations — one Map call per slice, mirroring the
-// Features/<Area>/<UseCase>/ tree. AOT publish requires the explicit calls;
-// the pre-1.0 reflective walk was the last AOT-blocker (the other was
-// reflection-based RegisterHandlersFromAssembly, now folded into AddMyApp).
+// Features/<Area>/<UseCase>/ tree. Explicit calls keep endpoint mapping
+// reflection-free, which NativeAOT publish requires.
 PlaceOrderEndpoint.Map(app);
 GetOrderEndpoint.Map(app);
 ListOrdersEndpoint.Map(app);

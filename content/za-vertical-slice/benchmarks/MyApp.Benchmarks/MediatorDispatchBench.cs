@@ -8,6 +8,7 @@ using MyApp.Common;
 using MyApp.Features.Orders.GetOrder;
 using MyApp.Features.Orders.PlaceOrder;
 using ZeroAlloc.Authorization;
+using ZeroAlloc.Authorization.Generated;
 using ZeroAlloc.Mediator;
 using ZeroAlloc.Mediator.Authorization;
 using ZeroAlloc.ORM.Migrations;
@@ -69,6 +70,9 @@ public class MediatorDispatchBench
         // context carrying the orders.read + orders.write scopes, so every
         // dispatch passes authorization (matches the WritePipelineBench JWT).
         services.AddScoped<StubSecurityContextAccessor>();
+        // Registers the generated [Policy] classes and AuthorizerFor<T> dispatchers;
+        // WithAuthorization() inside the call below refuses to run without it.
+        services.AddZeroAllocAuthorization();
         services.AddMyApp(o => o.UseAccessor<StubSecurityContextAccessor>());
 
         _root = services.BuildServiceProvider();

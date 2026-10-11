@@ -35,7 +35,7 @@ HTTP POST /orders
 - **`Common/`** — primitives shared across slices: TypedIds, the `Error` catalog, telemetry setup.
 - **Per-slice persistence** — each feature handler is a `public sealed partial class XxxHandler(IAsyncDbConnection conn)` with inline `[Query]`/`[Command]` partials and any row records co-located in the slice file. There is no central persistence type — the slice owns its data access shape, matching the vertical-slice principle that "everything a slice needs lives in the slice". `Persistence/Migrations/{Sqlite,Postgres}/NNN_<name>.sql` holds the embedded SQL applied at startup by `ZeroAlloc.ORM.Migrations.MigrationRunner`.
 - **`Authorization/Policies.cs`** — `[Policy]` declarations used by `[RequirePolicy(...)]` on requests.
-- **`Program.cs`** — DI wiring + endpoint-discovery walk (assembly walk that calls `Map` on every `public static class *Endpoint`).
+- **`Program.cs`** — DI wiring + one explicit `XxxEndpoint.Map(app)` call per slice (no reflective endpoint discovery).
 
 ## 2. Convention rules (enforced)
 
@@ -57,19 +57,14 @@ HTTP POST /orders
 4. Define `*Handler : IRequestHandler<*Command, Result<TResponse, Error>>`. Return `ValueTask<...>`, **not** `Task<...>`.
 5. Define `*Endpoint` as a `public static class` with `public static void Map(IEndpointRouteBuilder)`. Wire `IMediator.Send` + map result to `Results.Created`/`Results.Ok`/`Results.Problem`.
 6. If the slice needs to read or write rows, declare the relevant `[Query]`/`[Command]` partial methods directly on the handler class (mark the class `public sealed partial class XxxHandler(IAsyncDbConnection conn)`). Co-locate row records inside the class as `public sealed record XxxRow(...)`. Add SQL migration files at `src/MyApp/Persistence/Migrations/{Sqlite,Postgres}/NNN_<name>.sql` if the schema needs to change — the `MigrationRunner` picks them up by version on next startup.
-7. **Mark the handler `[Scoped]`** (`using ZeroAlloc.Inject;`). ZA.Inject's generator picks this up and emits the concrete-type DI registration in `AddMyAppServices()` — without the attribute, `ZeroAlloc.Mediator`'s source-generated dispatch fails at runtime with `"no service for type ...Handler has been registered"` (it resolves handlers by their concrete type, not by `IRequestHandler<,>`).
-8. **Register the handler's `IRequestHandler<,>` interface.** Add one line to `src/MyApp/Common/MyAppServiceCollectionExtensions.cs`:
-   ```csharp
-   services.AddScoped<IRequestHandler<TRequest, TResponse>, THandler>();
-   ```
-   Keep the per-slice order matching the `Features/` tree so diffs are visually obvious. AOT publish refuses to find handlers via reflection, so this hand-list is the AOT-friendly replacement for the pre-1.0 `RegisterHandlersFromAssembly(...)`.
-9. **Wire the endpoint.** Add one line near the bottom of `src/MyApp/Program.cs`:
+7. **Mark the handler `[Scoped]`** (`using ZeroAlloc.Inject;`). Handler registration itself is automatic: the ZeroAlloc.Mediator generator emits `AddMediator()` with a concrete-type registration for every handler it finds at compile time, which is also how its dispatcher resolves them (never through `IRequestHandler<,>`). The attribute sets the lifetime — without it the handler is registered transient, and a handler holding the scoped `IAsyncDbConnection` should be scoped.
+8. **Wire the endpoint.** Add one line near the bottom of `src/MyApp/Program.cs`:
    ```csharp
    YourEndpoint.Map(app);
    ```
-   Per-slice explicit registration is the AOT-friendly replacement for the pre-1.0 assembly walk. Forgetting it means the route returns 404 at runtime — the slice's IntegrationTests will catch it.
-10. Add a unit test in `tests/MyApp.UnitTests/Features/<Area>/<UseCase>/<UseCase>HandlerTests.cs`.
-11. Add an integration test in `tests/MyApp.IntegrationTests/Features/<Area>/<UseCase>/<UseCase>EndpointTests.cs`.
+   Explicit per-slice mapping keeps endpoint discovery reflection-free, which NativeAOT requires. Forgetting it means the route returns 404 at runtime — the slice's IntegrationTests will catch it.
+9. Add a unit test in `tests/MyApp.UnitTests/Features/<Area>/<UseCase>/<UseCase>HandlerTests.cs`.
+10. Add an integration test in `tests/MyApp.IntegrationTests/Features/<Area>/<UseCase>/<UseCase>EndpointTests.cs`.
 
 ### Add a value object
 
@@ -103,19 +98,16 @@ AOT publish is enabled (`<PublishAot>true</PublishAot>` in `MyApp.csproj`). Both
 reflection sites that previously blocked it are gone:
 
 1. **Endpoint discovery** — hand-listed via `XxxEndpoint.Map(app)` calls in
-   `Program.cs` (see §3 step 9). One line per slice.
-2. **Mediator handler registration** — hand-listed in
-   `Common/MyAppServiceCollectionExtensions.cs` via `AddMyApp(...)` (the
-   `IRequestHandler<,>` interfaces) plus the ZA.Inject-generated
-   `AddMyAppServices()` (the concrete-type registrations from `[Scoped]`
-   attributes). See §3 steps 7 + 8.
+   `Program.cs` (see §3 step 8). One line per slice.
+2. **Mediator handler registration** — source-generated. The ZeroAlloc.Mediator
+   generator emits `AddMediator()` with every handler's concrete-type
+   registration at compile time; `AddMyApp(...)` calls it. `[Scoped]` sets the
+   lifetime (see §3 step 7).
 
-The "Add a new use case" recipe in §3 above lists the two manual steps that
+The "Add a new use case" recipe in §3 above lists the one manual wiring step
 each new slice needs. CI's `aot-publish-smoke-vs` and `real-run-smoke-vs` jobs
-are the safety net — forgetting any of (a) `[Scoped]` on the handler,
-(b) the interface registration in `MyAppServiceCollectionExtensions`, or
-(c) the `Map(app)` call in `Program.cs` surfaces at the AOT publish or first
-HTTP request.
+are the safety net — forgetting the `Map(app)` call in `Program.cs` surfaces at
+the first HTTP request.
 
 ## 6. How to verify
 

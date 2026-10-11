@@ -1,5 +1,12 @@
 # ReadHotPathBench — Post-#173 Flat Read Model
 
+> **Correction (#474, 2026-10-11).** The bench seeded an order but then read `order.Id`, which
+> stays at the `OrderId(0)` sentinel because `AddAsync` returns the DB-assigned id separately.
+> Every number below therefore measures the not-found path: the head query matched no row.
+> With the real id, on i9-12900HK / .NET 10.0.12, `HandWrittenAdoNet` allocates 2.08 KB and
+> `ZeroAlloc_ORM` 2.92 KB, a 1.41× ratio. The bench now fails setup if the seeded order does
+> not read back.
+
 Measures the allocation footprint of the `GET /orders/{id}` read path on
 the za-clean template after #173 (replacing domain-aggregate
 reconstruction with a flat `OrderReadModel` projection). N=2 lines per

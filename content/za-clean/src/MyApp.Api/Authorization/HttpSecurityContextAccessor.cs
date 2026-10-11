@@ -14,26 +14,61 @@ namespace MyApp.Api.Authorization;
 /// populated by the JWT bearer middleware) into ZA.Authorization's <see cref="ISecurityContext"/>.
 /// Registered via <c>UseAccessor&lt;HttpSecurityContextAccessor&gt;()</c> in Program.cs so
 /// every mediator request gets the same identity the API endpoints see.
+/// <para>
+/// Registered scoped, so one instance serves one request. The security context it builds is
+/// cached on that instance and reused by every mediator dispatch in the request, as long as
+/// <see cref="HttpContext.User"/> still holds the same principal. The first <see cref="Current"/>
+/// of a request allocates the 24 B context; later reads in the same request allocate nothing.
+/// </para>
 /// </summary>
 public sealed class HttpSecurityContextAccessor(IHttpContextAccessor httpContextAccessor) : ISecurityContextAccessor
 {
-    public ISecurityContext Current => httpContextAccessor.HttpContext?.User is { Identity.IsAuthenticated: true } user
-        ? new ClaimsPrincipalSecurityContext(user)
-        : AnonymousSecurityContext.Instance;
+    private ClaimsPrincipalSecurityContext? _cached;
+
+    public ISecurityContext Current
+    {
+        get
+        {
+            var user = httpContextAccessor.HttpContext?.User;
+            if (user is null)
+                return AnonymousSecurityContext.Instance;
+
+            // One field read: the cached context carries the principal it was built for, so a
+            // replaced HttpContext.User is never served a stale identity.
+            var cached = _cached;
+            if (cached is not null && ReferenceEquals(cached.Principal, user))
+                return cached;
+
+            if (user.Identity is not { IsAuthenticated: true })
+                return AnonymousSecurityContext.Instance;
+
+            cached = new ClaimsPrincipalSecurityContext(user);
+            _cached = cached;
+            return cached;
+        }
+    }
 }
 
 /// <summary>
 /// Implements <see cref="ISecurityContext"/> directly on top of <see cref="ClaimsPrincipal"/>
 /// without materializing the role or claim collections. <see cref="Roles"/> and <see cref="Claims"/>
-/// return <c>this</c>, and every member walks <see cref="ClaimsPrincipal.FindAll(string)"/> on
-/// demand. The hot path — a single <see cref="IReadOnlyDictionary{TKey,TValue}.TryGetValue"/> for
-/// the "scope" claim on every authorized request — is zero-allocation for single-value claims
-/// (returns the original <see cref="Claim.Value"/> string) and allocates only the joined string
-/// for multi-value claims per RFC 6749 §3.3.
+/// return <c>this</c>, and every member walks the principal's claims on demand.
+/// <para>
+/// The hot path is one <see cref="IReadOnlyDictionary{TKey,TValue}.TryGetValue"/> for the
+/// "scope" claim on every authorized request. It allocates nothing for a missing or single-value
+/// claim, and only the joined string for a multi-value claim per RFC 6749 §3.3. That holds
+/// because the walk indexes the identity and claim lists directly. The BCL helpers
+/// <see cref="ClaimsPrincipal.FindFirst(string)"/> and <see cref="ClaimsPrincipal.Claims"/> hand
+/// out boxed enumerators and iterator objects, about 176 B per lookup when combined. An identity
+/// whose claims are not an <see cref="IList{T}"/> falls back to <c>foreach</c> and pays that
+/// enumerator. Claim types are matched ordinally.
+/// </para>
 /// </summary>
 internal sealed class ClaimsPrincipalSecurityContext(ClaimsPrincipal principal)
     : ISecurityContext, IReadOnlySet<string>, IReadOnlyDictionary<string, string>
 {
+    internal ClaimsPrincipal Principal => principal;
+
     public string Id => principal.Identity?.Name ?? string.Empty;
     public IReadOnlySet<string> Roles => this;
     public IReadOnlyDictionary<string, string> Claims => this;
@@ -42,30 +77,20 @@ internal sealed class ClaimsPrincipalSecurityContext(ClaimsPrincipal principal)
 
     public bool TryGetValue(string key, out string value)
     {
-        // Probe with FindFirst (returns null or a single Claim) for the zero-alloc single-value path.
-        var first = principal.FindFirst(key);
-        if (first is null)
-        {
-            value = string.Empty;
-            return false;
-        }
-        // Single-value common case — bail before constructing the FindAll enumerator.
-        // Walk principal.Claims directly to find any additional matches with the same type.
-        string? joined = null;
-        var seenFirst = false;
-        foreach (var c in principal.Claims)
-        {
-            if (!string.Equals(c.Type, key, StringComparison.Ordinal)) continue;
-            if (!seenFirst) { seenFirst = true; continue; }
-            joined = joined is null ? $"{first.Value} {c.Value}" : $"{joined} {c.Value}";
-        }
-        value = joined ?? first.Value;
-        return true;
+        var scan = new ClaimScan(key, joinValues: true);
+        WalkClaims(ref scan);
+        value = scan.Joined ?? scan.First ?? string.Empty;
+        return scan.First is not null;
     }
 
     public string this[string key] => TryGetValue(key, out var v) ? v : throw new KeyNotFoundException(key);
 
-    public bool ContainsKey(string key) => principal.FindFirst(key) is not null;
+    public bool ContainsKey(string key)
+    {
+        var scan = new ClaimScan(key, joinValues: false);
+        WalkClaims(ref scan);
+        return scan.First is not null;
+    }
 
     public IEnumerable<string> Keys
     {
@@ -110,10 +135,9 @@ internal sealed class ClaimsPrincipalSecurityContext(ClaimsPrincipal principal)
 
     public bool Contains(string item)
     {
-        foreach (var c in principal.FindAll(ClaimTypes.Role))
-            if (string.Equals(c.Value, item, StringComparison.Ordinal))
-                return true;
-        return false;
+        var scan = new ClaimScan(ClaimTypes.Role, joinValues: false, wantedValue: item);
+        WalkClaims(ref scan);
+        return scan.First is not null;
     }
 
     int IReadOnlyCollection<string>.Count
@@ -151,5 +175,59 @@ internal sealed class ClaimsPrincipalSecurityContext(ClaimsPrincipal principal)
         foreach (var c in principal.FindAll(ClaimTypes.Role))
             set.Add(c.Value);
         return set;
+    }
+
+    // ---- allocation-free claim walk ----
+
+    private void WalkClaims(ref ClaimScan scan)
+    {
+        var identities = principal.Identities;
+        if (identities is IList<ClaimsIdentity> list)
+        {
+            for (var i = 0; i < list.Count && !scan.Done; i++)
+                WalkIdentity(list[i], ref scan);
+            return;
+        }
+        foreach (var identity in identities)
+        {
+            if (scan.Done) return;
+            WalkIdentity(identity, ref scan);
+        }
+    }
+
+    private static void WalkIdentity(ClaimsIdentity identity, ref ClaimScan scan)
+    {
+        var claims = identity.Claims;
+        if (claims is IList<Claim> list)
+        {
+            for (var i = 0; i < list.Count && !scan.Done; i++)
+                scan.Visit(list[i]);
+            return;
+        }
+        foreach (var claim in claims)
+        {
+            if (scan.Done) return;
+            scan.Visit(claim);
+        }
+    }
+
+    private struct ClaimScan(string type, bool joinValues, string? wantedValue = null)
+    {
+        public string? First;
+        public string? Joined;
+        public bool Done;
+
+        public void Visit(Claim claim)
+        {
+            if (!string.Equals(claim.Type, type, StringComparison.Ordinal)) return;
+            if (wantedValue is not null && !string.Equals(claim.Value, wantedValue, StringComparison.Ordinal)) return;
+            if (First is null)
+            {
+                First = claim.Value;
+                Done = !joinValues;
+                return;
+            }
+            Joined = string.Concat(Joined ?? First, " ", claim.Value);
+        }
     }
 }

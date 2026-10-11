@@ -1,25 +1,25 @@
 # MyApp
 
-Clean Architecture Web API. **Publishes as a ~27 MB Native AOT binary; cold-starts in ~540 ms** (vs ~1.2 s under JIT — ~2.2× faster, ~75% smaller deploy). Source-generated, zero-allocation through the validator + mediator + mapping chain (data-access adds provider-shaped overhead — see benchmarks table). Built on the [ZeroAlloc.\*](https://github.com/ZeroAlloc-Net) ecosystem.
+Clean Architecture Web API. **Publishes as a ~27 MB Native AOT binary; cold-starts in ~540 ms** (vs ~1.2 s under JIT — ~2.2× faster, ~75% smaller deploy). Source-generated validators and value objects allocate nothing; mapping, mediator dispatch and data access each have a measured, bounded cost (see the table). Built on the [ZeroAlloc.\*](https://github.com/ZeroAlloc-Net) ecosystem.
 
 | | Value |
 |---|---:|
 | **AOT binary size** | ~27 MB (`MyApp.Api.exe`) + ~2 MB native deps (win-x64, self-contained) |
 | **AOT cold start** | ~540 ms (process → `/healthz` 200, best of 3 on warm disk) |
 | **JIT cold start** (comparison) | ~1.2 s, 110 MB total deploy (same scenario) |
-| **Framework primitives end-to-end** | ~125 ns / 160 B (= mapping cost alone; chain adds 0 B) |
-| **Mediator dispatch alone** | ~31 ns / 0 B |
-| **Validator (source-generated, regex zip)** | ~57 ns / 0 B |
-| **ValueObject `TryCreate`** | ~3 ns / 0 B |
-| **Read hot path** (`GetByIdAsync` / Sqlite, head + 2 lines) | ZA.ORM ~27 µs / 1.71 KB vs hand-written ADO.NET ~26 µs / 1.57 KB — framework 1.09× allocations (+0.14 KB AdoNet.Async wrapper overhead). See [ZA.ORM v0.7.0 benchmarks](https://github.com/ZeroAlloc-Net/ZeroAlloc.ORM/blob/main/docs/benchmarks/v0.7.0-sqlite-results.md) for the full comparison matrix |
+| **Framework primitives end-to-end** (map + validate + mediator send) | 616 B = 160 B mapping + 456 B mediator send |
+| **Mediator send** (generated `IMediator`, auth + validation behaviours, real handler over stubs) | 456 B = 208 B handler work + 248 B dispatch |
+| **Validator (source-generated, regex zip)** | ~50 ns / 0 B |
+| **ValueObject `TryCreate`** | ~7 ns / 0 B |
+| **Read hot path** (`GetByIdAsync` / Sqlite, head + 2 lines) | ZA.ORM 2.92 KB vs hand-written ADO.NET 2.08 KB — framework 1.41× allocations. See [ZA.ORM v0.7.0 benchmarks](https://github.com/ZeroAlloc-Net/ZeroAlloc.ORM/blob/main/docs/benchmarks/v0.7.0-sqlite-results.md) for the full comparison matrix |
 | **End-to-end pipeline** (ASP.NET + ZA.ORM, Postgres) | ~1.3 ms / 36 KB — mostly platform overhead, not ZA |
 
-AOT figures re-measured 2026-06-02 post-ZA.ORM-swap (#152) on i9-12900HK / Windows 11 / .NET 10.0.8. Pipeline + primitive numbers measured in CI on Ubuntu 24.04 / AMD EPYC / .NET 10.0.8 via [`Benchmarks (manual)` run 26778623747](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/actions/runs/26778623747). The decisive datapoint: the validator + Mediator dispatch through the chain allocate **zero bytes**. The 160 B is the `CreateOrderCommand` record + nested `OrderItem[]` array, a caller cost every framework pays.
+AOT figures re-measured 2026-06-02 post-ZA.ORM-swap (#152) on i9-12900HK / Windows 11 / .NET 10.0.8. The end-to-end pipeline number was measured in CI on Ubuntu 24.04 / AMD EPYC / .NET 10.0.8 via [`Benchmarks (manual)` run 26778623747](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/actions/runs/26778623747). Primitive and read-path allocations were re-measured 2026-10-11 (#474) on i9-12900HK / .NET 10.0.12; timings from that loaded machine are approximate, the allocations are exact. The 160 B mapping cost is the `OrderItem[]` the command carries, a caller cost every framework pays. Earlier read-path numbers came from a bench that read the `OrderId(0)` sentinel and so measured the not-found path.
 
 **Reproduce:**
 
 ```bash
-# Framework primitives (zero-alloc, ns/op — what ZA is)
+# Framework primitives (mapping, mediator, validator, value objects in isolation)
 dotnet run -c Release --project benchmarks/MyApp.Benchmarks.Primitives -- --filter "*"
 
 # Read hot path (ZA.ORM read-path allocation floor — no HTTP/serialization)
@@ -59,7 +59,7 @@ tests/
 └── MyApp.IntegrationTests/  WebApplicationFactory — happy-path + auth roundtrips
 
 benchmarks/
-├── MyApp.Benchmarks.Primitives/ BenchmarkDotNet — ZA primitives in isolation (0 B framework cost)
+├── MyApp.Benchmarks.Primitives/ BenchmarkDotNet — ZA primitives in isolation
 ├── MyApp.Benchmarks/            BenchmarkDotNet — full ASP.NET + ZA.ORM pipeline cost
 └── MyApp.LoadTest/              NBomber — RPS under sustained concurrency
 ```

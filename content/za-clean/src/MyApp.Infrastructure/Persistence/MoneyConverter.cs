@@ -40,13 +40,25 @@ public static class MoneyConverter
             return Money.TryCreate(0m, "USD").Value;
         }
         var amountSpan = s.AsSpan(0, pipe);
-        var currency = s[(pipe + 1)..];
-        if (amountSpan.IsEmpty || string.IsNullOrEmpty(currency)
+        var currencySpan = s.AsSpan(pipe + 1);
+        if (amountSpan.IsEmpty || currencySpan.IsEmpty
             || !decimal.TryParse(amountSpan, NumberStyles.Number, CultureInfo.InvariantCulture, out var amount)
             || amount < 0)
         {
             return Money.TryCreate(0m, "USD").Value;
         }
-        return Money.TryCreate(amount, currency).Value;
+        return Money.TryCreate(amount, CurrencyString(currencySpan)).Value;
     }
+
+    /// <summary>
+    /// Returns the interned literal for the currency codes this app writes, so
+    /// reading a stored value back does not allocate a new currency string per
+    /// read. Any other code is materialised once per call.
+    /// </summary>
+    private static string CurrencyString(ReadOnlySpan<char> code) => code switch
+    {
+        "EUR" => "EUR",
+        "USD" => "USD",
+        _ => code.ToString(),
+    };
 }

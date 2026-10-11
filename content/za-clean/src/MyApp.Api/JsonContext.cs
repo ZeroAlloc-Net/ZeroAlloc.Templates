@@ -1,6 +1,7 @@
 using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Mvc;
 using MyApp.Api.Dtos;
+using MyApp.Application.GetOrderById;
 using MyApp.Domain.ValueObjects;
 
 namespace MyApp.Api;
@@ -13,12 +14,12 @@ namespace MyApp.Api;
 [JsonSerializable(typeof(OrderRequest))]
 [JsonSerializable(typeof(OrderResponse))]
 [JsonSerializable(typeof(OrderItemDto))]
-[JsonSerializable(typeof(OrderLineResponse))]
+[JsonSerializable(typeof(OrderLineReadModel))]
 [JsonSerializable(typeof(CreatedOrderResponse))]
 [JsonSerializable(typeof(CustomerId))]
 [JsonSerializable(typeof(OrderId))]
 [JsonSerializable(typeof(IReadOnlyList<OrderItemDto>))]
-[JsonSerializable(typeof(IReadOnlyList<OrderLineResponse>))]
+[JsonSerializable(typeof(IReadOnlyList<OrderLineReadModel>))]
 [JsonSerializable(typeof(HealthResponse))]
 [JsonSerializable(typeof(ProblemDetails))]
 [JsonSerializable(typeof(HttpValidationProblemDetails))]

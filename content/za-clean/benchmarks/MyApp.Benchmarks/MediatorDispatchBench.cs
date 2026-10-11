@@ -10,6 +10,7 @@ using MyApp.Domain;
 using MyApp.Domain.ValueObjects;
 using MyApp.Infrastructure.Persistence;
 using ZeroAlloc.Authorization;
+using ZeroAlloc.Authorization.Generated;
 using ZeroAlloc.Mediator;
 using ZeroAlloc.Mediator.Authorization;
 using ZeroAlloc.ORM.Migrations;
@@ -75,6 +76,9 @@ public class MediatorDispatchBench
         // every dispatch passes authorization (matches the WritePipelineBench
         // JWT contents).
         services.AddScoped<StubSecurityContextAccessor>();
+        // Registers the generated [Policy] classes and AuthorizerFor<T> dispatchers;
+        // WithAuthorization() inside the call below refuses to run without it.
+        services.AddZeroAllocAuthorization();
         services.AddMyAppApplication(o => o.UseAccessor<StubSecurityContextAccessor>());
 
         _root = services.BuildServiceProvider();
@@ -89,8 +93,8 @@ public class MediatorDispatchBench
         var order = Order.Create(new CustomerId(42));
         order.AddLine("SKU-A", 1, Money.TryCreate(10m, "EUR").Value);
         order.AddLine("SKU-B", 1, Money.TryCreate(5m, "EUR").Value);
-        var saved = repo.AddAsync(order, default).GetAwaiter().GetResult();
-        _query = new GetOrderByIdQuery(saved.Id);
+        var savedId = repo.AddAsync(order, default).GetAwaiter().GetResult();
+        _query = new GetOrderByIdQuery(savedId);
     }
 
     [GlobalCleanup]

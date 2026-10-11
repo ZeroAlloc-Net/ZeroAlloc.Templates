@@ -51,14 +51,14 @@ public sealed partial class GetOrderHandler(IAsyncDbConnection conn)
             : Result<OrderDto, Error>.Success(new OrderDto(
                 new OrderId(row.Id),
                 new CustomerId(row.CustomerId),
-                MoneyConverter.FromStorage(row.Total).Amount));
+                MoneyConverter.AmountFromStorage(row.Total)));
     }
 
     [Query("SELECT \"Id\", \"CustomerId\", \"Total\" FROM \"Orders\" WHERE \"Id\" = @id")]
     public partial Task<OrderRow?> ReadOrderAsync(int id, CancellationToken ct);
 
     // Total is stored as the MoneyConverter wire shape "<amount>|<currency>";
-    // the handler converts it back to decimal for the DTO.
+    // the handler parses only the amount back for the DTO.
     public sealed record OrderRow(int Id, int CustomerId, string Total);
 }
 

@@ -9,7 +9,7 @@ internal sealed class FakeOrderRepository : IOrderRepository
 {
     public List<Order> Saved { get; } = new();
 
-    public Task<Order> AddAsync(Order order, CancellationToken ct)
+    public Task<OrderId> AddAsync(Order order, CancellationToken ct)
     {
         var assigned = Order.Materialize(
             new OrderId(Saved.Count + 1),
@@ -18,7 +18,7 @@ internal sealed class FakeOrderRepository : IOrderRepository
             order.Total,
             order.Lines);
         Saved.Add(assigned);
-        return Task.FromResult(assigned);
+        return Task.FromResult(assigned.Id);
     }
 
     public Task<int> CountAsync(CancellationToken ct)
