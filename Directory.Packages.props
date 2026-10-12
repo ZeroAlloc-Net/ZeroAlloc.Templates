@@ -10,7 +10,7 @@
     <PackageVersion Include="ZeroAlloc.Mapping" Version="1.6.9" />
     <PackageVersion Include="ZeroAlloc.Mediator" Version="6.5.0" />
     <PackageVersion Include="ZeroAlloc.Results" Version="1.4.1" />
-    <PackageVersion Include="ZeroAlloc.ValueObjects" Version="2.1.1" />
+    <PackageVersion Include="ZeroAlloc.ValueObjects" Version="2.2.0" />
     <PackageVersion Include="ZeroAlloc.Serialisation" Version="2.8.1" />
     <PackageVersion Include="ZeroAlloc.Serialisation.SystemTextJson" Version="2.8.1" />
     <PackageVersion Include="ZeroAlloc.Validation" Version="2.3.0" />
