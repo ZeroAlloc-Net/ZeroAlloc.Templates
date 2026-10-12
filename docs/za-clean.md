@@ -250,7 +250,7 @@ Per-primitive comparisons against the ecosystem alternatives. These blocks are r
 
 #### Mapping
 <!-- MAPPING:START -->
-_Imported from ZA.Mapping — last refreshed 2026-09-14._
+_Imported from ZA.Mapping — last refreshed 2026-10-12._
 
 _Last refreshed: 2026-05-10_
 
@@ -395,7 +395,7 @@ BenchmarkDotNet v0.15.8, Windows 11 (10.0.26200.8246/25H2/2025Update/HudsonValle
 
 #### Mediator
 <!-- MEDIATOR:START -->
-_Imported from ZA.Mediator — last refreshed 2026-09-14._
+_Imported from ZA.Mediator — last refreshed 2026-10-12._
 
 | Method | ZeroAlloc.Mediator | MediatR | Ratio | ZA Alloc | MediatR Alloc |
 |---|---:|---:|---:|---:|---:|
@@ -404,17 +404,20 @@ _Imported from ZA.Mediator — last refreshed 2026-09-14._
 | Publish (multi handler) | 6.6 ns | 332.4 ns | **~51×** | 0 B | 1032 B |
 | Send + Pipeline | 2.8 ns | 101.8 ns | **~46×** | 0 B | 152 B |
 | Send (static) | 0.7 ns | — | — | 0 B | — |
-| Send (via IMediator DI) | 5.8 ns | 86.3 ns | **~15×** | 0 B | 224 B |
+| Send (via IMediator DI, scope per call) | 160.1 ns | 187.2 ns | **~1.2×** | 176 B | 496 B |
+| Send + Pipeline (via IMediator DI, scope per call) | 126.9 ns | 191.2 ns | **~1.5×** | 176 B | 352 B |
 | Stream (5 items) | 202.8 ns | 654.4 ns | **~3×** | 104 B | 528 B |
 
-ZeroAlloc.Mediator is **40–160× faster** than MediatR across all measured paths, with zero heap allocations on every non-streaming path.
+The static `Mediator` class is **40–160× faster** than MediatR, with zero heap allocations on every non-streaming path.
+
+**IMediator allocation sources.** The two DI rows create a scope and resolve `IMediator` from it on every call, the way an ASP.NET Core request does, so they include the scope and the transient `MediatorService`. On top of that, `IMediator.Send` with pipeline behaviors can allocate one `next` delegate per behavior per call: its lambdas read the provider it was resolved from, so the compiler cannot cache them (ZeroAlloc.Pipeline#121 tracks removing this). The benchmark's behavior only forwards to `next`, so the .NET 10 JIT inlines it and keeps the delegate on the stack; a behavior that awaits, such as the authorization bridge, pays 64 B per behavior. The DI rows were measured with `--job short`. A pipeline with a behavior that may read `PipelineBehaviorServices.Current` adds 72 B per call for that `AsyncLocal` write; the benchmark's behavior declares `UsesPipelineBehaviorServices = false` and the bridge behaviors take the provider as an argument, so they skip it. See [How a bridge reaches your container](dependency-injection.md#how-a-bridge-reaches-your-container).
 
 **Stream allocation source.** The 104 B on the ZA Stream row is the C# compiler's `async IAsyncEnumerable<T>` state-machine allocation for the user's handler method (e.g. `async IAsyncEnumerable<int> Handle(...) { yield return ...; }`). Any mediator dispatching to such handlers pays this cost — MediatR pays it *on top of* its own ~424 B wrapper. ZA.Mediator's own stream-dispatch contribution is 0 B. .NET 10 has no pooled state-machine builder for `async IAsyncEnumerable<T>` (unlike `ValueTask` with `[AsyncMethodBuilder(typeof(PoolingAsyncValueTaskMethodBuilder))]`); the only way to drop below 104 B is to implement `IAsyncEnumerable<T>` by hand without `yield return`.
 <!-- MEDIATOR:END -->
 
 #### Validation
 <!-- VALIDATION:START -->
-_Imported from ZA.Validation — last refreshed 2026-09-14._
+_Imported from ZA.Validation — last refreshed 2026-10-12._
 
 _Last refreshed: 2026-05-13_
 
@@ -429,7 +432,7 @@ ZeroAlloc.Validation is **49–143× faster** than FluentValidation on the valid
 
 #### Inject
 <!-- INJECT:START -->
-_Imported from ZA.Inject — last refreshed 2026-09-14._
+_Imported from ZA.Inject — last refreshed 2026-10-12._
 
 _Last refreshed: 2026-05-18_
 
@@ -453,22 +456,26 @@ The Container row dropped from 10,998 ns / 11,192 B (v1.6 and earlier) to 1,034 
 | Singleton | 6.3 ns | 6.9 ns | **5.4 ns** | 5.5 ns | 0 B |
 | Decorated transient | 44.5 ns | **21.1 ns** | 22.3 ns | 28.8 ns² | 48 B |
 | `IEnumerable<T>` (3 impls) | **67.8 ns** | 74.8 ns | 81.8 ns | 150.9 ns | 168 B |
-| Open generic (closed type) | 13.5 ns | (delegates to MS DI) | **7.7 ns** | N/A³ | 24 B |
+| Open generic (closed type) | 13.5 ns | not yet measured⁴ | **7.7 ns** | N/A³ | 24 B |
 | Create scope | 82 ns / 128 B | **60 ns / 96 B** | 58 ns / 88 B | **14 ns / 40 B** | — |
-| Resolve scoped (full lifecycle) | 7,181 ns / 304 B | 5,901 ns / 120 B | 4,851 ns / 120 B | **5,216 ns / 120 B** | — |
+| Resolve scoped, first in a new scope⁵ | 7,181 ns / 304 B | 5,901 ns / 120 B | 4,851 ns / 120 B | **5,216 ns / 120 B** | — |
+| Resolve scoped, cached⁶ | 72 ns | 19 ns | 21 ns | **15 ns** | 0 B |
 
 _¹ Jab is constructor-only — no property injection._
 _² Jab decorator wired via factory (no first-class decorator attribute)._
 _³ Jab 0.10.x requires closed types at the `[ServiceProvider]` attribute level._
+_⁴ The container used to delegate open generics to MS DI; it now resolves the closed forms constructors ask for from its type switch, and the benchmark was added with that change._
+_⁵ One resolve per fresh scope: BenchmarkDotNet runs one invocation per iteration, so this is the first, creating resolve, and the scope itself is created outside the measurement. The 120 B is the benchmark's `ScopedService`, a 24 B object plus its 96 B Guid string; ZA and Jab add nothing to it, MS DI adds 184 B._
+_⁶ A service already resolved in a scope created in `[GlobalSetup]`. Measured on .NET 9.0.20 on the same machine under load, so compare the columns, not these times against the rows above._
 
-ZA.Inject is **competitive across every scenario** and the clear winner where the generator's domain knowledge matters most: property injection (2× MS DI), decorators (2.1× MS DI), open generics (1.8× MS DI). Jab leads on scope creation (its scope is the lightest of the four, by an order of magnitude), with ZA Standalone close behind on the full scoped-resolution lifecycle.
+ZA.Inject is **competitive across every scenario** and the clear winner where the generator's domain knowledge matters most: property injection (2× MS DI), decorators (2.1× MS DI), open generics (1.8× MS DI). Jab leads on scope creation (its scope is the lightest of the four, by an order of magnitude), with ZA Standalone close behind on the first scoped resolve.
 
-In v1.6 the **ZA.Inject Container** scope creation dropped from 123 ns / 216 B to **60 ns / 96 B** — the MS DI fallback scope is no longer eagerly materialized; it's created on first fallback resolution via `Interlocked.CompareExchange`. For applications whose registrations are fully ZA-owned (the common case), the fallback scope is never created at all. **`IEnumerable<T>` resolutions are also cached** when every entry is `Singleton` (verified by `EnumerableCacheTests`); the benchmark row above shows the all-`Transient` registration path, which remains genuinely allocation-bound — the new cache fires for the singleton-multi-impl scenario.
+In v1.6 the **ZA.Inject Container** scope creation dropped from 123 ns / 216 B to **60 ns / 96 B** — the MS DI fallback scope is no longer eagerly materialized; it's created on first fallback resolution via `Interlocked.CompareExchange`. For applications whose registrations are fully ZA-owned (the common case), the fallback scope is never created at all, and creating a scope does not build the MS DI fallback provider either: it is built only if something asks for a service no registration provides. **`IEnumerable<T>` resolutions are also cached** when every entry is `Singleton` (verified by `EnumerableCacheTests`); the benchmark row above shows the all-`Transient` registration path, which remains genuinely allocation-bound — the new cache fires for the singleton-multi-impl scenario.
 <!-- INJECT:END -->
 
 #### Results
 <!-- RESULTS:START -->
-_Imported from ZA.Results — last refreshed 2026-09-14._
+_Imported from ZA.Results — last refreshed 2026-10-12._
 
 _Last refreshed: 2026-05-13_
 
@@ -494,7 +501,7 @@ ErrorOr and FluentResults allocate per-failure because their error types (`Error
 
 #### ValueObjects
 <!-- VALUEOBJECTS:START -->
-_Imported from ZA.ValueObjects — last refreshed 2026-09-14._
+_Imported from ZA.ValueObjects — last refreshed 2026-10-12._
 
 _Last refreshed: 2026-05-18_
 
@@ -515,7 +522,7 @@ History: the previous single-property `ToString` allocated ~72 B per call and `G
 
 #### Specification
 <!-- SPECIFICATION:START -->
-_Imported from ZA.Specification — last refreshed 2026-09-14._
+_Imported from ZA.Specification — last refreshed 2026-10-12._
 
 _Last refreshed: 2026-05-13_
 
@@ -534,27 +541,27 @@ ZA.Specification's `IsSatisfiedBy` is a direct virtual call on a struct value �
 
 #### StateMachine
 <!-- STATEMACHINE:START -->
-_Imported from ZA.StateMachine — last refreshed 2026-09-14._
+_Imported from ZA.StateMachine — last refreshed 2026-10-12._
 
-_Last refreshed: 2026-05-13_
+_Last refreshed: 2026-10-11_
 
 [Stateless](https://github.com/dotnet-state-machine/stateless) is the de-facto state-machine library in .NET — class-based, fluent configuration, runtime trigger dispatch. ZA's source-generated switch dispatch dominates every comparable scenario.
 
 | Operation | Stateless | ZA.StateMachine | Speedup |
 |---|---:|---:|---:|
-| Fire valid (3-step cycle) | 4,495 ns / 7,272 B | **36 ns / 24 B** | **124× faster, 303× less alloc** |
-| Fire invalid | 27 ns / 24 B | **1.6 ns / 0 B** | **17× faster, 0 B alloc** |
-| Guard allowed | 2,718 ns / 4,160 B | **15 ns / 24 B** | **178× faster, 173× less alloc** |
-| Guard blocked | 699 ns / 792 B | **0.3 ns / 0 B** | **2,200× faster, 0 B alloc** |
+| Fire valid (3-step cycle) | 4,476 ns / 7,600 B | **15 ns / 0 B** | **~300× faster, 0 B alloc** |
+| Fire invalid | 23 ns / 24 B | **1.6 ns / 0 B** | **~15× faster, 0 B alloc** |
+| Guard allowed | 2,430 ns / 4,336 B | **< 1 ns / 0 B** | **> 1,000× faster, 0 B alloc** |
+| Guard blocked | 422 ns / 768 B | **< 1 ns / 0 B** | **> 400× faster, 0 B alloc** |
 
-The 24 B in ZA's "valid" rows is from the per-iteration `new OrderMachine()` reset, not from `TryFire`. The Stateless row's 7,272 B is two things combined: each `Fire` walks a `Dictionary<TTrigger, StateRepresentation>` and constructs trigger/transition info objects, **and** the per-iteration `BuildStatelessOrder()` reset rebuilds the configuration (`new StateMachine<,>(initial)` plus three `Configure().Permit()` calls — each one allocating dictionary entries).
+ZA's rows allocate nothing: the benchmark puts the machine back in its initial state with the generated `Reset()`, which writes the state field in place. Rows under 1 ns are below what BenchmarkDotNet can tell apart from an empty method, so their speedups are lower bounds. The Stateless row's 7,600 B is two things combined: each `Fire` walks a `Dictionary<TTrigger, StateRepresentation>` and constructs trigger/transition info objects, **and** the per-iteration `BuildStatelessOrder()` reset rebuilds the configuration (`new StateMachine<,>(initial)` plus three `Configure().Permit()` calls — each one allocating dictionary entries).
 
-This is the apples-to-apples comparison for cyclic state machines — a per-request handler in a web app, or a fresh circuit-breaker per stream. Both libraries pay a "reset" cost in this workload. ZA's reset is one struct/class allocation because configuration is resolved at compile time; Stateless's includes the full fluent-configuration rebuild because configuration is runtime. The dispatch portion alone (excluding the rebuild) is roughly an order of magnitude smaller on the Stateless side but still measurably slower than ZA's `switch`-expression `TryFire`.
+This is the apples-to-apples comparison for cyclic state machines — a per-request handler in a web app, or a fresh circuit-breaker per stream. Both libraries pay a "reset" cost in this workload. ZA's reset is a single field write because configuration is resolved at compile time; Stateless's includes the full fluent-configuration rebuild because configuration is runtime. The dispatch portion alone (excluding the rebuild) is roughly an order of magnitude smaller on the Stateless side but still measurably slower than ZA's `switch`-expression `TryFire`.
 <!-- STATEMACHINE:END -->
 
 #### Resilience
 <!-- RESILIENCE:START -->
-_Imported from ZA.Resilience — last refreshed 2026-09-14._
+_Imported from ZA.Resilience — last refreshed 2026-10-12._
 
 _Last refreshed: 2026-05-18_
 
@@ -581,7 +588,7 @@ Rate-limit and timeout limits in the all-policies harness are set to `int.MaxVal
 
 #### Rest
 <!-- REST:START -->
-_Imported from ZA.Rest — last refreshed 2026-09-14._
+_Imported from ZA.Rest — last refreshed 2026-10-12._
 
 _Last refreshed: 2026-05-13_
 
@@ -609,100 +616,126 @@ ZeroAlloc.Rest is **1.7–3.6× faster than Refit** across every shape of call (
 
 #### Serialisation
 <!-- SERIALISATION:START -->
-_Imported from ZA.Serialisation — last refreshed 2026-09-14._
+_Imported from ZA.Serialisation — last refreshed 2026-10-12._
 
-_Last refreshed: 2026-05-13_
+_Last refreshed: 2026-10-11_
 
-### Deserialize — wrapper is thin
+### Deserialize
 
-| Library | Raw | ZA wrapper | Overhead |
+| Library | Raw | ZA wrapper | Extra allocation |
 |---|---:|---:|---:|
-| MemoryPack | 47.6 ns / 64 B | 55.2 ns / 64 B | **+16%, 0 B** |
-| MessagePack | 123.9 ns / 64 B | 182.7 ns / 96 B | **+47%, +32 B** |
-| System.Text.Json | 303.3 ns / 64 B | 374.5 ns / 64 B | **+23%, 0 B** |
+| MemoryPack | 53.5 ns / 64 B | 87.0 ns / 64 B | **0 B** |
+| MessagePack | 156.5 ns / 64 B | 204.4 ns / 64 B | **0 B** |
+| System.Text.Json | 395.4 ns / 64 B | 270.6 ns / 64 B | **0 B** |
 
-The deserialize wrapper is a thin pass-through: same allocation (0–32 B extra), 16–47% extra time for the interface dispatch. The MessagePack extra 32 B is the `ReadOnlySpan<byte>` → array boxing for the underlying API call.
+The 64 B is the deserialized object itself. MessagePack has no span overload, so the wrapper copies the span into a pooled array before handing it over; the copy allocates nothing. See [the MessagePack backend](backends/messagepack.md#deserializing-from-a-span).
 
-### Serialize — IBufferWriter pattern adds measurable cost
+### Serialize
 
-| Library | Raw | ZA wrapper | Overhead |
+| Library | Raw | ZA wrapper | Extra allocation |
 |---|---:|---:|---:|
-| MemoryPack | 74.6 ns / 48 B | 159.7 ns / 312 B | **+114%, +264 B** |
-| MessagePack | 128.1 ns / 32 B | 215.2 ns / 312 B | **+68%, +280 B** |
-| System.Text.Json | 225.7 ns / 48 B | 287.7 ns / 448 B | **+27%, +400 B** |
+| MemoryPack | 53.6 ns / 0 B | 51.2 ns / 0 B | **0 B** |
+| MessagePack | 56.1 ns / 0 B | 74.0 ns / 0 B | **0 B** |
+| System.Text.Json | 93.1 ns / 0 B | 134.0 ns / 0 B | **0 B** |
 
-The serialize wrapper costs more because `ISerializer<T>.Serialize` takes an `IBufferWriter<byte>` (the buffer abstraction). The 264–400 B is the `ArrayBufferWriter<byte>` instance + its internal buffer, allocated fresh per call by the benchmark.
+The raw System.Text.Json row reuses one `Utf8JsonWriter`, as a caller writing to an `IBufferWriter<byte>` would. The wrapper does the same with one writer per thread; until #198 it created a writer per call, 136 B.
 
-This is the cost of the abstraction. **The wrapper is fastest when the caller pools the buffer writer** — the IBufferWriter pattern is designed for that scenario. The benchmark measures worst case (fresh writer per call); a real application that pools writers across N calls amortises the 264 B to ~0 per call.
+### Generated serializers and dispatcher
+
+`GeneratedSerializerBenchmarks` measures the serializers the source generator emits, and the generated `SerializerDispatcher`:
+
+| Path | Allocated |
+|---|---:|
+| Generated Serialize, all three formats | 0 B |
+| Generated Deserialize, all three formats | 64 B, the result |
+| Dispatcher `Deserialize(data, type)`, all three formats | 64 B, the result |
+| Dispatcher `Deserialize<T>(data)`, struct with no reference members, MemoryPack and MessagePack | 0 B |
+| Dispatcher `Deserialize<T>(data)`, struct with no reference members, System.Text.Json | 32 B, the box `JsonSerializer` builds the struct in |
+| Dispatcher `Serialize(object, Type)` | 312 B, the `ArrayBufferWriter<byte>` and array it returns, and the box for a struct |
+| Dispatcher `Serialize(writer, value, type)` into a reused writer | 0 B |
+| Dispatcher `Serialize<T>(writer, value)` into a reused writer, class or struct | 0 B |
+
+The dispatcher's `Serialize(object, Type)` returns memory the caller owns, so that buffer is its contract. The `IBufferWriter<byte>` overloads write into the caller's writer instead, and the generic one does not box a struct; `DispatcherBufferWriterTests` asserts 0 B for the generic overload with a struct in each of the three formats and with a class, and for the by-type overload. A caller that needs an exact-size `byte[]` pays for that array only: one `ToArray()` of the written span, against 376 to 416 B for `Serialize(object, Type)` followed by `ToArray()`.
+
+`Deserialize(data, type)` returns `object`, so a struct is boxed on top of what the format allocates. `Deserialize<T>(data)` returns the struct as `T`: `DispatcherGenericDeserializeTests` asserts that it allocates exactly what the per-type serializer allocates, and one 32 B box less than the `object` overload for a 16-byte struct, in each of the three formats. A positional record struct read with System.Text.Json costs 168 B inside `JsonSerializer`, for its constructor arguments, whichever overload reads it.
 <!-- SERIALISATION:END -->
 
 #### Cache
 <!-- CACHE:START -->
-_Imported from ZA.Cache — last refreshed 2026-09-14._
+_Imported from ZA.Cache — last refreshed 2026-10-12._
 
-_Last refreshed: 2026-05-13_
+_Last refreshed: 2026-09-30_
 
-L1 (in-process) cache-hit comparison. .NET 10.0.7, i9-12900HK, BenchmarkDotNet v0.15.8. ZA.Cache wraps `IMemoryCache`, so the relevant comparisons are: hand-rolled `GetOrCreateAsync` (the pattern ZA replaces) and [FusionCache](https://github.com/ZiggyCreatures/FusionCache) 2.0 (the de-facto third-party L1+L2 caching library).
+L1 (in-process) cache-hit comparison. .NET 10.0.12, i9-12900HK, BenchmarkDotNet v0.15.8. ZA.Cache wraps `IMemoryCache`, so the relevant comparisons are: hand-rolled `GetOrCreateAsync` (the pattern ZA replaces) and [FusionCache](https://github.com/ZiggyCreatures/FusionCache) 2.9 (the de-facto third-party L1+L2 caching library). Each row returns the library's own task type directly, so no benchmark wrapper allocation is counted.
 
 | Library | Time | Allocated |
 |---|---:|---:|
-| Raw `IMemoryCache.GetOrCreateAsync` | 208 ns | 176 B |
-| **ZA.Cache proxy** | **434 ns** | **160 B** |
-| FusionCache | 989 ns | 112 B |
+| Raw `IMemoryCache.GetOrCreateAsync` | 157 ns | 104 B |
+| **ZA.Cache proxy** | **198 ns** | **0 B** |
+| FusionCache | 1,270 ns | 88 B |
 
-**ZA.Cache is 2.3× faster than FusionCache** with comparable allocation. The trade vs raw `IMemoryCache` is the ~2× cost of the typed `[Cache]` attribute abstraction (compile-time key building + async wrapper) — in exchange you don't write the cache-lookup boilerplate at every call site, and the key derivation is generated rather than hand-typed.
+**ZA.Cache is about 6× faster than FusionCache and the only row that allocates nothing.** The trade vs raw `IMemoryCache` is about 1.3× the time, the cost of the typed `[Cache]` abstraction: proxy dispatch, key formatting and telemetry. In exchange you don't write the cache-lookup boilerplate at every call site, and the key derivation is generated rather than hand-typed.
 
 **FusionCache** is heavier because it carries L2-cache, stampede protection, and adaptive-caching infrastructure even when only L1 is configured. For pure L1, ZA is the lighter choice; FusionCache's value is the L2 + advanced features that ZA does not implement.
 
-**Caveat on the raw row**: ZA's 2× premium over raw `IMemoryCache.GetOrCreateAsync` reflects the proxy dispatch + generated key composition. The raw row's 176 B allocation is the `(string, int)` tuple boxing the test uses for the key; ZA's 160 B is the generated `customer-42` string interpolation. Allocation parity is by design — both store roughly the same key shape.
+**Caveat on the raw row**: its 104 B is the `Task<string>` that `GetOrCreateAsync` returns plus the boxed `(string, int)` tuple the test uses as its key. ZA's hit returns a synchronously completed `ValueTask<string>` and looks the key up as a span, so it allocates nothing.
 <!-- CACHE:END -->
 
 #### Telemetry
 <!-- TELEMETRY:START -->
-_Imported from ZA.Telemetry — last refreshed 2026-09-14._
+_Imported from ZA.Telemetry — last refreshed 2026-10-12._
 
-_Last refreshed: 2026-05-13_
+_Last refreshed: 2026-10-11_
 
 The realistic alternative to ZA.Telemetry's generator is hand-written `ActivitySource` + `Meter` wrapping — wrapping every instrumented method with `using var activity = source.StartActivity(...); counter.Add(1); histogram.Record(...)`. This benchmark compares the two in the no-listeners profile (the common production case after sampling).
 
-.NET 10.0.7, i9-12900HK, BenchmarkDotNet v0.15.4.
+.NET 10.0.12, i9-12900HK, BenchmarkDotNet v0.15.8. The benchmark methods return the service's `ValueTask<int>` directly, so the rows show only what each wrapper adds.
 
 | Method | Time | Allocated |
 |---|---:|---:|
-| Direct call (no instrumentation) | 87 ns | 72 B |
-| Hand-written `ActivitySource` + `Counter` + `Histogram` | 201 ns | 72 B |
-| **ZA.Telemetry generated proxy** | **201 ns** | **72 B** |
+| Direct call (no instrumentation) | 3.2 ns | 0 B |
+| Hand-written `ActivitySource` + `Counter` + `Histogram` | 97.7 ns | 0 B |
+| **ZA.Telemetry generated proxy** | **14.6 ns** | **0 B** |
 
-ZA.Telemetry's generator produces code **at parity with hand-written instrumentation** (within measurement noise; 0.04% delta). The 72 B in all three rows is the `Task<int>` allocation from the async/await pattern, not from instrumentation. Both wrappers add ~115 ns over the direct call in the no-listeners path — the `Activity.StartActivity` null-check, the `Counter.Add`, and the `Histogram.Record` — all unavoidable if you want the spans + metrics available when a sampler does subscribe.
+Neither wrapper allocates in the no-listeners path. The generated proxy adds about 11 ns over the direct call, against about 95 ns for the straightforward hand-written wrapper. The difference is the short-circuit described above: with no listener on the source and no instrument enabled, the proxy returns the inner `ValueTask` as is, while the hand-written version still runs its `async` state machine, takes two `Stopwatch` timestamps, and calls `Counter.Add` and `Histogram.Record` on instruments nobody is listening to. Hand-written code can do the same, but every method has to remember to.
 
 **The takeaway**: ZA.Telemetry's value isn't faster instrumentation than hand-writing it — it's eliminating the boilerplate so every instrumented method gets the same try/finally + counter + histogram pattern, with zero risk of forgetting to dispose an Activity or skipping a metric.
 <!-- TELEMETRY:END -->
 
 #### Notify
 <!-- NOTIFY:START -->
-_Imported from ZA.Notify — last refreshed 2026-09-14._
+_Imported from ZA.Notify — last refreshed 2026-10-12._
 
-_Last refreshed: 2026-05-13_
+_Last refreshed: 2026-10-11_
 
-.NET 10.0.7, i9-12900HK, BenchmarkDotNet v0.15.8. All four libraries are configured with 5 attached handlers to mirror a realistic MVVM scenario.
+.NET 10.0.12, i9-12900HK, BenchmarkDotNet v0.15.8. All four libraries are configured with 5 attached handlers to mirror a realistic MVVM scenario.
 
 | Library | Time | Allocated | Async support |
 |---|---:|---:|:---:|
-| Manual `INotifyPropertyChanged` (baseline) | 33.6 ns | 24 B | ❌ |
-| PropertyChanged.Fody | **30.2 ns** | **0 B** | ❌ |
-| CommunityToolkit.Mvvm | 55.2 ns | 0 B | ❌ |
-| **ZeroAlloc.Notify** | **124.7 ns** | **80 B** | ✅ |
+| Manual `INotifyPropertyChanged` (baseline) | 35.2 ns | 24 B | ❌ |
+| PropertyChanged.Fody | **29.0 ns** | **0 B** | ❌ |
+| CommunityToolkit.Mvvm | 50.2 ns | 0 B | ❌ |
+| **ZeroAlloc.Notify** | **112.8 ns** | **40 B** | ✅ |
 
-**Honest framing**: ZA.Notify is the slowest of the four and the only one that allocates. The 80 B is the `ValueTask` state machine for fan-out to async handlers. The other three are pure sync and can't `await` propagation.
+**Honest framing**: ZA.Notify is the slowest of the four and allocates. The 40 B is the `AsyncPropertyChangedEventArgs` object handed to the handlers, much like the `PropertyChangedEventArgs` the manual INPC baseline allocates. The view model also declares `PropertyChanging`, which has no subscribers here, so its args are never created. The other three are pure sync and can't `await` propagation.
 
 **ZA.Notify is the only library here that supports async handlers.** The trade-off is the cost of that capability. For pure-sync view models that never need to `await` a handler (the vast majority of XAML/Avalonia/WinUI scenarios), **Fody is the right choice** — it's fastest and 0 B. For scenarios where the setter needs to wait for async work to complete before returning (e.g., async validation before notifying observers; coordinated async state transitions), ZA.Notify is the only library that supports it.
 
-**Per-iteration scale**: even at 124.7 ns / 80 B per setter call, ZA.Notify can run **~8M property changes per second per thread** with ~640 MB/s of GC pressure. Most MVVM workloads have property change rates in the thousands per second, where the difference is invisible.
+**Per-iteration scale**: at 112.8 ns / 40 B per setter call, ZA.Notify can run **~8.8M property changes per second per thread**. Most MVVM workloads have property change rates in the thousands per second, where the difference is invisible.
+
+### Where the allocations come from
+
+Same environment, `NotifyAllocationBenchmarks`. The view model declares both `PropertyChanging` and `PropertyChanged`; "five subscribers" means five `PropertyChanged` handlers.
+
+| Setter | No subscribers | Five subscribers |
+|---|---:|---:|
+| `string` property | 0 B | 40 B |
+| `int` property | 0 B | 88 B |
 <!-- NOTIFY:END -->
 
 #### Scheduling
 <!-- SCHEDULING:START -->
-_Imported from ZA.Scheduling — last refreshed 2026-09-14._
+_Imported from ZA.Scheduling — last refreshed 2026-10-12._
 
 _Last refreshed: 2026-05-14_
 
@@ -730,7 +763,7 @@ The takeaway: if you're considering ZA.Scheduling over a hand-rolled `Timer`, th
 
 #### Outbox
 <!-- OUTBOX:START -->
-_Imported from ZA.Outbox — last refreshed 2026-09-14._
+_Imported from ZA.Outbox — last refreshed 2026-10-12._
 
 _Last refreshed: 2026-05-14_
 
@@ -750,7 +783,7 @@ The value of the abstraction is the `[OutboxMessage]` attribute + the typed writ
 
 #### EventSourcing
 <!-- EVENTSOURCING:START -->
-_Imported from ZA.EventSourcing — last refreshed 2026-09-14._
+_Imported from ZA.EventSourcing — last refreshed 2026-10-12._
 
 _Last refreshed: 2026-05-14_
 
