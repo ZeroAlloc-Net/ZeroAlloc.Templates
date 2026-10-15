@@ -1,11 +1,16 @@
 using MyApp.Common;
 using MyApp.Persistence;
 using Xunit;
+using ZeroAlloc.TestHelpers;
 
 namespace MyApp.UnitTests.Persistence;
 
 public class MoneyConverterTests
 {
+    private const int Iterations = 1_000;
+
+    private static decimal _sink;
+
     [Fact]
     public void RoundTrip_preserves_amount_and_currency()
     {
@@ -61,12 +66,11 @@ public class MoneyConverterTests
         // The template only writes EUR and USD; reading them back must not
         // substring a fresh currency string on every read.
         const string stored = "99.99|EUR";
-        MoneyConverter.FromStorage(stored);
 
-        var before = GC.GetAllocatedBytesForCurrentThread();
-        for (var i = 0; i < 1_000; i++)
-            MoneyConverter.FromStorage(stored);
-        Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - before);
+        AllocationGate.AssertBudget(0, Iterations, () =>
+        {
+            _sink = MoneyConverter.FromStorage(stored).Amount;
+        }, "MoneyConverter.FromStorage, known currency");
     }
 
     [Fact]
@@ -83,9 +87,9 @@ public class MoneyConverterTests
         Assert.Equal(15m, MoneyConverter.AmountFromStorage("15|EUR"));
         Assert.Equal(99.99m, MoneyConverter.AmountFromStorage("99.99|USD"));
 
-        var before = GC.GetAllocatedBytesForCurrentThread();
-        for (var i = 0; i < 1_000; i++)
-            MoneyConverter.AmountFromStorage("99.99|USD");
-        Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - before);
+        AllocationGate.AssertBudget(0, Iterations, () =>
+        {
+            _sink = MoneyConverter.AmountFromStorage("99.99|USD");
+        }, "MoneyConverter.AmountFromStorage");
     }
 }

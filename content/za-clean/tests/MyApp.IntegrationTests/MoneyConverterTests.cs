@@ -1,6 +1,7 @@
 using MyApp.Domain.ValueObjects;
 using MyApp.Infrastructure.Persistence;
 using Xunit;
+using ZeroAlloc.TestHelpers;
 
 // Pure unit-shape tests (no DB/IO) for a converter that happens to live in
 // the Infrastructure layer. Sits in IntegrationTests because that's the test
@@ -10,6 +11,10 @@ namespace MyApp.IntegrationTests;
 
 public class MoneyConverterTests
 {
+    private const int Iterations = 1_000;
+
+    private static decimal _sink;
+
     [Fact]
     public void RoundTrip_preserves_amount_and_currency()
     {
@@ -74,12 +79,11 @@ public class MoneyConverterTests
         // The template only writes EUR and USD; reading them back must not
         // substring a fresh currency string on every read.
         const string stored = "99.99|EUR";
-        MoneyConverter.FromStorage(stored);
 
-        var before = GC.GetAllocatedBytesForCurrentThread();
-        for (var i = 0; i < 1_000; i++)
-            MoneyConverter.FromStorage(stored);
-        Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - before);
+        AllocationGate.AssertBudget(0, Iterations, () =>
+        {
+            _sink = MoneyConverter.FromStorage(stored).Amount;
+        }, "MoneyConverter.FromStorage, known currency");
     }
 
     [Fact]
