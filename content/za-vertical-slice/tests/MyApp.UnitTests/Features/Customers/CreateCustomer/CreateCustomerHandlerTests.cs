@@ -9,7 +9,7 @@ public sealed class CreateCustomerHandlerTests
     public async Task CreateCustomer_WithValidInput_PersistsAndReturnsCustomerId()
     {
         await using var db = new TestDb();
-        var handler = new CreateCustomerHandler(new CustomerWriter(db.Connection));
+        var handler = new CreateCustomerHandler(db.Connection);
         var cmd = new CreateCustomerCommand(Name: "Acme Ltd.", Email: "billing@acme.example");
 
         var result = await handler.Handle(cmd, CancellationToken.None);

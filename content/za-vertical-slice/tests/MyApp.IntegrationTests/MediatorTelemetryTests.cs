@@ -4,35 +4,36 @@ using System.Diagnostics.Metrics;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
-using Microsoft.Extensions.DependencyInjection;
 using MyApp.Common;
-using MyApp.Features.Customers.CreateCustomer;
 using Xunit;
 
-namespace MyApp.IntegrationTests.Features.Customers.CreateCustomer;
+namespace MyApp.IntegrationTests;
 
 /// <summary>
-/// Pins the ZA.Telemetry wiring: <c>[Instrument]</c> on <see cref="ICustomerWriter"/> generates
-/// <c>CustomerWriterInstrumented</c>, <c>AddMyApp</c> registers it in front of
-/// <see cref="CustomerWriter"/>, and a <c>POST /customers</c> through the hosted app emits the
-/// <c>customer.insert</c> span and one <c>customers.created</c> count.
+/// Pins the template's telemetry design: cross-cutting telemetry comes from the mediator
+/// pipeline, so no slice carries telemetry code. One <c>POST /customers</c> through the hosted
+/// app dispatches one <c>Send</c>, which must emit one <c>mediator.send</c> span on the
+/// <see cref="Telemetry.MediatorSourceName"/> activity source, opened by the generated
+/// <c>Send</c>, and add 1 to the <c>mediator.requests_total</c> counter on the meter of the same
+/// name, recorded by ZeroAlloc.Mediator.Telemetry's pipeline behavior. A green request carries
+/// no <c>error.type</c> tag on either.
 /// </summary>
 [Collection(TelemetryCollection.Name)]
-public sealed class CustomerWriterTelemetryTests : IClassFixture<MyAppFactory>, IDisposable
+public sealed class MediatorTelemetryTests : IClassFixture<MyAppFactory>, IDisposable
 {
     private readonly MyAppFactory _factory;
     private readonly ConcurrentQueue<Activity> _activities = new();
-    private readonly ConcurrentQueue<(string Instrument, long Value)> _counts = new();
+    private readonly ConcurrentQueue<(string Instrument, long Value, int TagCount)> _counts = new();
     private readonly ActivityListener _activityListener;
     private readonly MeterListener _meterListener;
 
-    public CustomerWriterTelemetryTests(MyAppFactory factory)
+    public MediatorTelemetryTests(MyAppFactory factory)
     {
         _factory = factory;
 
         _activityListener = new ActivityListener
         {
-            ShouldListenTo = source => source.Name == Telemetry.SourceName,
+            ShouldListenTo = source => source.Name == Telemetry.MediatorSourceName,
             Sample = (ref ActivityCreationOptions<ActivityContext> _) => ActivitySamplingResult.AllDataAndRecorded,
             ActivityStopped = _activities.Enqueue,
         };
@@ -42,14 +43,14 @@ public sealed class CustomerWriterTelemetryTests : IClassFixture<MyAppFactory>, 
         {
             InstrumentPublished = (instrument, listener) =>
             {
-                if (instrument.Meter.Name == Telemetry.SourceName)
+                if (instrument.Meter.Name == Telemetry.MediatorSourceName)
                 {
                     listener.EnableMeasurementEvents(instrument);
                 }
             },
         };
         _meterListener.SetMeasurementEventCallback<long>(
-            (instrument, value, _, _) => _counts.Enqueue((instrument.Name, value)));
+            (instrument, value, tags, _) => _counts.Enqueue((instrument.Name, value, tags.Length)));
         _meterListener.Start();
     }
 
@@ -60,17 +61,7 @@ public sealed class CustomerWriterTelemetryTests : IClassFixture<MyAppFactory>, 
     }
 
     [Fact]
-    public void Registered_customer_writer_is_the_generated_proxy()
-    {
-        using var scope = _factory.Services.CreateScope();
-
-        var writer = scope.ServiceProvider.GetRequiredService<ICustomerWriter>();
-
-        Assert.IsType<CustomerWriterInstrumented>(writer);
-    }
-
-    [Fact]
-    public async Task POST_customers_emits_insert_span_and_created_count()
+    public async Task One_request_emits_one_mediator_send_span_and_one_requests_total_count()
     {
         var client = _factory.CreateClient();
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue(
@@ -85,11 +76,13 @@ public sealed class CustomerWriterTelemetryTests : IClassFixture<MyAppFactory>, 
         Assert.Equal(HttpStatusCode.Created, resp.StatusCode);
 
         var span = Assert.Single(_activities);
-        Assert.Equal("customer.insert", span.OperationName);
+        Assert.Equal("mediator.send", span.OperationName);
+        Assert.Equal("CreateCustomerCommand", span.GetTagItem("request.type"));
+        Assert.Null(span.GetTagItem("error.type"));
         Assert.Equal(ActivityStatusCode.Unset, span.Status);
 
         var count = Assert.Single(_counts);
-        Assert.Equal(("customers.created", 1L), count);
+        Assert.Equal(("mediator.requests_total", 1L, 0), count);
     }
 }
 

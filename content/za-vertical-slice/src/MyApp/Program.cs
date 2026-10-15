@@ -23,7 +23,7 @@ using ZeroAlloc.Serialisation.SystemTextJson;
 var builder = WebApplication.CreateBuilder(args);
 
 // ---------------------------------------------------------------------------
-// Mediator + Validation + Authorization. All handlers live inside this
+// Mediator + Validation + Authorization + Telemetry. All handlers live inside this
 // assembly under Features/<Area>/<UseCase>/<UseCase>.cs. AddMyApp calls the
 // ZeroAlloc.Mediator-generated AddMediator(), which registers every handler
 // the generator found at compile time — no assembly scan, no reflection.
@@ -119,11 +119,15 @@ builder.Services.AddAuthorizationBuilder()
 // RPS, dial this down (e.g. 0.05) so you stop minting a span per request
 // regardless of which exporter is attached.
 //
-// ZA.Telemetry: [Instrument(Telemetry.SourceName)] on the CreateCustomer slice's
-// ICustomerWriter makes its source generator emit CustomerWriterInstrumented,
-// which AddMyApp registers in front of the ZA.ORM CustomerWriter. Its [Trace]
-// span and [Count] metric go to the Telemetry.SourceName ActivitySource and
-// Meter, which AddSource and AddMeter below subscribe to.
+// Cross-cutting telemetry comes from the mediator pipeline, so slices stay
+// self-contained: no slice carries telemetry code. Every Send opens a
+// mediator.send span on the "ZeroAlloc.Mediator" ActivitySource, and the
+// ZeroAlloc.Mediator.Telemetry pipeline behavior, wired in AddMyApp with
+// WithTelemetry(), records the mediator.requests_total counter and the
+// mediator.request_duration_ms histogram on the "ZeroAlloc.Mediator" Meter.
+// AddSource/AddMeter(Telemetry.MediatorSourceName) below subscribe to both.
+// Telemetry.SourceName is the app's own source and meter, for spans and
+// instruments a slice adds by hand.
 // ---------------------------------------------------------------------------
 var traceSampleRatio = builder.Configuration.GetValue<double?>("Telemetry:TraceSampleRatio") ?? 1.0;
 var consoleTelemetry = builder.Environment.IsDevelopment();
@@ -134,7 +138,7 @@ builder.Services.AddOpenTelemetry()
         t.SetSampler(new ParentBasedSampler(new TraceIdRatioBasedSampler(traceSampleRatio)))
             .AddAspNetCoreInstrumentation()
             .AddHttpClientInstrumentation()
-            .AddSource("ZeroAlloc.Mediator")
+            .AddSource(Telemetry.MediatorSourceName)
             .AddSource(Telemetry.SourceName);
         if (consoleTelemetry)
         {
@@ -148,6 +152,7 @@ builder.Services.AddOpenTelemetry()
     .WithMetrics(m =>
     {
         m.AddAspNetCoreInstrumentation()
+            .AddMeter(Telemetry.MediatorSourceName)
             .AddMeter(Telemetry.SourceName);
         if (consoleTelemetry)
         {
