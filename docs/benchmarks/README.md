@@ -71,6 +71,9 @@ Any RPS claim in `content/za-clean/README.md` or `content/za-vertical-slice/READ
 | 2026-06-07 | [189-read-pipeline-clean.md](2026-06-07-189-read-pipeline-clean.md) | HTTP-level BDN | #189 — full HTTP-stack single-request bench via WebApplicationFactory, za-clean |
 | 2026-06-07 | [189-read-pipeline-vs.md](2026-06-07-189-read-pipeline-vs.md) | HTTP-level BDN | #189 mirror for vs (vs is 30% faster per request — load-coupled gap localized) |
 | 2026-06-08 | [189-dotnet-counters-vs.md](2026-06-08-189-dotnet-counters-vs.md) | NBomber capacity (counters) | #189 — dotnet-counters capture under sustained load on vs; identifies Npgsql pool exhaustion as the dominant bottleneck |
+| 2026-06-10 | [template-capacity-za-clean.md](2026-06-10-template-capacity-za-clean.md) | NBomber capacity | Capacity-recipe run behind the za-clean README's RPS table — `GET /orders/{id}` at a 5k target, post-#197 output cache |
+| 2026-06-10 | [template-capacity-za-vs.md](2026-06-10-template-capacity-za-vs.md) | NBomber capacity | Same run for za-vertical-slice, behind its README's NBomber figures |
+| 2026-08-07 | [171-jwt-validation-cost.md](2026-08-07-171-jwt-validation-cost.md) | BDN micro | #171 — `JwtValidationBench`: JWT validation is ~4% of per-request CPU, so no validated-token cache |
 
 ### Runbooks (not reports)
 
