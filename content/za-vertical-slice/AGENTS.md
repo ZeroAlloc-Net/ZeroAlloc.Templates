@@ -16,15 +16,15 @@ HTTP POST /orders
 │ src/MyApp/Features/Orders/PlaceOrder/PlaceOrder.cs       │
 │                                                           │
 │   PlaceOrderCommand : IRequest<Result<OrderId, Error>>   │
-│   PlaceOrderValidator : AbstractValidator<PlaceOrderCmd> │
+│   [Validate] → generated PlaceOrderCommandValidator      │
 │   PlaceOrderHandler : IRequestHandler<…>                 │
 │   PlaceOrderEndpoint.Map(IEndpointRouteBuilder)          │
-│   internal sealed class Order  ← persistence entity      │
+│   public sealed class Order  ← persistence entity        │
 └────────────────────┬─────────────────────────────────────┘
                      │ depends only on
                      ▼
 ┌──────────────────────────────────────────────────────────┐
-│ src/MyApp/Common/      TypedIds (OrderId, CustomerId),   │
+│ src/MyApp/Common/      Ids (OrderId, CustomerId),        │
 │ src/MyApp/Persistence/ Migrations/{Sqlite,Postgres}/*.sql│
 │                        (embedded resources)              │
 │ src/MyApp/Authorization/ [Policy] declarations           │
@@ -32,7 +32,7 @@ HTTP POST /orders
 ```
 
 - **`Features/<Area>/<UseCase>/<UseCase>.cs`** — one slice per use case. Holds the request + validator + handler + endpoint + (optionally) the persistence entity owned by that slice.
-- **`Common/`** — primitives shared across slices: TypedIds, the `Error` catalog, telemetry setup.
+- **`Common/`** — primitives shared across slices: the `[ValueObject]` ids, `Money`, the `Error` catalog, telemetry setup.
 - **Per-slice persistence** — each feature handler is a `public sealed partial class XxxHandler(IAsyncDbConnection conn)` with inline `[Query]`/`[Command]` partials and any row records co-located in the slice file. There is no central persistence type — the slice owns its data access shape, matching the vertical-slice principle that "everything a slice needs lives in the slice". `Persistence/Migrations/{Sqlite,Postgres}/NNN_<name>.sql` holds the embedded SQL applied at startup by `ZeroAlloc.ORM.Migrations.MigrationRunner`.
 - **`Authorization/Policies.cs`** — `[Policy]` declarations used by `[RequirePolicy(...)]` on requests.
 - **`Program.cs`** — DI wiring + one explicit `XxxEndpoint.Map(app)` call per slice (no reflective endpoint discovery).
@@ -41,9 +41,11 @@ HTTP POST /orders
 
 `tests/MyApp.ConventionTests/VerticalSliceConventionRules.cs` enforces these via NetArchTest. Violations fail CI.
 
-- Every type ending in `Command` or `Query` implements `IRequest<>`.
-- Every type ending in `Handler` is `public sealed`.
-- No slice references another slice's types directly. Slices share via `Common/`, `Persistence/`, or `Authorization/`; cross-slice messaging goes through `IMediator`.
+- Every type under `MyApp.Features` ending in `Command` or `Query` implements `IRequest<>`.
+- Every type ending in `Handler` is `public sealed` and implements `IRequestHandler<,>`.
+- Every endpoint is a `public static` class.
+
+Cross-slice references are not a test rule: persistence entities such as `Order` are owned by one slice and read by others. Everything else stays slice-local by convention, checked at code review.
 
 **Before adding a `using MyApp.Features.<OtherSlice>...;`, ask: "is this slice talking to another slice's internals?"** If yes, factor the shared type into `Common/` or send a request through `IMediator`.
 
@@ -53,7 +55,7 @@ HTTP POST /orders
 
 1. Create `src/MyApp/Features/<Area>/<UseCase>/<UseCase>.cs`.
 2. Define the request as a `readonly record struct *Command`/`*Query` implementing `IRequest<Result<TResponse, Error>>`. Decorate with `[RequirePolicy("...")]` if authentication/authorization applies.
-3. Define `*Validator : AbstractValidator<*Command>`.
+3. Put `[Validate]` on the request and attribute rules such as `[property: GreaterThan(0)]` on its members. ZA.Validation generates `*CommandValidator`, and the ZA.Mediator.Validation behaviour runs it before the handler.
 4. Define `*Handler : IRequestHandler<*Command, Result<TResponse, Error>>`. Return `ValueTask<...>`, **not** `Task<...>`.
 5. Define `*Endpoint` as a `public static class` with `public static void Map(IEndpointRouteBuilder)`. Wire `IMediator.Send` + map result to `Results.Created`/`Results.Ok`/`Results.Problem`.
 6. If the slice needs to read or write rows, declare the relevant `[Query]`/`[Command]` partial methods directly on the handler class (mark the class `public sealed partial class XxxHandler(IAsyncDbConnection conn)`). Co-locate row records inside the class as `public sealed record XxxRow(...)`. Add SQL migration files at `src/MyApp/Persistence/Migrations/{Sqlite,Postgres}/NNN_<name>.sql` if the schema needs to change — the `MigrationRunner` picks them up by version on next startup.
@@ -68,11 +70,11 @@ HTTP POST /orders
 
 ### Add a value object
 
-1. Create or extend `src/MyApp/Common/ValueObjects.cs` — `readonly partial record struct` with `[TypedId]` attribute from `ZeroAlloc.ValueObjects` (auto-generates `.New()` factory + JSON converter).
+1. Create or extend `src/MyApp/Common/ValueObjects.cs` — a `readonly partial struct` with the `[ValueObject]` attribute from `ZeroAlloc.ValueObjects`, a `Value` property and a constructor, like `OrderId`.
 
 ### Add a validation rule
 
-ZA.Validation's `[Validate]` source generator is wired up — or you can write `AbstractValidator<T>` directly. Both work. Pick the style that matches the surrounding slice.
+Add an attribute rule from `ZeroAlloc.Validation` to the request member, for example `[property: GreaterThan(0)]`. The `[Validate]` source generator regenerates the validator; there is no hand-written validator class to edit.
 
 ### Add a policy
 
@@ -89,7 +91,7 @@ ZA.Validation's `[Validate]` source generator is wired up — or you can write `
 | ZA.Authorization is host-agnostic abstractions only | Use vanilla `AddAuthorizationBuilder().AddPolicy(...).RequireClaim(...)` for ASP.NET routing-level auth; use `[Policy]` + `[RequirePolicy]` for request-level auth |
 | ZA.Telemetry is a code-gen instrumentation library | Use vanilla OpenTelemetry; opt into `[Instrument]` per method |
 | ZA.Mapping needs `<PrivateAssets>all</PrivateAssets>` | Set on the `<PackageReference>` in `MyApp.csproj` |
-| `OrderId` / `CustomerId` use `[TypedId]` from ZA.ValueObjects | Auto-generated `.New()` factory + JSON converter |
+| `OrderId` / `CustomerId` are `[ValueObject]` structs over `int` from ZA.ValueObjects | Construct with `new OrderId(id)`; ZA.Serialisation generates the JSON converter |
 | Switching a request to `IAuthorizedRequest<TPayload>` for Result-style auth | Under AOT publish, the deny path silently throws `AuthorizationDeniedException`. Add a `[ModuleInitializer]` carrier method with `[DynamicDependency(PublicMethods, typeof(Result<TPayload, AuthorizationFailure>))]` per `TPayload` you use. |
 
 ## 5. AOT publish

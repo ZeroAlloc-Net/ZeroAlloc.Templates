@@ -1,6 +1,12 @@
 # ZeroAlloc.Templates
 
-`dotnet new` Web API templates for the [ZeroAlloc.\*](https://github.com/ZeroAlloc-Net) ecosystem. Source-generated, AOT-safe, zero-allocation through the framework hot path.
+[![NuGet](https://img.shields.io/nuget/v/ZeroAlloc.Templates.svg)](https://www.nuget.org/packages/ZeroAlloc.Templates)
+[![Build](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/actions/workflows/ci.yml/badge.svg)](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/blob/main/LICENSE)
+[![AOT](https://img.shields.io/badge/AOT--Compatible-passing-brightgreen)](https://learn.microsoft.com/dotnet/core/deploying/native-aot/)
+[![GitHub Sponsors](https://img.shields.io/github/sponsors/MarcelRoozekrans?style=flat&logo=githubsponsors&color=ea4aaa&label=Sponsor)](https://github.com/sponsors/MarcelRoozekrans)
+
+`dotnet new` Web API templates for the [ZeroAlloc.\*](https://github.com/ZeroAlloc-Net) ecosystem. Source-generated and published as Native AOT. The ZeroAlloc primitives — value objects, `Result<T, E>`, generated validators — allocate nothing per call, and each template's README publishes the measured cost of every framework step above them.
 
 ## Catalog
 
@@ -9,7 +15,7 @@
 | `za-clean` | Clean Architecture — four layered projects (Domain / Application / Infrastructure / Api) with NetArchTest boundary rules | Conservative shape; familiar to teams already running layered architectures; horizontal boundaries lock concerns in place |
 | `za-vertical-slice` | Vertical Slice Architecture — one src project, one folder per use case, one file per slice (request + validator + handler + endpoint + entity co-located) | Lower-ceremony shape; each feature reads top-to-bottom in one ~50–100 line file; sharper A/B comparison against `za-clean` on the same domain |
 
-Both templates ship the same 11-package showcase (Mediator, Validation, Authorization, Mapping, ValueObjects, Inject, Telemetry, Resilience, Rest, Results, ORM), same ZA.ORM 2 + SQLite persistence (raw `Microsoft.Data.Sqlite` provider, no DbContext), same xUnit + BenchmarkDotNet + NBomber test/bench fan-out. They differ in **arrangement**, not in functional scope — pick on team comfort, not capability.
+Both templates reference the same 11 ZeroAlloc libraries (Mediator, Validation, Authorization, Mapping, ValueObjects, Inject, Resilience, Rest, Results, Serialisation, ORM); `za-vertical-slice` also references ZA.Telemetry. Both share the same ZA.ORM 2 + SQLite persistence (raw `Microsoft.Data.Sqlite` provider, no DbContext), same xUnit + BenchmarkDotNet + NBomber test/bench fan-out. They differ in **arrangement**, not in functional scope — pick on team comfort, not capability.
 
 ## Install
 
@@ -23,19 +29,21 @@ dotnet new install ZeroAlloc.Templates
 # Clean Architecture
 dotnet new za-clean -o MyApp
 cd MyApp && dotnet run --project src/MyApp.Api
+# In another shell:
+curl http://localhost:5000/healthz
+# → {"status":"ok"}
 
 # Vertical Slice
 dotnet new za-vertical-slice -o MyApp
 cd MyApp && dotnet run --project src/MyApp
-
 # In another shell:
 curl http://localhost:5000/healthz
-# → {"status":"ok"}
+# → Healthy
 ```
 
 `za-clean` ships with:
 - Four layered projects (`Domain`, `Application`, `Infrastructure`, `Api`) with NetArchTest-enforced boundaries
-- 18 passing tests (10 unit + 5 architecture + 3 integration)
+- 49 passing tests (12 unit + 5 architecture + 32 integration)
 - A BenchmarkDotNet write-pipeline scenario (~1.3 ms / ~36 KB per request through the full middleware stack on Linux/AMD EPYC Postgres CI; see [run 26778623747](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/actions/runs/26778623747))
 - An NBomber read-RPS scenario for load testing under sustained concurrency
 - An `AGENTS.md` that orients Claude Code, Cursor, GitHub Copilot, Codex, and Aider to the codebase
@@ -43,65 +51,33 @@ curl http://localhost:5000/healthz
 `za-vertical-slice` ships with:
 - One src project (`MyApp`) — no horizontal layers; concerns live next to the feature that uses them
 - Six slices (PlaceOrder, GetOrder, ListOrders, CancelOrder, CreateCustomer, GetCustomer) with request + validator + handler + endpoint + entity co-located per `*.cs` file
-- 33 passing tests (16 unit + 12 integration + 5 NetArchTest convention rules)
+- 70 passing tests (37 unit + 28 integration + 5 NetArchTest convention cases over 4 rules)
 - The same BenchmarkDotNet + NBomber benchmark fan-out adapted to the flat `PlaceOrderCommand` shape
 
-Full tour and rationale: [docs/za-clean.md](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/blob/main/docs/za-clean.md).
+Full tour and rationale: [docs/za-clean.md](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/blob/main/docs/za-clean.md) and [docs/za-vertical-slice.md](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/blob/main/docs/za-vertical-slice.md).
 
 ## What's in the box
+
+Paths are for `za-clean`; `za-vertical-slice` keeps the same pieces next to the slice that uses them.
 
 | Concern | Package | Where it lives |
 |---|---|---|
 | CQRS dispatch | ZA.Mediator | `MyApp.Application` (handlers return `ValueTask<T>`) |
 | Source-generated mapping | ZA.Mapping | `MyApp.Api/Mappings/` |
-| Validation | ZA.Validation (decorative until generator nupkg fix); template ships a hand-rolled validator | `MyApp.Application/CreateOrder/` |
+| Validation | ZA.Validation + ZA.Mediator.Validation | `[Validate]` on the command; `MyApp.Application/CreateOrder/CreateOrderValidator.cs` maps the generated validator's first failure to a `UnitResult<ValidationError>` |
 | Source-generated DI | ZA.Inject | `[Scoped]` / `[Singleton]` / `[Transient]` on services |
 | Typed HTTP client | ZA.Rest + ZA.Rest.SystemTextJson | `MyApp.Infrastructure/External/` |
 | Resilience | ZA.Resilience + ZA.Rest.Resilience | Bridged into the shipping client |
 | Smart-ctor IDs/money | ZA.ValueObjects | `MyApp.Domain/ValueObjects/` |
 | `Result<T, Error>` | ZA.Results | Across Domain + Application boundaries |
-| Source-generated persistence | ZA.ORM 2 + ZA.AdoNet.Async | `[Command]`/`[Query]` partials over `IAsyncDbConnection`; embedded SQL migrations under `Persistence/Migrations/` |
+| Authorization | ZA.Authorization + ZA.Mediator.Authorization | `[RequirePolicy]` on commands; policies in `MyApp.Application/Authorization/` |
+| JSON for value objects | ZA.Serialisation + ZA.Serialisation.SystemTextJson | Generated `JsonConverter`s for the `[ValueObject]` ids, registered with `AddZeroAllocValueObjectConverters()` in `MyApp.Api/Program.cs` |
+| Instrumentation | ZA.Telemetry (`za-vertical-slice` only) | Referenced; spans and metrics use the shared source in `Common/Telemetry.cs` |
+| Source-generated persistence | ZA.ORM 2 + AdoNet.Async | `[Command]`/`[Query]` partials over `IAsyncDbConnection`; embedded SQL migrations under `Persistence/Migrations/` |
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT — see [LICENSE](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/blob/main/LICENSE).
 
----
+Maintaining this repo? See [CONTRIBUTING.md](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/blob/main/CONTRIBUTING.md).
 
-## Development
-
-For maintainers of this repo (not for adopters of the template).
-
-### Required GitHub repo secrets
-
-The release pipeline requires two secrets at `Settings → Secrets and variables → Actions`. Both are configured at org level so they inherit:
-
-- `RELEASE_PLEASE_TOKEN` — Personal Access Token with `contents:write` + `pull-requests:write` + `workflow:write`. Needed because the default `GITHUB_TOKEN` can't trigger downstream workflows from release-please PRs.
-- `NUGET_API_KEY` — push-only API key from nuget.org, scoped to `ZeroAlloc.Templates`.
-
-### Drift-guard for duplicated config
-
-Three files are duplicated at the repo root and under each `content/<template>/`:
-
-- `Directory.Build.props`
-- `Directory.Packages.props`
-- `global.json`
-
-The root copies serve the template-tooling projects; the `content/` copies serve the scaffolded app standalone. **CI enforces they stay identical** across the root and every `content/<template>/` directory via a drift-guard step. When bumping a package version or SDK pin, edit all copies.
-
-### Build + test
-
-```bash
-# Per-template (replace za-clean ↔ za-vertical-slice as needed):
-dotnet build content/za-clean/MyApp.slnx
-dotnet test content/za-clean/MyApp.slnx
-dotnet pack ZeroAlloc.Templates.csproj -o ./nupkg
-
-# Full smoke test (parameterized over both templates: install + scaffold + build + test, ~50 s):
-dotnet test tests/ZeroAlloc.Templates.SmokeTests
-
-# Skip the slow smoke tests during inner-loop dev:
-dotnet test --filter "Category!=Slow"
-```
-
-See [AGENTS.md](AGENTS.md) for the AI-agent orientation.

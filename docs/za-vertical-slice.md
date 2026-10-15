@@ -7,7 +7,7 @@ sidebar_position: 2
 
 # ZeroAlloc Vertical Slice Template
 
-`za-vertical-slice` is a `dotnet new` template that scaffolds a single-project Vertical Slice Architecture Web API on the ZeroAlloc.\* ecosystem. Where `za-clean` splits the codebase by *technical layer* (Domain / Application / Infrastructure / Api, four csprojs, dependency direction strictly inward), this template splits by *use case*: one folder per feature, one file per slice, every slice owns its request + validator + handler + endpoint + entity. The 10-package ZeroAlloc showcase is identical to `za-clean`'s; the wiring is inverted.
+`za-vertical-slice` is a `dotnet new` template that scaffolds a single-project Vertical Slice Architecture Web API on the ZeroAlloc.\* ecosystem. Where `za-clean` splits the codebase by *technical layer* (Domain / Application / Infrastructure / Api, four csprojs, dependency direction strictly inward), this template splits by *use case*: one folder per feature, one file per slice, every slice owns its request + validator + handler + endpoint + entity. It references the same 11 ZeroAlloc libraries as `za-clean`, plus the ZA.Telemetry package; the wiring is inverted.
 
 This page is a tour of the **benchmark harness** and what its numbers mean — particularly the `WritePipelineBench`'s 3 × 2 attribution matrix that B2 added (PR #140). For the full template tour, start with the per-template `README.md` after `dotnet new za-vertical-slice -o MyApp`.
 
@@ -19,11 +19,11 @@ dotnet new za-vertical-slice -o MyApp
 cd MyApp && dotnet run --project src/MyApp
 ```
 
-The Api boots, applies its EF Core SQLite migrations on startup, and listens on the kestrel default. In another shell:
+The Api boots, applies its ZA.ORM-managed embedded SQL migrations on startup, and listens on the Kestrel default. In another shell:
 
 ```bash
 $ curl http://localhost:5000/healthz
-{"status":"ok"}
+Healthy
 ```
 
 ## Benchmark layout

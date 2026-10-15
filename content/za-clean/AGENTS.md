@@ -55,7 +55,7 @@ HTTP POST /orders
 
 1. Create `src/MyApp.Application/<Feature>/<Cmd>Command.cs` — record implementing `IRequest<Result<T, ApplicationError>>`.
 2. Create `src/MyApp.Application/<Feature>/<Cmd>Handler.cs` — `[Scoped]` class implementing `IRequestHandler<<Cmd>Command, Result<T, ApplicationError>>`. Returns `ValueTask<…>`, **not** `Task<…>`.
-3. If validation is needed: extend the hand-rolled `CreateOrderValidator` pattern OR create a parallel validator class. Call from the top of `Handle`.
+3. If validation is needed: put `[Validate]` and attribute rules such as `[NotEmpty]` on the command; ZA.Validation generates `<Cmd>CommandValidator`. Wrap it the way `CreateOrderValidator` does and call it from the top of `Handle`.
 4. ZA.Inject auto-registers via `[Scoped]` — no DI changes needed.
 
 ### Add a query

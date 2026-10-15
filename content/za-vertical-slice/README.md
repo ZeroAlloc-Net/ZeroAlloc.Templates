@@ -1,8 +1,8 @@
 # MyApp
 
-Vertical Slice Architecture Web API. Source-generated, AOT-friendly, zero-allocation through the framework hot path. Built on the [ZeroAlloc.\*](https://github.com/ZeroAlloc-Net) ecosystem.
+Vertical Slice Architecture Web API. Source-generated and published as Native AOT. The ZeroAlloc primitives — typed ids, value objects, `Result<T, Error>` and the generated validators — allocate nothing per call, which `tests/MyApp.UnitTests/AllocationTests.cs` asserts; a full request through ASP.NET and ZA.ORM costs ~29–32 KB (see the table). Built on the [ZeroAlloc.\*](https://github.com/ZeroAlloc-Net) ecosystem.
 
-Where Clean Architecture splits the codebase by *technical layer* (Domain / Application / Infrastructure / Api, four csprojs, dependency direction strictly inward), vertical slice splits by *use case*: one folder per feature, one file per slice, every slice owns its request + validator + handler + endpoint + entity. The 10-package ZeroAlloc showcase is identical; the wiring is inverted.
+Where Clean Architecture splits the codebase by *technical layer* (Domain / Application / Infrastructure / Api, four csprojs, dependency direction strictly inward), vertical slice splits by *use case*: one folder per feature, one file per slice, every slice owns its request + validator + handler + endpoint + entity. It references the same 11 ZeroAlloc libraries as `za-clean` (Mediator, Validation, Authorization, Mapping, ValueObjects, Inject, Resilience, Rest, Results, Serialisation, ORM), plus the ZA.Telemetry package; the wiring is inverted. No interface is `[Instrument]`ed yet — spans and metrics come from the shared source in `Common/Telemetry.cs`.
 
 | | Value |
 |---|---:|
@@ -37,18 +37,18 @@ time ./aot-out/MyApp  # measure to /healthz
 dotnet run --project src/MyApp
 # In another shell:
 curl http://localhost:5000/healthz
-# → {"status":"ok"}
+# → Healthy
 ```
 
 The API boots, applies its ZA.ORM-managed embedded SQL migrations, and listens on the Kestrel default. OpenTelemetry traces stream to the console.
 
-> Pipeline + primitive numbers measured in CI on Ubuntu 24.04 / AMD EPYC / .NET 10.0.8 via [`Benchmarks (manual)` run 26778623747](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/actions/runs/26778623747). NBomber-Postgres at 5,000-RPS open-model inject (2026-06-10 capacity-recipe run on i9-12900HK) sustains 4,312 RPS / 0 failures (mean 2.7 ms, p50 1.1 ms, p95 4.0 ms, p99 13.6 ms; raw report: [`docs/benchmarks/2026-06-10-template-capacity-za-vs.md`](../../docs/benchmarks/2026-06-10-template-capacity-za-vs.md)).
+> Pipeline + primitive numbers measured in CI on Ubuntu 24.04 / AMD EPYC / .NET 10.0.8 via [`Benchmarks (manual)` run 26778623747](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/actions/runs/26778623747). NBomber-Postgres at 5,000-RPS open-model inject (2026-06-10 capacity-recipe run on i9-12900HK) sustains 4,312 RPS / 0 failures (mean 2.7 ms, p50 1.1 ms, p95 4.0 ms, p99 13.6 ms; raw report: [`docs/benchmarks/2026-06-10-template-capacity-za-vs.md`](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/blob/main/docs/benchmarks/2026-06-10-template-capacity-za-vs.md)).
 
 > ⚠️ **Capacity-recipe local numbers, not capacity claims.** The NBomber
-> numbers above are from a single-laptop [`docs/benchmarks/capacity-recipe.md`](../../docs/benchmarks/capacity-recipe.md)
+> numbers above are from a single-laptop [`docs/benchmarks/capacity-recipe.md`](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/blob/main/docs/benchmarks/capacity-recipe.md)
 > run (i9-12900HK, Postgres pinned cores 0–1, SUT pinned cores 2–5, NBomber
 > unpinned on host). The 4,312 RPS plateau is NBomber's per-machine injector
-> cap at a 5 k target — see [`docs/benchmarks/2026-06-05-nbomber-ceiling-sweep.md`](../../docs/benchmarks/2026-06-05-nbomber-ceiling-sweep.md)
+> cap at a 5 k target — see [`docs/benchmarks/2026-06-05-nbomber-ceiling-sweep.md`](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/blob/main/docs/benchmarks/2026-06-05-nbomber-ceiling-sweep.md)
 > for the rate-sweep that locates the actual SUT ceiling. Single-machine
 > measurement has known variance — for production capacity numbers, run the
 > recipe on your target hardware (two-machine LAN variant is gold-standard).
@@ -85,76 +85,127 @@ benchmarks/
 
 ## The canonical slice — `Features/Orders/PlaceOrder/PlaceOrder.cs`
 
-One file holds every concept that participates in `POST /orders`:
+One file holds every concept that participates in `POST /orders`: the request with its validation attributes, the handler with its ZA.ORM `[Command]` partial, the endpoint, and the `Order` entity. This is the file as shipped, without its XML doc comments:
 
 ```csharp
-// Request — the public contract dispatched through IMediator.
-[RequirePolicy("customer")]
-public readonly record struct PlaceOrderCommand(CustomerId CustomerId, decimal Total)
+using System.Data.Async;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.OutputCaching;
+using Microsoft.AspNetCore.Routing;
+using MyApp.Common;
+using MyApp.Persistence;
+using ZeroAlloc.Authorization;
+using ZeroAlloc.Inject;
+using ZeroAlloc.Mediator;
+using ZeroAlloc.ORM;
+using ZeroAlloc.Results;
+using ZeroAlloc.Validation;
+
+namespace MyApp.Features.Orders.PlaceOrder;
+
+[Validate]
+[RequirePolicy("OrdersWrite")]
+public readonly record struct PlaceOrderCommand(
+    CustomerId CustomerId,
+    [property: GreaterThan(0)] decimal Total)
     : IRequest<Result<OrderId, Error>>;
 
-// Validator — invoked automatically by .UseValidation() before the handler runs.
-public sealed class PlaceOrderValidator : AbstractValidator<PlaceOrderCommand>
-{
-    public PlaceOrderValidator()
-    {
-        RuleFor(c => c.Total).GreaterThan(0).WithMessage("Total must be positive");
-    }
-}
-
-// Handler — owns the DB work. Persistence is a [Command] partial generated by ZA.ORM,
-// co-located in this file so the whole slice still reads top-to-bottom.
-public sealed class PlaceOrderHandler(IAsyncDbConnection db)
+[Scoped]
+public sealed partial class PlaceOrderHandler(IAsyncDbConnection conn)
     : IRequestHandler<PlaceOrderCommand, Result<OrderId, Error>>
 {
     public async ValueTask<Result<OrderId, Error>> Handle(PlaceOrderCommand cmd, CancellationToken ct)
     {
-        var order = new Order(OrderId.New(), cmd.CustomerId, cmd.Total);
-        await InsertOrderAsync(db, order, ct);
-        return order.Id;
+        // Validator (`[GreaterThan(0)]` on Total) guarantees cmd.Total > 0,
+        // so Money.TryCreate cannot fail here. Money is internal-only — the
+        // wire surface (PlaceOrderCommand.Total) stays bare decimal.
+        var money = Money.TryCreate(cmd.Total, "EUR").Value;
+        var id = await InsertOrderAsync(
+            cmd.CustomerId.Value,
+            MoneyConverter.ToStorage(money),
+            nameof(OrderStatus.Pending),
+            ct).ConfigureAwait(false);
+        return Result<OrderId, Error>.Success(new OrderId(id));
     }
 
-    // ZA.ORM source-generates the body from this signature + the SQL template.
-    [Command("INSERT INTO orders (id, customer_id, total) VALUES (@Id, @CustomerId, @Total)")]
-    static partial ValueTask InsertOrderAsync(IAsyncDbConnection db, Order order, CancellationToken ct);
+    [Command(
+        "INSERT INTO \"Orders\" (\"CustomerId\", \"Total\", \"Status\") VALUES (@customerId, @total, @status) RETURNING \"Id\"",
+        Kind = CommandKind.Identity)]
+    public partial Task<int> InsertOrderAsync(int customerId, string total, string status, CancellationToken ct);
 }
 
-// Endpoint — wired by one explicit PlaceOrderEndpoint.Map(app) call in Program.cs.
 public static class PlaceOrderEndpoint
 {
     public static void Map(IEndpointRouteBuilder app) =>
-        app.MapPost("/orders", static async (PlaceOrderCommand cmd, IMediator mediator, CancellationToken ct) =>
-        {
-            var result = await mediator.Send(cmd, ct);
-            return result.Match(id => Results.Created($"/orders/{id}", id), err => err.ToProblem());
-        });
+        app.MapPost("/orders", static async (PlaceOrderCommand cmd, IMediator mediator, IOutputCacheStore cache, CancellationToken ct) =>
+            {
+                var result = await mediator.Send(cmd, ct).ConfigureAwait(false);
+                if (result.IsSuccess)
+                {
+                    await cache.EvictByTagAsync("orders", ct).ConfigureAwait(false);
+                    return Results.Created($"/orders/{result.Value.Value}", result.Value);
+                }
+
+                return result.Error.ToProblem();
+            })
+            .RequireAuthorization("OrdersWrite");
 }
 
-// Persistence entity — owned by this slice. ZA.ORM materialises rows into it directly.
-internal sealed class Order
+public sealed class Order
 {
+    public Order(CustomerId customerId, decimal total)
+    {
+        Id = new OrderId(0);
+        CustomerId = customerId;
+        Total = total;
+        Status = OrderStatus.Pending;
+    }
+
     public OrderId Id { get; private set; }
+
     public CustomerId CustomerId { get; private set; }
+
     public decimal Total { get; private set; }
-    private Order() { }
-    public Order(OrderId id, CustomerId customerId, decimal total) =>
-        (Id, CustomerId, Total) = (id, customerId, total);
+
+    public OrderStatus Status { get; private set; }
+
+    public bool Cancel()
+    {
+        if (Status == OrderStatus.Cancelled)
+        {
+            return false;
+        }
+
+        Status = OrderStatus.Cancelled;
+        return true;
+    }
+}
+
+public enum OrderStatus
+{
+    Pending = 0,
+    Cancelled = 1,
 }
 ```
+
+`[Validate]` makes ZA.Validation generate `PlaceOrderCommandValidator`, which the ZA.Mediator.Validation behaviour runs before the handler. `[RequirePolicy("OrdersWrite")]` is checked by the mediator's authorization behaviour, on top of `RequireAuthorization("OrdersWrite")` on the endpoint.
 
 To add a new use case — copy a slice file, rename, tweak, and add one `XxxEndpoint.Map(app)` line to `Program.cs` (explicit, so endpoint mapping stays reflection-free for NativeAOT). The generated `services.AddMediator()` registers the new handler at compile time, and the `[RequirePolicy]` declaration is enforced by the mediator's authorization behaviour automatically.
 
 ## Conventions enforced by `MyApp.ConventionTests`
 
-- Every `*Command` / `*Query` implements `IRequest<>`.
+- Every `*Command` / `*Query` under `MyApp.Features` implements `IRequest<>`.
 - Every `*Handler` is `public sealed`.
-- No slice references another slice's types (slices are independent — share via `Common/`).
+- Every `*Handler` implements `IRequestHandler<,>`.
+- Every endpoint is a `public static` class.
+
+Cross-slice references are deliberately not a rule: entities such as `Order` are owned by one slice and read by others. A new cross-slice `using` is left to code review.
 
 Violations fail CI.
 
 ## Output caching
 
-`GET /orders/{id}` and `GET /customers/{id}` are wrapped in ASP.NET Core OutputCaching with per-entity configurable TTL (defaults: 30 seconds each). Concurrent same-id reads are served from the in-memory cache, absorbing pressure on the Npgsql connection pool under load — see [docs/benchmarks/2026-06-08-189-dotnet-counters-vs.md](../../docs/benchmarks/2026-06-08-189-dotnet-counters-vs.md) for the empirical investigation that motivated this layer.
+`GET /orders/{id}` and `GET /customers/{id}` are wrapped in ASP.NET Core OutputCaching with per-entity configurable TTL (defaults: 30 seconds each). Concurrent same-id reads are served from the in-memory cache, absorbing pressure on the Npgsql connection pool under load — see [docs/benchmarks/2026-06-08-189-dotnet-counters-vs.md](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/blob/main/docs/benchmarks/2026-06-08-189-dotnet-counters-vs.md) for the empirical investigation that motivated this layer.
 
 **Tuning:**
 
@@ -189,4 +240,4 @@ Tag-based bulk eviction is conservative (always correct, simpler than per-id) �
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT — see [LICENSE](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/blob/main/LICENSE).

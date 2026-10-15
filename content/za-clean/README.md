@@ -1,6 +1,6 @@
 # MyApp
 
-Clean Architecture Web API. **Publishes as a ~27 MB Native AOT binary; cold-starts in ~540 ms** (vs ~1.2 s under JIT — ~2.2× faster, ~75% smaller deploy). Source-generated validators and value objects allocate nothing; mapping, mediator dispatch and data access each have a measured, bounded cost (see the table). Built on the [ZeroAlloc.\*](https://github.com/ZeroAlloc-Net) ecosystem.
+Clean Architecture Web API. **Publishes as a ~27 MB Native AOT binary; cold-starts in ~540 ms** (vs ~1.2 s under JIT — ~2.2× faster, ~75% smaller deploy). Source-generated validators and value objects allocate nothing, which `tests/MyApp.UnitTests/AllocationTests.cs` asserts; mapping, mediator dispatch and data access each have a measured, bounded cost (see the table). Built on the [ZeroAlloc.\*](https://github.com/ZeroAlloc-Net) ecosystem.
 
 | | Value |
 |---|---:|
@@ -11,7 +11,7 @@ Clean Architecture Web API. **Publishes as a ~27 MB Native AOT binary; cold-star
 | **Mediator send** (generated `IMediator`, auth + validation behaviours, real handler over stubs) | 456 B = 208 B handler work + 248 B dispatch |
 | **Validator (source-generated, regex zip)** | ~50 ns / 0 B |
 | **ValueObject `TryCreate`** | ~7 ns / 0 B |
-| **Read hot path** (`GetByIdAsync` / Sqlite, head + 2 lines) | ZA.ORM 2.92 KB vs hand-written ADO.NET 2.08 KB — framework 1.41× allocations. See [ZA.ORM v0.7.0 benchmarks](https://github.com/ZeroAlloc-Net/ZeroAlloc.ORM/blob/main/docs/benchmarks/v0.7.0-sqlite-results.md) for the full comparison matrix |
+| **Read hot path** (`GetByIdAsync` / Sqlite, head + 2 lines) | ZA.ORM 2.92 KB vs hand-written ADO.NET 2.08 KB — framework 1.41× allocations. ZA.ORM's own [comparison matrix](https://github.com/ZeroAlloc-Net/ZeroAlloc.ORM/blob/main/docs/benchmarks/v0.7.0-sqlite-results.md) against hand-written ADO.NET and Dapper.AOT was last captured at ZA.ORM v0.7.0 |
 | **End-to-end pipeline** (ASP.NET + ZA.ORM, Postgres) | ~1.3 ms / 36 KB — mostly platform overhead, not ZA |
 
 AOT figures re-measured 2026-06-02 post-ZA.ORM-swap (#152) on i9-12900HK / Windows 11 / .NET 10.0.8. The end-to-end pipeline number was measured in CI on Ubuntu 24.04 / AMD EPYC / .NET 10.0.8 via [`Benchmarks (manual)` run 26778623747](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/actions/runs/26778623747). Primitive and read-path allocations were re-measured 2026-10-11 (#474) on i9-12900HK / .NET 10.0.12; timings from that loaded machine are approximate, the allocations are exact. The 160 B mapping cost is the `OrderItem[]` the command carries, a caller cost every framework pays. Earlier read-path numbers came from a bench that read the `OrderId(0)` sentinel and so measured the not-found path.
@@ -30,7 +30,7 @@ dotnet run -c Release --project benchmarks/MyApp.Benchmarks -- --filter "*WriteP
 
 # AOT publish + cold-start
 dotnet publish src/MyApp.Api -c Release -r win-x64 -o ./aot-out
-time ./aot-out/MyApp.Api  # measure to /healthz
+time ./aot-out/MyApp.Api.exe  # measure to /healthz
 ```
 
 ## Quickstart
@@ -73,18 +73,18 @@ The NBomber load test scenario (read RPS, open-model 5,000-RPS inject for 30s + 
 | 11 ms | 1.4 ms | 14 ms | 61 ms | **4,312** | 172,500 OK / 0 fail. 2026-06-10 capacity-recipe run on i9-12900HK. |
 
 > ⚠️ **Capacity-recipe local numbers, not capacity claims.** Captured on
-> 2026-06-10 via [`docs/benchmarks/capacity-recipe.md`](../../docs/benchmarks/capacity-recipe.md)
+> 2026-06-10 via [`docs/benchmarks/capacity-recipe.md`](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/blob/main/docs/benchmarks/capacity-recipe.md)
 > on a single laptop (i9-12900HK, 16 cores) — Postgres pinned to cores 0–1,
 > SUT (published `MyApp.Api.exe`) pinned to cores 2–5, NBomber on the host.
-> See [`docs/benchmarks/2026-06-10-template-capacity-za-clean.md`](../../docs/benchmarks/2026-06-10-template-capacity-za-clean.md)
+> See [`docs/benchmarks/2026-06-10-template-capacity-za-clean.md`](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/blob/main/docs/benchmarks/2026-06-10-template-capacity-za-clean.md)
 > for the raw NBomber report. The 4,312 RPS plateau is the NBomber injector
-> cap on this machine at a 5 k target rate (see [`docs/benchmarks/2026-06-05-nbomber-ceiling-sweep.md`](../../docs/benchmarks/2026-06-05-nbomber-ceiling-sweep.md)
+> cap on this machine at a 5 k target rate (see [`docs/benchmarks/2026-06-05-nbomber-ceiling-sweep.md`](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/blob/main/docs/benchmarks/2026-06-05-nbomber-ceiling-sweep.md)
 > for the rate-sweep showing actual SUT ceiling ≈ 6,900 RPS), not the SUT's
 > sustainable ceiling. Single-machine measurement has known variance — for
 > production capacity numbers, run the recipe on your target hardware (the
 > two-machine LAN variant in the recipe is the gold-standard).
 
-ZA.ORM has no change tracker — reads materialise straight from `IAsyncDbConnection` with zero overhead, and the post-#197 output-cache layer absorbs concurrent same-id reads so p99 sits two orders of magnitude below the pre-cache numbers. The harness is shipped so adopters measure on *their* data layer choice and load shape.
+ZA.ORM has no change tracker — reads materialise straight from `IAsyncDbConnection`, at the 1.41× allocation ratio to hand-written ADO.NET shown above, and the post-#197 output-cache layer absorbs concurrent same-id reads so p99 sits two orders of magnitude below the pre-cache numbers. The harness is shipped so adopters measure on *their* data layer choice and load shape.
 
 **Reproduce:**
 
@@ -101,7 +101,7 @@ Full methodology + per-package comparisons (ZA.Mapping vs Mapperly/AutoMapper, e
 
 ## Output caching
 
-`GET /orders/{id}` is wrapped in ASP.NET Core OutputCaching with a configurable TTL (default 30 seconds). Concurrent same-id reads are served from the in-memory cache, absorbing pressure on the Npgsql connection pool under load — see [docs/benchmarks/2026-06-08-189-dotnet-counters-vs.md](../../docs/benchmarks/2026-06-08-189-dotnet-counters-vs.md) for the empirical investigation that motivated this layer.
+`GET /orders/{id}` is wrapped in ASP.NET Core OutputCaching with a configurable TTL (default 30 seconds). Concurrent same-id reads are served from the in-memory cache, absorbing pressure on the Npgsql connection pool under load — see [docs/benchmarks/2026-06-08-189-dotnet-counters-vs.md](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/blob/main/docs/benchmarks/2026-06-08-189-dotnet-counters-vs.md) for the empirical investigation that motivated this layer.
 
 **Tuning:**
 
@@ -134,4 +134,4 @@ Lower TTL = fresher data + less pool relief; higher = more pool relief + staler 
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT — see [LICENSE](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/blob/main/LICENSE).
