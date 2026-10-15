@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.16.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/compare/ZeroAlloc.Templates-v0.15.18...ZeroAlloc.Templates-v0.16.0) (2026-10-15)
+
+
+### Features
+
+* instrument a real interface with ZA.Telemetry in both templates ([#509](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/issues/509)) ([d2fea2a](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/commit/d2fea2a13827ccfd2082bd399626e62c63d81571)), closes [#503](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/issues/503)
+* take za-vertical-slice telemetry from the mediator pipeline ([#512](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/issues/512)) ([523c112](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/commit/523c112fc54ffd5f5361c6a7eadb52ad3c3d8a29)), closes [#511](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/issues/511)
+
+
+### Documentation
+
+* add a docs index so docs/ renders as the zeroalloc.net site ([#508](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/issues/508)) ([27a9c9a](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/commit/27a9c9a5dd03e0d18431ed57a1c710d15c813ad1))
+* correct the template READMEs and back their 0 B claims with tests ([#505](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/issues/505)) ([4c826a9](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/commit/4c826a9bea7490e9379b6462f7817867d9c455d3))
+
+
+### Tests
+
+* migrate hand-rolled allocation tests to AllocationGate ([#510](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/issues/510)) ([591d958](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/commit/591d9584fe91e03332a1aea98351ae58694c27c8)), closes [#504](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/issues/504)
+
 ## [0.15.18](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/compare/ZeroAlloc.Templates-v0.15.17...ZeroAlloc.Templates-v0.15.18) (2026-10-11)
 
 
