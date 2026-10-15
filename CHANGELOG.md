@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.16.1](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/compare/ZeroAlloc.Templates-v0.16.0...ZeroAlloc.Templates-v0.16.1) (2026-10-15)
+
+
+### Bug Fixes
+
+* pin the templates to the 2026-10-15 releases ([#515](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/issues/515)) ([3957eac](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/commit/3957eacb9d79411af5cb17345956d0e7b47679cc))
+
 ## [0.16.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/compare/ZeroAlloc.Templates-v0.15.18...ZeroAlloc.Templates-v0.16.0) (2026-10-15)
 
 
