@@ -2,7 +2,7 @@
 
 Vertical Slice Architecture Web API. Source-generated and published as Native AOT. The ZeroAlloc primitives — typed ids, value objects, `Result<T, Error>` and the generated validators — allocate nothing per call, which `tests/MyApp.UnitTests/AllocationTests.cs` asserts; a full request through ASP.NET and ZA.ORM costs ~29–32 KB (see the table). Built on the [ZeroAlloc.\*](https://github.com/ZeroAlloc-Net) ecosystem.
 
-Where Clean Architecture splits the codebase by *technical layer* (Domain / Application / Infrastructure / Api, four csprojs, dependency direction strictly inward), vertical slice splits by *use case*: one folder per feature, one file per slice, every slice owns its request + validator + handler + endpoint + entity. It references the same 11 ZeroAlloc libraries as `za-clean` (Mediator, Validation, Authorization, Mapping, ValueObjects, Inject, Resilience, Rest, Results, Serialisation, ORM), plus the ZA.Telemetry package; the wiring is inverted. No interface is `[Instrument]`ed yet — spans and metrics come from the shared source in `Common/Telemetry.cs`.
+Where Clean Architecture splits the codebase by *technical layer* (Domain / Application / Infrastructure / Api, four csprojs, dependency direction strictly inward), vertical slice splits by *use case*: one folder per feature, one file per slice, every slice owns its request + validator + handler + endpoint + entity. It references the same 12 ZeroAlloc libraries as `za-clean` (Mediator, Validation, Authorization, Mapping, ValueObjects, Inject, Resilience, Rest, Results, Serialisation, ORM, Telemetry); the wiring is inverted.
 
 | | Value |
 |---|---:|
@@ -69,7 +69,7 @@ src/
         │   ├── ListOrders/ListOrders.cs    paged read ([Query] partial co-located)
         │   └── CancelOrder/CancelOrder.cs  state transition ([Command] partial co-located)
         └── Customers/
-            ├── CreateCustomer/CreateCustomer.cs  owns Customer entity + [Command] partial
+            ├── CreateCustomer/CreateCustomer.cs  owns Customer entity + [Instrument]ed ICustomerWriter over its [Command] partial
             └── GetCustomer/GetCustomer.cs        [Query] partial co-located
 
 tests/
@@ -227,6 +227,12 @@ Tag-based bulk eviction is conservative (always correct, simpler than per-id) �
 **Authenticated GETs:** the framework's `DefaultPolicy` refuses to cache responses with an `Authorization` header. A custom `CacheAuthenticatedGetsPolicy` (in `MyApp/CacheAuthenticatedGetsPolicy.cs`) bypasses that check — safe here because the demo payloads are not user-specific. If you add an endpoint whose body varies per user, use `.CacheOutput(o => o.SetVaryByHeader("Authorization"))` to key per-token instead.
 
 **Distributed caching:** the default cache is per-process in-memory. Multi-instance deployments need a distributed backing store (Redis is typical via `Microsoft.Extensions.Caching.StackExchangeRedis` + `AddStackExchangeRedisOutputCache`). Out of scope for this template.
+
+## Telemetry
+
+`Program.cs` sends traces and metrics through OpenTelemetry: the console exporter in `Development`, OTLP otherwise. Besides ASP.NET Core, HttpClient and ZA.Mediator spans, it subscribes to the app's own source and meter, named by `Telemetry.SourceName` in `Common/Telemetry.cs`.
+
+The CreateCustomer slice shows ZA.Telemetry. Unlike the other slices, it keeps its ZA.ORM `[Command]` partial behind a slice-owned `ICustomerWriter` port. `[Instrument(Telemetry.SourceName)]` on that interface makes the source generator emit `CustomerWriterInstrumented`, and `AddMyApp` registers that proxy in front of `CustomerWriter`. Every insert records a `customer.insert` span, and every successful one adds 1 to the `customers.created` counter. The proxy is plain generated code, so it is Native AOT safe. `tests/MyApp.IntegrationTests/Features/Customers/CreateCustomer/CustomerWriterTelemetryTests.cs` asserts the registration and both signals. For hand-written spans and instruments, use `Telemetry.ActivitySource` and `Telemetry.Meter`.
 
 ## Extending
 

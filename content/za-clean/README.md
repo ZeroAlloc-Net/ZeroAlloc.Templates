@@ -49,7 +49,7 @@ The API boots, applies its ZA.ORM-managed embedded SQL migrations, seeds a sampl
 ```
 src/
 ├── MyApp.Domain/            Entities, value objects, domain events
-├── MyApp.Application/       Commands, queries, handlers, validators (CQRS via ZA.Mediator)
+├── MyApp.Application/       Commands, queries, handlers, validators (CQRS via ZA.Mediator), ports
 ├── MyApp.Infrastructure/    ZA.ORM partial repositories over IAsyncDbConnection, ZA.Rest typed HTTP client + ZA.Resilience
 └── MyApp.Api/               Minimal API endpoints, DTOs, JWT auth, OpenTelemetry
 
@@ -120,6 +120,12 @@ Lower TTL = fresher data + less pool relief; higher = more pool relief + staler 
 **Authenticated GETs:** the framework's `DefaultPolicy` refuses to cache responses with an `Authorization` header. A custom `CacheAuthenticatedGetsPolicy` (in `MyApp.Api/CacheAuthenticatedGetsPolicy.cs`) bypasses that check — safe here because order payloads are not user-specific. If you add an endpoint whose body varies per user, use `.CacheOutput(o => o.SetVaryByHeader("Authorization"))` to key per-token instead.
 
 **Distributed caching:** the default cache is per-process in-memory. Multi-instance deployments need a distributed backing store (Redis is typical via `Microsoft.Extensions.Caching.StackExchangeRedis` + `AddStackExchangeRedisOutputCache`). Out of scope for this template.
+
+## Telemetry
+
+`Program.cs` sends traces and metrics through OpenTelemetry: the console exporter in `Development`, OTLP otherwise. Besides ASP.NET Core, HttpClient and ZA.Mediator spans, it subscribes to the app's own source and meter, named by `Telemetry.SourceName` in `MyApp.Application/Telemetry.cs`.
+
+ZA.Telemetry instruments the shipping port. `[Instrument(Telemetry.SourceName)]` on `IShippingQuoteClient` makes its source generator emit `ShippingQuoteClientInstrumented`, and `AddMyAppInfrastructure` registers that proxy in front of the real `ShippingQuoteClient`. Every quote records a `shipping.quote` span and a `shipping.quote.duration_ms` histogram sample. The proxy is plain generated code, so it is Native AOT safe. `tests/MyApp.IntegrationTests/ShippingTelemetryTests.cs` asserts the registration and both signals. To instrument another interface, add `[Instrument]` plus `[Trace]`, `[Count]` or `[Histogram]` to its methods, and register the generated `<Name>Instrumented` proxy around the implementation.
 
 ## Extending
 

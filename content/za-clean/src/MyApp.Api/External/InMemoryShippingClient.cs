@@ -7,7 +7,8 @@ namespace MyApp.Api.External;
 /// <summary>
 /// In-memory <see cref="IShippingQuoteClient"/> implementation that bypasses the real
 /// ZA.Rest typed HTTP client. Wired in <c>Program.cs</c> only when
-/// <c>Shipping:UseStub</c> is true (or <c>MYAPP_Shipping__UseStub=true</c>).
+/// <c>Shipping:UseStub</c> is true (or <c>MYAPP_Shipping__UseStub=true</c>), behind the same
+/// generated <c>ShippingQuoteClientInstrumented</c> telemetry proxy as the real client.
 ///
 /// <para>
 /// Returns a constant <c>Money(5, "EUR")</c> regardless of input. Use it for load testing

@@ -8,6 +8,7 @@ using ZeroAlloc.Inject;
 using ZeroAlloc.Mediator;
 using ZeroAlloc.ORM;
 using ZeroAlloc.Results;
+using ZeroAlloc.Telemetry;
 using ZeroAlloc.Validation;
 
 namespace MyApp.Features.Customers.CreateCustomer;
@@ -28,16 +29,46 @@ public readonly record struct CreateCustomerCommand(
     [property: NotEmpty, EmailAddress] string Email)
     : IRequest<Result<CustomerId, Error>>;
 
+/// <summary>
+/// Creates the customer through the slice's <see cref="ICustomerWriter"/> port and returns
+/// its newly-assigned <see cref="CustomerId"/>.
+/// </summary>
 [Scoped]
-public sealed partial class CreateCustomerHandler(IAsyncDbConnection conn)
+public sealed class CreateCustomerHandler(ICustomerWriter customers)
     : IRequestHandler<CreateCustomerCommand, Result<CustomerId, Error>>
 {
     public async ValueTask<Result<CustomerId, Error>> Handle(CreateCustomerCommand cmd, CancellationToken ct)
     {
-        var id = await InsertCustomerAsync(cmd.Name, cmd.Email, ct).ConfigureAwait(false);
+        var id = await customers.InsertCustomerAsync(cmd.Name, cmd.Email, ct).ConfigureAwait(false);
         return Result<CustomerId, Error>.Success(new CustomerId(id));
     }
+}
 
+/// <summary>
+/// The slice's persistence port, and the template's example of ZA.Telemetry. Most slices keep
+/// their ZA.ORM partial on the handler; this one puts it behind an interface so it can be
+/// instrumented. <c>[Instrument]</c> makes the ZeroAlloc.Telemetry source generator emit
+/// <c>CustomerWriterInstrumented</c>, an internal proxy that <c>AddMyApp</c> registers in front
+/// of <see cref="CustomerWriter"/>. Every insert then records a <c>customer.insert</c> span, and
+/// every successful one adds 1 to the <c>customers.created</c> counter, on the
+/// <see cref="Telemetry.SourceName"/> source and meter that Program.cs subscribes to. The
+/// proxy is plain generated code: no reflection, Native AOT safe.
+/// </summary>
+[Instrument(Telemetry.SourceName)]
+public interface ICustomerWriter
+{
+    [Trace("customer.insert")]
+    [Count("customers.created")]
+    Task<int> InsertCustomerAsync(string name, string email, CancellationToken ct);
+}
+
+/// <summary>
+/// ZA.ORM implementation of <see cref="ICustomerWriter"/>: the generator emits the
+/// <c>[Command]</c> partial's body against the scoped <see cref="IAsyncDbConnection"/>.
+/// </summary>
+[Scoped]
+public sealed partial class CustomerWriter(IAsyncDbConnection conn) : ICustomerWriter
+{
     [Command(
         "INSERT INTO \"Customers\" (\"Name\", \"Email\") VALUES (@name, @email) RETURNING \"Id\"",
         Kind = CommandKind.Identity)]
@@ -64,7 +95,7 @@ public static class CreateCustomerEndpoint
 /// <summary>
 /// Persistence entity owned by this slice. Public so read-side slices
 /// (GetCustomer) can project from it; handlers and validators stay internal.
-/// Post the ZA.ORM swap, persistence is hand-rolled SQL in the handler — this
+/// Post the ZA.ORM swap, persistence is hand-rolled SQL in <see cref="CustomerWriter"/> — this
 /// type is now a plain DTO/domain object; no EF materialisation ctor is needed.
 /// </summary>
 public sealed class Customer
