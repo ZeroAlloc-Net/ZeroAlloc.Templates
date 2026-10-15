@@ -2,6 +2,7 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Http;
 using MyApp.Authorization;
 using Xunit;
+using ZeroAlloc.TestHelpers;
 
 // Pure in-memory tests for the ClaimsPrincipal -> ISecurityContext bridge.
 namespace MyApp.UnitTests.Authorization;
@@ -9,6 +10,9 @@ namespace MyApp.UnitTests.Authorization;
 public class SecurityContextAllocationTests
 {
     private const int Iterations = 1_000;
+
+    private static bool _sink;
+    private static object? _objectSink;
 
     private static ClaimsPrincipal Principal(params Claim[] claims)
         => new(new ClaimsIdentity(claims, authenticationType: "test"));
@@ -20,7 +24,10 @@ public class SecurityContextAllocationTests
             new Claim(ClaimTypes.Name, "alice"),
             new Claim("scope", "orders.read orders.write")));
 
-        Assert.Equal(0, AllocatedOver(() => ctx.TryGetValue("scope", out _)));
+        AllocationGate.AssertBudget(0, Iterations, () =>
+        {
+            _sink = ctx.TryGetValue("scope", out _);
+        }, "ClaimsPrincipalSecurityContext.TryGetValue, single-value claim");
     }
 
     [Fact]
@@ -28,7 +35,10 @@ public class SecurityContextAllocationTests
     {
         var ctx = new ClaimsPrincipalSecurityContext(Principal(new Claim(ClaimTypes.Name, "alice")));
 
-        Assert.Equal(0, AllocatedOver(() => ctx.TryGetValue("scope", out _)));
+        AllocationGate.AssertBudget(0, Iterations, () =>
+        {
+            _sink = ctx.TryGetValue("scope", out _);
+        }, "ClaimsPrincipalSecurityContext.TryGetValue, missing claim");
     }
 
     [Fact]
@@ -67,7 +77,10 @@ public class SecurityContextAllocationTests
 
         var first = accessor.Current;
         Assert.Same(first, accessor.Current);
-        Assert.Equal(0, AllocatedOver(() => _ = accessor.Current));
+        AllocationGate.AssertBudget(0, Iterations, () =>
+        {
+            _objectSink = accessor.Current;
+        }, "HttpSecurityContextAccessor.Current, cached");
     }
 
     [Fact]
@@ -82,14 +95,5 @@ public class SecurityContextAllocationTests
         Assert.NotSame(first, accessor.Current);
         Assert.True(accessor.Current.Claims.TryGetValue("scope", out var scopes));
         Assert.Equal("orders.write", scopes);
-    }
-
-    // Total bytes allocated by Iterations calls after warm-up; must be exactly 0.
-    private static long AllocatedOver(Action action)
-    {
-        for (var i = 0; i < 100; i++) action();
-        var before = GC.GetAllocatedBytesForCurrentThread();
-        for (var i = 0; i < Iterations; i++) action();
-        return GC.GetAllocatedBytesForCurrentThread() - before;
     }
 }
