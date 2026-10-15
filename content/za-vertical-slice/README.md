@@ -2,7 +2,7 @@
 
 Vertical Slice Architecture Web API. Source-generated and published as Native AOT. The ZeroAlloc primitives — typed ids, value objects, `Result<T, Error>` and the generated validators — allocate nothing per call, which `tests/MyApp.UnitTests/AllocationTests.cs` asserts; a full request through ASP.NET and ZA.ORM costs ~29–32 KB (see the table). Built on the [ZeroAlloc.\*](https://github.com/ZeroAlloc-Net) ecosystem.
 
-Where Clean Architecture splits the codebase by *technical layer* (Domain / Application / Infrastructure / Api, four csprojs, dependency direction strictly inward), vertical slice splits by *use case*: one folder per feature, one file per slice, every slice owns its request + validator + handler + endpoint + entity. It references the same 12 ZeroAlloc libraries as `za-clean` (Mediator, Validation, Authorization, Mapping, ValueObjects, Inject, Resilience, Rest, Results, Serialisation, ORM, Telemetry); the wiring is inverted.
+Where Clean Architecture splits the codebase by *technical layer* (Domain / Application / Infrastructure / Api, four csprojs, dependency direction strictly inward), vertical slice splits by *use case*: one folder per feature, one file per slice, every slice owns its request + validator + handler + endpoint + entity. It references nine ZeroAlloc libraries in 19 packages: Mediator, Validation, Authorization, Mapping, ValueObjects, Inject, Results, Serialisation and ORM. It makes no outbound HTTP call, so it leaves out `za-clean`'s Rest and Resilience.
 
 | | Value |
 |---|---:|
@@ -69,7 +69,7 @@ src/
         │   ├── ListOrders/ListOrders.cs    paged read ([Query] partial co-located)
         │   └── CancelOrder/CancelOrder.cs  state transition ([Command] partial co-located)
         └── Customers/
-            ├── CreateCustomer/CreateCustomer.cs  owns Customer entity + [Instrument]ed ICustomerWriter over its [Command] partial
+            ├── CreateCustomer/CreateCustomer.cs  owns Customer entity + [Command] partial co-located
             └── GetCustomer/GetCustomer.cs        [Query] partial co-located
 
 tests/
@@ -230,9 +230,18 @@ Tag-based bulk eviction is conservative (always correct, simpler than per-id) �
 
 ## Telemetry
 
-`Program.cs` sends traces and metrics through OpenTelemetry: the console exporter in `Development`, OTLP otherwise. Besides ASP.NET Core, HttpClient and ZA.Mediator spans, it subscribes to the app's own source and meter, named by `Telemetry.SourceName` in `Common/Telemetry.cs`.
+`Program.cs` sends traces and metrics through OpenTelemetry: the console exporter in `Development`, OTLP otherwise.
 
-The CreateCustomer slice shows ZA.Telemetry. Unlike the other slices, it keeps its ZA.ORM `[Command]` partial behind a slice-owned `ICustomerWriter` port. `[Instrument(Telemetry.SourceName)]` on that interface makes the source generator emit `CustomerWriterInstrumented`, and `AddMyApp` registers that proxy in front of `CustomerWriter`. Every insert records a `customer.insert` span, and every successful one adds 1 to the `customers.created` counter. The proxy is plain generated code, so it is Native AOT safe. `tests/MyApp.IntegrationTests/Features/Customers/CreateCustomer/CustomerWriterTelemetryTests.cs` asserts the registration and both signals. For hand-written spans and instruments, use `Telemetry.ActivitySource` and `Telemetry.Meter`.
+Cross-cutting telemetry comes from the mediator pipeline, so slices stay self-contained: no slice carries telemetry code, and a new slice is instrumented the moment it exists.
+
+- **Span.** Every `Send` opens a `mediator.send` span on the `ZeroAlloc.Mediator` activity source, tagged `request.type` with the request's type name. The generated mediator does this itself.
+- **Metrics.** ZeroAlloc.Mediator.Telemetry, wired with `WithTelemetry()` in `Common/MyAppServiceCollectionExtensions.cs`, puts a pipeline behavior in front of every handler. It records the `mediator.requests_total` counter and the `mediator.request_duration_ms` histogram on the `ZeroAlloc.Mediator` meter. A request that throws is tagged `error.type`.
+
+`Program.cs` subscribes to that source and meter with `Telemetry.MediatorSourceName`, next to ASP.NET Core and HttpClient instrumentation. `tests/MyApp.IntegrationTests/MediatorTelemetryTests.cs` asserts that one request emits one span and one count.
+
+For a span or instrument of a slice's own, use `Telemetry.ActivitySource` and `Telemetry.Meter` from `Common/Telemetry.cs`; Program.cs subscribes to their `Telemetry.SourceName` too.
+
+`za-clean` instruments differently, with ZA.Telemetry's `[Instrument]` on its `IShippingQuoteClient` port. Each template uses the tool that fits its architecture: a layered app has ports to instrument, a sliced app has one request pipeline that every slice passes through.
 
 ## Extending
 
