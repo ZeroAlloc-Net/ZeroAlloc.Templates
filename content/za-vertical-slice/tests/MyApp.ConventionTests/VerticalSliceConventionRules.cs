@@ -10,7 +10,7 @@ namespace MyApp.ConventionTests;
 /// structural shape every slice must follow so regressions land as red tests
 /// rather than as merged code. Rules are intentionally narrow:
 /// <list type="bullet">
-///   <item><description><see cref="Every_command_or_query_implements_IRequest"/></description></item>
+///   <item><description><see cref="Every_request_type_implements_IRequest"/></description></item>
 ///   <item><description><see cref="Every_handler_is_sealed_and_public"/></description></item>
 ///   <item><description><see cref="Every_handler_implements_IRequestHandler"/></description></item>
 ///   <item><description><see cref="Every_endpoint_is_a_public_static_class"/></description></item>
