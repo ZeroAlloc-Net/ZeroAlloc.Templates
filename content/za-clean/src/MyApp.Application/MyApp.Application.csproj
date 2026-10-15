@@ -33,6 +33,8 @@
     </PackageReference>
     <PackageReference Include="ZeroAlloc.Validation" />
     <PackageReference Include="ZeroAlloc.Results" />
+    <!-- [Instrument] on IShippingQuoteClient: the bundled generator emits the tracing proxy. -->
+    <PackageReference Include="ZeroAlloc.Telemetry" />
     <PackageReference Include="ZeroAlloc.Inject" />
     <PackageReference Include="ZeroAlloc.Inject.Generator">
       <PrivateAssets>all</PrivateAssets>
@@ -42,6 +44,8 @@
   </ItemGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="MyApp.Api" />
+    <!-- Infrastructure registers the generated, internal ShippingQuoteClientInstrumented proxy. -->
+    <InternalsVisibleTo Include="MyApp.Infrastructure" />
     <InternalsVisibleTo Include="MyApp.Benchmarks" />
     <!-- PrimitivesBench resolves and calls the generated IMediator, which ZeroAlloc.Mediator
          emits assembly-local. Omitting this only compiled under Generator 4.x, which emitted

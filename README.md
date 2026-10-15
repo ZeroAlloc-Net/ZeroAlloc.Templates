@@ -15,7 +15,7 @@
 | `za-clean` | Clean Architecture — four layered projects (Domain / Application / Infrastructure / Api) with NetArchTest boundary rules | Conservative shape; familiar to teams already running layered architectures; horizontal boundaries lock concerns in place |
 | `za-vertical-slice` | Vertical Slice Architecture — one src project, one folder per use case, one file per slice (request + validator + handler + endpoint + entity co-located) | Lower-ceremony shape; each feature reads top-to-bottom in one ~50–100 line file; sharper A/B comparison against `za-clean` on the same domain |
 
-Both templates reference the same 11 ZeroAlloc libraries (Mediator, Validation, Authorization, Mapping, ValueObjects, Inject, Resilience, Rest, Results, Serialisation, ORM); `za-vertical-slice` also references ZA.Telemetry. Both share the same ZA.ORM 2 + SQLite persistence (raw `Microsoft.Data.Sqlite` provider, no DbContext), same xUnit + BenchmarkDotNet + NBomber test/bench fan-out. They differ in **arrangement**, not in functional scope — pick on team comfort, not capability.
+Both templates reference the same 12 ZeroAlloc libraries (Mediator, Validation, Authorization, Mapping, ValueObjects, Inject, Resilience, Rest, Results, Serialisation, ORM, Telemetry). Both share the same ZA.ORM 2 + SQLite persistence (raw `Microsoft.Data.Sqlite` provider, no DbContext), same xUnit + BenchmarkDotNet + NBomber test/bench fan-out. They differ in **arrangement**, not in functional scope — pick on team comfort, not capability.
 
 ## Install
 
@@ -72,7 +72,7 @@ Paths are for `za-clean`; `za-vertical-slice` keeps the same pieces next to the 
 | `Result<T, Error>` | ZA.Results | Across Domain + Application boundaries |
 | Authorization | ZA.Authorization + ZA.Mediator.Authorization | `[RequirePolicy]` on commands; policies in `MyApp.Application/Authorization/` |
 | JSON for value objects | ZA.Serialisation + ZA.Serialisation.SystemTextJson | Generated `JsonConverter`s for the `[ValueObject]` ids, registered with `AddZeroAllocValueObjectConverters()` in `MyApp.Api/Program.cs` |
-| Instrumentation | ZA.Telemetry (`za-vertical-slice` only) | Referenced; spans and metrics use the shared source in `Common/Telemetry.cs` |
+| Instrumentation | ZA.Telemetry | `[Instrument]` on `MyApp.Application/IShippingQuoteClient.cs`; `AddMyAppInfrastructure` registers the generated proxy. `za-vertical-slice` instruments the CreateCustomer slice's `ICustomerWriter` |
 | Source-generated persistence | ZA.ORM 2 + AdoNet.Async | `[Command]`/`[Query]` partials over `IAsyncDbConnection`; embedded SQL migrations under `Persistence/Migrations/` |
 
 ## License

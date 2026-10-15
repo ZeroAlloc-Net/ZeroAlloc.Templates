@@ -35,12 +35,15 @@ builder.Services.AddMyAppInfrastructure(dbProvider, connectionString, shippingBa
 // Load-test / dev convenience: swap the ZA.Rest typed shipping client for an
 // in-memory stub when Shipping:UseStub=true. Override via the
 // Shipping__UseStub=true env var for one-shot runs (e.g. NBomber).
-// Defaults to false — production deployments are untouched.
+// Defaults to false — production deployments are untouched. The stub stays
+// behind the same generated ZA.Telemetry proxy as the real client, so a load
+// test still pays for, and still emits, the shipping.quote instrumentation.
 if (builder.Configuration.GetValue<bool>("Shipping:UseStub"))
 {
-    var descriptor = builder.Services.Single(d => d.ServiceType == typeof(MyApp.Application.IShippingQuoteClient));
+    var descriptor = builder.Services.Single(d => d.ServiceType == typeof(IShippingQuoteClient));
     builder.Services.Remove(descriptor);
-    builder.Services.AddScoped<MyApp.Application.IShippingQuoteClient, MyApp.Api.External.InMemoryShippingClient>();
+    builder.Services.AddScoped<IShippingQuoteClient>(_ =>
+        new ShippingQuoteClientInstrumented(new MyApp.Api.External.InMemoryShippingClient()));
 }
 
 // ---------------------------------------------------------------------------
@@ -114,8 +117,11 @@ builder.Services.AddAuthorizationBuilder()
 // RPS, dial this down (e.g. 0.05) so you stop minting a span per request
 // regardless of which exporter is attached.
 //
-// ZA.Telemetry's [Trace]/[Count]/[Histogram] attributes target methods/types
-// and feed into the same ActivitySource/Meter pipeline registered here.
+// ZA.Telemetry: [Instrument(Telemetry.SourceName)] on IShippingQuoteClient makes
+// its source generator emit ShippingQuoteClientInstrumented, which
+// AddMyAppInfrastructure registers in front of the real client. Its [Trace] span
+// and [Histogram] metric go to the Telemetry.SourceName ActivitySource and Meter,
+// which AddSource and AddMeter below subscribe to.
 // ---------------------------------------------------------------------------
 var traceSampleRatio = builder.Configuration.GetValue<double?>("Telemetry:TraceSampleRatio") ?? 1.0;
 var consoleTelemetry = builder.Environment.IsDevelopment();
@@ -126,7 +132,8 @@ builder.Services.AddOpenTelemetry()
         t.SetSampler(new ParentBasedSampler(new TraceIdRatioBasedSampler(traceSampleRatio)))
             .AddAspNetCoreInstrumentation()
             .AddHttpClientInstrumentation()
-            .AddSource("ZeroAlloc.Mediator");
+            .AddSource("ZeroAlloc.Mediator")
+            .AddSource(Telemetry.SourceName);
         if (consoleTelemetry)
         {
             t.AddConsoleExporter();
@@ -138,7 +145,8 @@ builder.Services.AddOpenTelemetry()
     })
     .WithMetrics(m =>
     {
-        m.AddAspNetCoreInstrumentation();
+        m.AddAspNetCoreInstrumentation()
+            .AddMeter(Telemetry.SourceName);
         if (consoleTelemetry)
         {
             m.AddConsoleExporter();

@@ -32,8 +32,8 @@ HTTP POST /orders
 ```
 
 - **Domain** — entities, value objects. No persistence, no ASP.NET. Pure invariants.
-- **Application** — CQRS slice. Handlers return `ValueTask<Result<T, ApplicationError>>`.
-- **Infrastructure** — ZA.ORM partial repositories over `IAsyncDbConnection` (raw `Microsoft.Data.Sqlite` / `Npgsql` providers), embedded SQL migrations via `MigrationRunner`, outbound HTTP via ZA.Rest, resilience policies.
+- **Application** — CQRS slice. Handlers return `ValueTask<Result<T, ApplicationError>>`. Also holds the ports, `IOrderRepository` and `IShippingQuoteClient`; the latter carries ZA.Telemetry's `[Instrument]`.
+- **Infrastructure** — ZA.ORM partial repositories over `IAsyncDbConnection` (raw `Microsoft.Data.Sqlite` / `Npgsql` providers), embedded SQL migrations via `MigrationRunner`, outbound HTTP via ZA.Rest, resilience policies, and the registration that puts the generated `ShippingQuoteClientInstrumented` proxy in front of `ShippingQuoteClient`.
 - **Api** — Minimal API endpoints, DTOs, JWT auth, OpenTelemetry composition.
 
 ## 2. Boundary rules (enforced)
@@ -95,7 +95,7 @@ These bit us during template construction; they'll bite you too if you don't kno
 | `[Scoped]` / `[Singleton]` / `[Transient]` separate attributes, not `[Service(ServiceLifetime.X)]` | `using ZeroAlloc.Inject;` then `[Scoped]` |
 | ZA generators ship as separate `*.Generator` nupkgs | Reference with `<PrivateAssets>all</PrivateAssets>` + `<IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>` |
 | ZA.Authorization is host-agnostic abstractions only | Use vanilla `AddAuthorizationBuilder().AddPolicy(...).RequireClaim(...)` |
-| ZA.Telemetry is a code-gen instrumentation library | Use vanilla OpenTelemetry; opt into `[Instrument]` per method |
+| ZA.Telemetry instruments interfaces, not methods on classes | Put `[Instrument(Telemetry.SourceName)]` on the interface and `[Trace]` / `[Count]` / `[Histogram]` on its methods. The generator emits an internal `<Name>Instrumented` proxy (leading `I` dropped) that you register yourself in front of the implementation, as `AddMyAppInfrastructure` does for `IShippingQuoteClient`. ZA.Inject's registrations use `TryAdd`, so register the proxy *before* the generated `Add…Services()` call |
 | ZA.Mapping needs `<PrivateAssets>all</PrivateAssets>` to prevent ZAMP006 across assembly boundaries | Set on the `<PackageReference>` in Application + Api csprojs |
 | `OrderId` / `CustomerId` use `[ValueObject]` from ZA.ValueObjects (equality only, no factory) | Hand-write `TryCreate` if validation is needed |
 | Switching a request to `IAuthorizedRequest<TPayload>` for Result-style auth | Under AOT publish, the deny path silently throws `AuthorizationDeniedException` instead of returning `Result<T, AuthorizationFailure>.Failure(...)`. Add a `[ModuleInitializer]` carrier method with `[DynamicDependency(PublicMethods, typeof(Result<TPayload, AuthorizationFailure>))]` per `TPayload` you use. See [ZA.Mediator.Authorization AOT docs](https://github.com/ZeroAlloc-Net/ZeroAlloc.Mediator/blob/main/docs/authorization.md#aot-publish). |

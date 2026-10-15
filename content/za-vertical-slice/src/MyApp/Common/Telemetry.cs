@@ -4,12 +4,17 @@ using System.Diagnostics.Metrics;
 namespace MyApp.Common;
 
 /// <summary>
-/// Shared <see cref="ActivitySource"/> and <see cref="Meter"/> for slice-level
-/// instrumentation. Each slice that wants a custom trace span or counter pulls
-/// these constants instead of newing its own — keeps the OTel resource name
-/// stable across the whole app. Program.cs's <c>AddOpenTelemetry()</c> block
-/// subscribes to it with <c>AddSource(Telemetry.SourceName)</c> and
-/// <c>AddMeter(Telemetry.SourceName)</c>, next to its environment-gated exporters.
+/// The app's OTel source and meter name, plus a shared <see cref="ActivitySource"/> and
+/// <see cref="Meter"/> for hand-written instrumentation. Program.cs's
+/// <c>AddOpenTelemetry()</c> block subscribes to the name with
+/// <c>AddSource(Telemetry.SourceName)</c> and <c>AddMeter(Telemetry.SourceName)</c>, next to
+/// its environment-gated exporters.
+/// <para>
+/// Two ways to emit under that name. Put <c>[Instrument(Telemetry.SourceName)]</c> on an
+/// interface and ZA.Telemetry generates the proxy, as the CreateCustomer slice does for
+/// <c>ICustomerWriter</c>; or start spans and create instruments yourself from the
+/// <see cref="ActivitySource"/> and <see cref="Meter"/> below.
+/// </para>
 /// </summary>
 public static class Telemetry
 {
@@ -22,14 +27,16 @@ public static class Telemetry
     /// <summary>
     /// App-wide <see cref="ActivitySource"/>. Slice code starts spans via
     /// <c>using var activity = Telemetry.ActivitySource.StartActivity("place_order")</c>.
-    /// ZA.Telemetry's <c>[Trace]</c> attribute also targets this source by default.
+    /// ZA.Telemetry proxies create their own <see cref="ActivitySource"/> from the name passed
+    /// to <c>[Instrument]</c>; with <see cref="SourceName"/> the same subscription covers both.
     /// </summary>
     public static readonly ActivitySource ActivitySource = new(SourceName);
 
     /// <summary>
     /// App-wide <see cref="Meter"/>. Slice code creates counters/histograms via
     /// <c>Telemetry.Meter.CreateCounter&lt;long&gt;("orders.placed")</c>. ZA.Telemetry's
-    /// <c>[Count]</c> / <c>[Histogram]</c> attributes also target this meter by default.
+    /// <c>[Count]</c> and <c>[Histogram]</c> instruments live on a meter the proxy creates from
+    /// the <c>[Instrument]</c> name; with <see cref="SourceName"/>, <c>AddMeter</c> covers both.
     /// </summary>
     public static readonly Meter Meter = new(SourceName);
 }

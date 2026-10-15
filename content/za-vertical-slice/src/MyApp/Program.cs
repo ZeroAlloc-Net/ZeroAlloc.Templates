@@ -119,8 +119,11 @@ builder.Services.AddAuthorizationBuilder()
 // RPS, dial this down (e.g. 0.05) so you stop minting a span per request
 // regardless of which exporter is attached.
 //
-// ZA.Telemetry's [Trace]/[Count]/[Histogram] attributes target methods/types
-// and feed into the same ActivitySource/Meter pipeline registered here.
+// ZA.Telemetry: [Instrument(Telemetry.SourceName)] on the CreateCustomer slice's
+// ICustomerWriter makes its source generator emit CustomerWriterInstrumented,
+// which AddMyApp registers in front of the ZA.ORM CustomerWriter. Its [Trace]
+// span and [Count] metric go to the Telemetry.SourceName ActivitySource and
+// Meter, which AddSource and AddMeter below subscribe to.
 // ---------------------------------------------------------------------------
 var traceSampleRatio = builder.Configuration.GetValue<double?>("Telemetry:TraceSampleRatio") ?? 1.0;
 var consoleTelemetry = builder.Environment.IsDevelopment();

@@ -2,6 +2,7 @@ using System.Data.Async;
 using System.Data.Async.Adapters;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.DependencyInjection;
+using MyApp.Application;
 using MyApp.Infrastructure.External;
 using Npgsql;
 using ZeroAlloc.Rest.Resilience;
@@ -12,8 +13,8 @@ namespace MyApp.Infrastructure;
 /// <summary>
 /// Composition entry point for the Infrastructure assembly. Wires up the ZA.ORM
 /// <see cref="IAsyncDbConnection"/> per provider, the [Scoped] services emitted
-/// by ZA.Inject, and the ZA.Rest typed HTTP client wrapped in the ZA.Resilience
-/// proxy.
+/// by ZA.Inject, the ZA.Rest typed HTTP client wrapped in the ZA.Resilience
+/// proxy, and the ZA.Telemetry proxy around the shipping-quote adapter.
 ///
 /// The Rest+Resilience bridge needs direct access to the generator-emitted internal
 /// proxy class (<c>IShippingQuoteHttpClientResilienceProxy</c>) — composing the
@@ -49,6 +50,14 @@ public static class InfrastructureServiceCollectionExtensions
             }
             return new SqliteConnection(connectionString).AsAsync();
         });
+
+        // IShippingQuoteClient resolves to the ZA.Telemetry proxy generated from the [Instrument]
+        // attribute on the interface, wrapping the real ShippingQuoteClient. ZA.Inject's generated
+        // registrations use TryAdd, so registering the interface first makes the call below skip
+        // its own IShippingQuoteClient line and register only the concrete ShippingQuoteClient
+        // the proxy wraps.
+        services.AddScoped<IShippingQuoteClient>(sp =>
+            new ShippingQuoteClientInstrumented(sp.GetRequiredService<ShippingQuoteClient>()));
 
         // [Scoped]/[Singleton]/[Transient] registrations emitted by ZA.Inject for this assembly.
         services.AddMyAppInfrastructureServices();
