@@ -9,9 +9,10 @@ name: Aggregator refresh
 # (~30 seconds for typical week) and admin-merges if the imported content
 # looks sane. See the review checklist in the auto-generated PR body.
 #
-# Org setting required: "Allow GitHub Actions to create and approve pull
-# requests" (Settings → Actions → General → Workflow permissions) must be ON.
-# If it's off, peter-evans/create-pull-request@v7 fails with a clear error.
+# The PR is opened with a token from the release bot GitHub App, so its push
+# triggers the PR's checks; a PR opened with GITHUB_TOKEN would get none. It
+# needs the org-level RELEASE_BOT_CLIENT_ID variable and RELEASE_BOT_PRIVATE_KEY
+# secret, not the "Allow GitHub Actions to create pull requests" setting.
 
 on:
   schedule:
@@ -26,6 +27,19 @@ jobs:
   refresh:
     runs-on: ubuntu-latest
     steps:
+      # Pushes and PRs made with GITHUB_TOKEN trigger no workflows, so bot PRs
+      # never got their required checks. A token from the release bot GitHub App
+      # acts as the App, and its pushes trigger CI like anyone else's.
+      - name: Mint a release bot token
+        id: app-token
+        uses: actions/create-github-app-token@v3
+        with:
+          client-id: ${{ vars.RELEASE_BOT_CLIENT_ID }}
+          private-key: ${{ secrets.RELEASE_BOT_PRIVATE_KEY }}
+          permission-contents: write
+          permission-pull-requests: write
+          permission-issues: write
+
       - name: Checkout
         uses: actions/checkout@v7
         with:
@@ -38,6 +52,7 @@ jobs:
       - name: Open PR if changed
         uses: peter-evans/create-pull-request@v8
         with:
+          token: ${{ steps.app-token.outputs.token }}
           commit-message: |
             docs(aggregator): weekly refresh from upstream sources
 
