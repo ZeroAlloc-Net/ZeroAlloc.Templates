@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.16.2](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/compare/ZeroAlloc.Templates-v0.16.1...ZeroAlloc.Templates-v0.16.2) (2026-10-16)
+
+
+### Bug Fixes
+
+* bump NBomber to 6.7.1 to clear the MessagePack advisory ([909eb78](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/commit/909eb7839e26839fad0ab086ab1b28711289f876))
+* pin the templates to the 2026-10-16 releases ([909eb78](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/commit/909eb7839e26839fad0ab086ab1b28711289f876))
+* pin the templates to the second 2026-10-16 releases ([#534](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/issues/534)) ([28246a4](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/commit/28246a43c4c5df0571166103b3300aab2790ef8a))
+
 ## [0.16.1](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/compare/ZeroAlloc.Templates-v0.16.0...ZeroAlloc.Templates-v0.16.1) (2026-10-15)
 
 
