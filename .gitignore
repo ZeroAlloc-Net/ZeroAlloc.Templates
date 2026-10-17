@@ -35,3 +35,6 @@ content/**/reports/
 content/**/*.db
 content/**/*.db-shm
 content/**/*.db-wal
+
+# Test results and coverage reports
+TestResults/

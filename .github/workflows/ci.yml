@@ -10,6 +10,9 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write   # Codecov upload via OIDC, no token secret
 
     steps:
       - name: Checkout
@@ -46,7 +49,16 @@ jobs:
         run: dotnet build content/za-clean/MyApp.slnx --no-restore --configuration Release -warnaserror
 
       - name: Test (content)
-        run: dotnet test content/za-clean/MyApp.slnx --no-build --configuration Release
+        run: dotnet test content/za-clean/MyApp.slnx --no-build --configuration Release --settings coverage.runsettings --results-directory TestResults
+
+      - name: Upload coverage to Codecov
+        if: '!cancelled()'
+        uses: codecov/codecov-action@v5
+        with:
+          use_oidc: true
+          files: "TestResults/**/coverage.cobertura.xml"
+          disable_search: true   # only the files above, not every *.xml the search finds
+          fail_ci_if_error: false
 
       - name: Primitives benchmark dry-run
         # Catches "primitives bench wiring broke" before merge. Doesn't run
@@ -88,6 +100,9 @@ jobs:
     # project is parameterized over both templates already, so one packed
     # nupkg gets exercised against both shapes from there.
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write   # Codecov upload via OIDC, no token secret
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -110,7 +125,16 @@ jobs:
         run: dotnet build content/za-vertical-slice/MyApp.slnx --no-restore --configuration Release -warnaserror
 
       - name: Test (content)
-        run: dotnet test content/za-vertical-slice/MyApp.slnx --no-build --configuration Release
+        run: dotnet test content/za-vertical-slice/MyApp.slnx --no-build --configuration Release --settings coverage.runsettings --results-directory TestResults
+
+      - name: Upload coverage to Codecov
+        if: '!cancelled()'
+        uses: codecov/codecov-action@v5
+        with:
+          use_oidc: true
+          files: "TestResults/**/coverage.cobertura.xml"
+          disable_search: true   # only the files above, not every *.xml the search finds
+          fail_ci_if_error: false
 
       - name: Primitives benchmark dry-run
         working-directory: content/za-vertical-slice/benchmarks/MyApp.Benchmarks.Primitives
