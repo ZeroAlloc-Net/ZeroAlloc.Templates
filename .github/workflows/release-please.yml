@@ -42,47 +42,35 @@ jobs:
           manifest-file: .release-please-manifest.json
           token: ${{ steps.app-token.outputs.token }}
 
+  # Builds the release tag, packs the template, checks the version inside the package, pushes
+  # it, and waits until nuget.org serves it. Shared from ZeroAlloc-Net/.github so a fix there
+  # reaches every repository; see ZeroAlloc-Net/.github#49. -p:Version is passed to build and
+  # pack, so the ZAVERSION guard in ZeroAlloc.Templates.csproj sees the release version.
   publish:
     needs: release-please
-    if: ${{ needs.release-please.outputs.release_created }}
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-
-      - uses: actions/setup-dotnet@v6
-        with:
-          # Installs the SDK global.json pins. Without it the job never installs
-          # that SDK at all and only works when the runner image happens to ship one
-          # satisfying the pin, which is how a publish failed on a lagging image.
-          global-json-file: global.json
-          dotnet-version: 10.0.x
-
-      - name: Restore (content)
-        run: dotnet restore content/za-clean/MyApp.slnx
-
-      - name: Build (content)
-        run: dotnet build content/za-clean/MyApp.slnx --no-restore --configuration Release -warnaserror
-
-      - name: Test (content)
-        run: dotnet test content/za-clean/MyApp.slnx --no-build --configuration Release
-
-      - name: Pack template
-        # -p:Version, not -p:PackageVersion: the version guard in ZeroAlloc.Templates.csproj fails a
-        # pack whose assembly does not carry the package version. See ZeroAlloc-Net/.github#36.
-        run: dotnet pack ZeroAlloc.Templates.csproj -c Release -p:Version=${{ needs.release-please.outputs.version }} -o ./nupkg -warnaserror
-
-      - name: Restore (smoke test)
-        run: dotnet restore tests/ZeroAlloc.Templates.SmokeTests/ZeroAlloc.Templates.SmokeTests.csproj
-
-      - name: Test (smoke)
-        run: dotnet test tests/ZeroAlloc.Templates.SmokeTests --configuration Release -warnaserror
-
-      - name: Push to NuGet
-        # Requires repo secret NUGET_API_KEY (nuget.org push-only API key for
-        # the ZeroAlloc.Templates package). --skip-duplicate makes re-runs safe.
-        run: dotnet nuget push ./nupkg/*.nupkg --api-key ${{ secrets.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate
-
-      - name: Upload to GitHub Release
-        run: gh release upload ${{ needs.release-please.outputs.tag_name }} ./nupkg/*.nupkg
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    if: needs.release-please.outputs.release_created == 'true'
+    uses: ZeroAlloc-Net/.github/.github/workflows/publish.yml@main
+    with:
+      tag: ${{ needs.release-please.outputs.tag_name }}
+      version: ${{ needs.release-please.outputs.version }}
+      solution: ZeroAlloc.Templates.slnx
+      # The repository's only package is ZeroAlloc.Templates.csproj at the root. A directory
+      # pack-root would be the root itself, and discovery would then also evaluate the MyApp.*
+      # projects under content/, which ship as template content, not as packages: the Domain,
+      # Application and Infrastructure ones evaluate as IsPackable=true. Pointing pack-root at
+      # the project file keeps discovery to exactly that one project, without touching the
+      # template content that scaffolded apps receive.
+      pack-root: ZeroAlloc.Templates.csproj
+      # The checks the publish job ran before this migration: the za-clean content builds with
+      # no warnings and its tests pass, then the smoke tests scaffold both templates from
+      # content/, build them with -warnaserror and run their tests. The content is not part of
+      # ZeroAlloc.Templates.slnx, so the default test step alone would skip the first two.
+      test-command: |
+        dotnet build content/za-clean/MyApp.slnx -c Release -warnaserror
+        dotnet test content/za-clean/MyApp.slnx -c Release --no-build
+        dotnet test ZeroAlloc.Templates.slnx -c Release --no-build
+      # The destinations this repository already had: nuget.org and the release assets.
+      github-packages: false
+      release-assets: true
+    secrets:
+      NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
