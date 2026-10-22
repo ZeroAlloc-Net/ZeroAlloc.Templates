@@ -173,10 +173,11 @@ builder.Services.ConfigureHttpJsonOptions(o =>
 // Output caching — absorbs concurrent same-id reads to relieve Npgsql pool
 // pressure under load (see docs/benchmarks/2026-06-08-189-dotnet-counters-vs.md).
 // TTL is config-tunable so adopters trade freshness vs. pool-relief without
-// recompiling. Tag-based eviction: any write to /orders evicts ALL cached
-// /orders/{id} responses. Conservative — always correct, simpler than per-id
-// invalidation; a real production app might prefer Tag($"order:{id}") for
-// precision but the simpler form is enough for the educational reference.
+// recompiling. Each cached response carries two tags: "orders" for the whole
+// collection, and "order:{id}" from the GET endpoint. A write that changes an
+// existing order evicts "order:{id}" alone; evicting "orders" on every write
+// empties the cache under a steady write rate. Creating an order evicts
+// nothing, because only 200 responses are cached.
 // ---------------------------------------------------------------------------
 var orderByIdTtl = builder.Configuration.GetValue<int?>("OutputCache:OrderByIdTtlSeconds") ?? 30;
 builder.Services.AddOutputCache(opt =>
@@ -192,8 +193,17 @@ builder.Services.AddOutputCache(opt =>
     // authenticated reader. If per-caller responses ever diverge (e.g.
     // role-masked fields), switch to `.SetVaryByHeader("Authorization")`
     // and restore the default policy.
+    //
+    // A TTL of 0 or less turns the cache off for the route. The memory store
+    // rejects a zero expiry, so it must never reach Expire().
     opt.AddPolicy("OrderById",
-        b => b.AddPolicy<CacheAuthenticatedGetsPolicy>().Tag("orders").Expire(TimeSpan.FromSeconds(orderByIdTtl)),
+        b =>
+        {
+            if (orderByIdTtl > 0)
+                b.AddPolicy<CacheAuthenticatedGetsPolicy>().Tag("orders").Expire(TimeSpan.FromSeconds(orderByIdTtl));
+            else
+                b.NoCache();
+        },
         excludeDefaultPolicy: true);
 });
 

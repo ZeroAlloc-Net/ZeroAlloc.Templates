@@ -1,6 +1,5 @@
 using System.Data.Async;
 using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.OutputCaching;
 using Microsoft.AspNetCore.Routing;
 using MyApp.Common;
 using MyApp.Persistence;
@@ -64,12 +63,13 @@ public sealed partial class PlaceOrderHandler(IAsyncDbConnection conn)
 public static class PlaceOrderEndpoint
 {
     public static void Map(IEndpointRouteBuilder app) =>
-        app.MapPost("/orders", static async (PlaceOrderCommand cmd, IMediator mediator, IOutputCacheStore cache, CancellationToken ct) =>
+        // Evicts nothing: only 200 responses are cached, so no cached GET can
+        // describe an id that did not exist yet.
+        app.MapPost("/orders", static async (PlaceOrderCommand cmd, IMediator mediator, CancellationToken ct) =>
             {
                 var result = await mediator.Send(cmd, ct).ConfigureAwait(false);
                 if (result.IsSuccess)
                 {
-                    await cache.EvictByTagAsync("orders", ct).ConfigureAwait(false);
                     return Results.Created($"/orders/{result.Value.Value}", result.Value);
                 }
 

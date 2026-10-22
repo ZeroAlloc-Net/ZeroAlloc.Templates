@@ -12,8 +12,8 @@ Where Clean Architecture splits the codebase by *technical layer* (Domain / Appl
 | **TypedId construct** | 0 B, inlined away |
 | **Validator (source-generated)** | 0 B |
 | **`Result<T, Error>`** | 0 B on success and on failure |
-| **WritePipeline (ASP.NET + ZA.ORM, Postgres)** | 34,537 B per request |
-| **WritePipeline (ASP.NET + ZA.ORM, Sqlite)** | 30,785 B per request |
+| **WritePipeline (ASP.NET + ZA.ORM, Postgres)** | 34,442 B per request |
+| **WritePipeline (ASP.NET + ZA.ORM, Sqlite)** | 30,770 B per request |
 
 AOT figures measured on i9-12900HK / Windows 11 / .NET 10.0.8 post-B5 (PR #161 — the swap from JIT to NativeAOT). The BenchmarkDotNet rows were re-measured 2026-10-21 on an otherwise idle i9-12900HK / .NET 10.0.13, out of process in three launches pinned to two performance cores. Allocations are exact; the [template guide](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/blob/main/docs/za-vertical-slice.md) gives the primitives' same-run ratios.
 
@@ -42,16 +42,7 @@ curl http://localhost:5000/healthz
 
 The API boots, applies its ZA.ORM-managed embedded SQL migrations, and listens on the Kestrel default. OpenTelemetry traces stream to the console.
 
-> Pipeline + primitive numbers measured in CI on Ubuntu 24.04 / AMD EPYC / .NET 10.0.8 via [`Benchmarks (manual)` run 26778623747](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/actions/runs/26778623747). NBomber-Postgres at 5,000-RPS open-model inject (2026-06-10 capacity-recipe run on i9-12900HK) sustains 4,312 RPS / 0 failures (mean 2.7 ms, p50 1.1 ms, p95 4.0 ms, p99 13.6 ms; raw report: [`docs/benchmarks/2026-06-10-template-capacity-za-vs.md`](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/blob/main/docs/benchmarks/2026-06-10-template-capacity-za-vs.md)).
-
-> ⚠️ **Capacity-recipe local numbers, not capacity claims.** The NBomber
-> numbers above are from a single-laptop [`docs/benchmarks/capacity-recipe.md`](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/blob/main/docs/benchmarks/capacity-recipe.md)
-> run (i9-12900HK, Postgres pinned cores 0–1, SUT pinned cores 2–5, NBomber
-> unpinned on host). The 4,312 RPS plateau is NBomber's per-machine injector
-> cap at a 5 k target — see [`docs/benchmarks/2026-06-05-nbomber-ceiling-sweep.md`](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/blob/main/docs/benchmarks/2026-06-05-nbomber-ceiling-sweep.md)
-> for the rate-sweep that locates the actual SUT ceiling. Single-machine
-> measurement has known variance — for production capacity numbers, run the
-> recipe on your target hardware (two-machine LAN variant is gold-standard).
+> Pipeline + primitive numbers measured in CI on Ubuntu 24.04 / AMD EPYC / .NET 10.0.8 via [`Benchmarks (manual)` run 26778623747](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/actions/runs/26778623747). Capacity was measured on 2026-10-22 with the NativeAOT build against Postgres ([report](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/blob/main/docs/benchmarks/2026-10-22-template-capacity.md)): against the build before that change, uncached `GET /orders/{id}` throughput is 1.84×, reads with 100 writes per second in the background are 2.32× with a 0.39× p99, and cache hits are unchanged. `POST /orders` throughput is unchanged, but its p99 at saturation is 2.7× higher under Npgsql multiplexing; the report explains the trade-off and the `Multiplexing=false` opt-out. These are same-run ratios on one machine, not capacity claims.
 
 ## Layout
 
@@ -90,7 +81,6 @@ One file holds every concept that participates in `POST /orders`: the request wi
 ```csharp
 using System.Data.Async;
 using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.OutputCaching;
 using Microsoft.AspNetCore.Routing;
 using MyApp.Common;
 using MyApp.Persistence;
@@ -137,12 +127,13 @@ public sealed partial class PlaceOrderHandler(IAsyncDbConnection conn)
 public static class PlaceOrderEndpoint
 {
     public static void Map(IEndpointRouteBuilder app) =>
-        app.MapPost("/orders", static async (PlaceOrderCommand cmd, IMediator mediator, IOutputCacheStore cache, CancellationToken ct) =>
+        // Evicts nothing: only 200 responses are cached, so no cached GET can
+        // describe an id that did not exist yet.
+        app.MapPost("/orders", static async (PlaceOrderCommand cmd, IMediator mediator, CancellationToken ct) =>
             {
                 var result = await mediator.Send(cmd, ct).ConfigureAwait(false);
                 if (result.IsSuccess)
                 {
-                    await cache.EvictByTagAsync("orders", ct).ConfigureAwait(false);
                     return Results.Created($"/orders/{result.Value.Value}", result.Value);
                 }
 
@@ -218,11 +209,13 @@ Violations fail CI.
 }
 ```
 
-**Eviction:** writes evict the corresponding tag on success:
-- `PlaceOrder` and `CancelOrder` → `EvictByTagAsync("orders")`
-- `CreateCustomer` → `EvictByTagAsync("customers")`
+A TTL of `0` turns the cache off for that route.
 
-Tag-based bulk eviction is conservative (always correct, simpler than per-id) — a production-grade app might prefer per-id eviction for precision.
+**Eviction:** every cached response carries a collection tag (`orders`, `customers`) and a per-id tag (`order:{id}`, `customer:{id}`) added by the GET endpoint. Writes evict only what they change:
+- `CancelOrder` → `EvictByTagAsync("order:" + id)`
+- `PlaceOrder` and `CreateCustomer` evict nothing: only 200 responses are cached, so no cached read can describe an id that did not exist yet.
+
+Evicting a whole collection tag on every write empties the cache under a steady write rate, and every read then goes back to the database. A slice that changes an existing row evicts that row's per-id tag.
 
 **Authenticated GETs:** the framework's `DefaultPolicy` refuses to cache responses with an `Authorization` header. A custom `CacheAuthenticatedGetsPolicy` (in `MyApp/CacheAuthenticatedGetsPolicy.cs`) bypasses that check — safe here because the demo payloads are not user-specific. If you add an endpoint whose body varies per user, use `.CacheOutput(o => o.SetVaryByHeader("Authorization"))` to key per-token instead.
 

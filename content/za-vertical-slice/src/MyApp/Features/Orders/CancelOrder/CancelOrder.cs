@@ -1,4 +1,5 @@
 using System.Data.Async;
+using System.Globalization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.OutputCaching;
 using Microsoft.AspNetCore.Routing;
@@ -68,7 +69,8 @@ public static class CancelOrderEndpoint
                 var result = await mediator.Send(new CancelOrderCommand(new OrderId(id)), ct).ConfigureAwait(false);
                 if (result.IsSuccess)
                 {
-                    await cache.EvictByTagAsync("orders", ct).ConfigureAwait(false);
+                    // Evict this order alone; GET /orders/{id} tagged its cached response.
+                    await cache.EvictByTagAsync("order:" + id.ToString(CultureInfo.InvariantCulture), ct).ConfigureAwait(false);
                     return Results.NoContent();
                 }
 

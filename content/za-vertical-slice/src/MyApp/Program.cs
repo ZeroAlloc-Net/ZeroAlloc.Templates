@@ -2,6 +2,7 @@ using System.Data.Async;
 using System.Data.Async.Adapters;
 using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.OutputCaching;
 using Microsoft.Data.Sqlite;
 using Microsoft.IdentityModel.Tokens;
 using MyApp;
@@ -59,13 +60,48 @@ var dbProvider = builder.Configuration.GetValue<string>("Database:Provider") ?? 
 var connectionString = builder.Configuration.GetConnectionString("Default")
     ?? "Data Source=app.db";
 
+// Two Npgsql settings are turned on unless the connection string sets them.
+// Both are off by default in Npgsql. What each is worth here is measured in
+// https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/blob/main/docs/benchmarks/2026-10-22-template-capacity.md.
+//
+//   Max Auto Prepare  Npgsql prepares a statement once it has run a few times on
+//                     a physical connection, so the server skips parse and plan
+//                     on every later call. Every statement here repeats.
+//   Multiplexing      commands from concurrent requests share physical
+//                     connections and are written to the socket in batches,
+//                     instead of each request holding a connection for its whole
+//                     round trip. It needs the async Npgsql API throughout, which
+//                     ZA.ORM uses, and keeps no session state between commands:
+//                     no SET, temporary tables or LISTEN outside a transaction.
+//                     Add Multiplexing=false to the connection string if a slice
+//                     needs those.
+//
+// The normalised string lists only the keys that were set, under their canonical
+// names, so a synonym such as MaxAutoPrepare still counts as set.
+var isPostgres = string.Equals(dbProvider, "Postgres", StringComparison.OrdinalIgnoreCase);
+var appConnectionString = connectionString;
+if (isPostgres)
+{
+    var npgsql = new NpgsqlConnectionStringBuilder(connectionString);
+    var explicitlySet = new System.Data.Common.DbConnectionStringBuilder { ConnectionString = npgsql.ConnectionString };
+    if (!explicitlySet.ContainsKey("Max Auto Prepare"))
+    {
+        npgsql.MaxAutoPrepare = 20;
+    }
+    if (!explicitlySet.ContainsKey("Multiplexing"))
+    {
+        npgsql.Multiplexing = true;
+    }
+    appConnectionString = npgsql.ConnectionString;
+}
+
 builder.Services.AddScoped<IAsyncDbConnection>(_ =>
 {
-    if (string.Equals(dbProvider, "Postgres", StringComparison.OrdinalIgnoreCase))
+    if (isPostgres)
     {
-        return new NpgsqlConnection(connectionString).AsAsync();
+        return new NpgsqlConnection(appConnectionString).AsAsync();
     }
-    return new SqliteConnection(connectionString).AsAsync();
+    return new SqliteConnection(appConnectionString).AsAsync();
 });
 
 // ---------------------------------------------------------------------------
@@ -183,10 +219,14 @@ builder.Services.ConfigureHttpJsonOptions(o =>
 // ---------------------------------------------------------------------------
 // Output caching — absorbs concurrent same-id reads to relieve Npgsql pool
 // pressure under load (see docs/benchmarks/2026-06-08-189-dotnet-counters-vs.md).
-// Two policies: OrderById (tag "orders", evicted by PlaceOrder + CancelOrder)
-// and CustomerById (tag "customers", evicted by CreateCustomer). TTLs
-// config-tunable via OutputCache:OrderByIdTtlSeconds /
-// OutputCache:CustomerByIdTtlSeconds (default 30s each).
+// Two policies: OrderById and CustomerById. Each cached response carries a
+// collection tag ("orders", "customers") and a per-id tag that the GET endpoint
+// adds ("order:{id}", "customer:{id}"). CancelOrder evicts "order:{id}" alone;
+// evicting the collection tag on every write empties the cache under a steady
+// write rate. PlaceOrder and CreateCustomer evict nothing, because only 200
+// responses are cached and a new id was never served. TTLs config-tunable via
+// OutputCache:OrderByIdTtlSeconds / OutputCache:CustomerByIdTtlSeconds
+// (default 30s each).
 //
 // excludeDefaultPolicy: true + a custom CacheAuthenticatedGetsPolicy lets the
 // cache serve JWT-protected GETs. The framework's DefaultPolicy refuses any
@@ -200,12 +240,18 @@ var orderByIdTtl = builder.Configuration.GetValue<int?>("OutputCache:OrderByIdTt
 var customerByIdTtl = builder.Configuration.GetValue<int?>("OutputCache:CustomerByIdTtlSeconds") ?? 30;
 builder.Services.AddOutputCache(opt =>
 {
-    opt.AddPolicy("OrderById",
-        b => b.AddPolicy<CacheAuthenticatedGetsPolicy>().Tag("orders").Expire(TimeSpan.FromSeconds(orderByIdTtl)),
-        excludeDefaultPolicy: true);
-    opt.AddPolicy("CustomerById",
-        b => b.AddPolicy<CacheAuthenticatedGetsPolicy>().Tag("customers").Expire(TimeSpan.FromSeconds(customerByIdTtl)),
-        excludeDefaultPolicy: true);
+    opt.AddPolicy("OrderById", b => CachePolicy(b, "orders", orderByIdTtl), excludeDefaultPolicy: true);
+    opt.AddPolicy("CustomerById", b => CachePolicy(b, "customers", customerByIdTtl), excludeDefaultPolicy: true);
+
+    // A TTL of 0 or less turns the cache off for the route. The memory store
+    // rejects a zero expiry, so it must never reach Expire().
+    static void CachePolicy(OutputCachePolicyBuilder b, string tag, int ttlSeconds)
+    {
+        if (ttlSeconds > 0)
+            b.AddPolicy<CacheAuthenticatedGetsPolicy>().Tag(tag).Expire(TimeSpan.FromSeconds(ttlSeconds));
+        else
+            b.NoCache();
+    }
 });
 
 #if (EnableSwagger)

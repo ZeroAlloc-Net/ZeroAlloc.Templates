@@ -62,8 +62,14 @@ brackets. Postgres ran in a local Docker container.
 
 | Method | Backend | Ratio | Launch range | Allocated |
 |---|---|---:|---:|---:|
-| `WritePipeline` | Sqlite | 1.00 | | 30,785 B |
-| `WritePipeline` | Postgres | 56.0 | 53.9–60.2 | 34,537 B |
+| `WritePipeline` | Sqlite | 1.00 | | 30,770 B |
+| `WritePipeline` | Postgres | 68.7 | | 34,442 B |
+
+Re-measured 2026-10-22, after both templates turned on Npgsql auto-prepare and multiplexing by default,
+in three launches pinned to two performance cores. Allocations moved by under 0.3%. The ratio was
+56.0 the day before; it divides by an in-memory SQLite run measured in the same session, so it also moves
+when SQLite does. Over real HTTP with one client the Postgres write latency did not change; see
+[the capacity report](benchmarks/2026-10-22-template-capacity.md).
 
 `GET /orders/{id}`, measured in a second run the same evening, each row's time relative to the
 uncached request:
@@ -93,7 +99,7 @@ Primitives, each row's time relative to `Money_TryCreate_Success`:
 
 **EF Core → ZA.ORM 1.1 delta, from the CI runs.** Comparing the post-swap `WritePipeline` row of [run 26778623747](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/actions/runs/26778623747) against the pre-swap `PlaceOrder_FullPipeline` row in the historical section below: Sqlite 738.7 μs → 186.2 μs (−75%) / 117.9 KB → 29.2 KB (−75%). Postgres 1,224.1 μs → 658.7 μs (−46%) / 117.1 KB → 32.0 KB (−73%). The Sqlite time-win is much larger because Postgres latency is dominated by the network round-trip — the framework-overhead share left over after the wire is still ~73% leaner. The allocation profile reflects ZA.ORM having no change tracker, no model snapshot, no proxy materialisation: `PlaceOrderHandler` calls a `[Command]`-generated `InsertOrderAsync` that executes a direct `INSERT` against `IAsyncDbConnection`.
 
-**The ZA framework cost is provider-independent.** Allocations differ by 3.7 KB across backends (30,785 B ↔ 34,537 B) — the gap is Npgsql command/parameter cost vs Microsoft.Data.Sqlite's lighter wire, not the framework hot path. The TypedId / Money / Result / Validator primitives all allocate 0 B; `TypedId_Construct` and `Result_Failure` inline to almost nothing.
+**The ZA framework cost is provider-independent.** Allocations differ by 3.7 KB across backends (30,770 B ↔ 34,442 B) — the gap is Npgsql command/parameter cost vs Microsoft.Data.Sqlite's lighter wire, not the framework hot path. The TypedId / Money / Result / Validator primitives all allocate 0 B; `TypedId_Construct` and `Result_Failure` inline to almost nothing.
 
 **The SQLite numbers under-state real-world latency** — in-memory SQLite has zero I/O and a single-process lock. The Postgres numbers, by contrast, exercise a real connection pool and WAL flush. For capacity planning, anchor on the Postgres row; for regression-detection of framework changes, the Sqlite row is the tighter signal.
 
@@ -203,6 +209,10 @@ The `nbomber-postgres-vs` job in `.github/workflows/benchmarks.yml` runs the rec
 - `nbomber-sut-log` — the SUT's stdout/stderr (kept short, 7-day retention).
 
 ### Numbers — `Benchmarks (manual)` workflow run [26778623747](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/actions/runs/26778623747) (post-swap)
+
+> **Superseded for capacity:** [2026-10-22-template-capacity.md](benchmarks/2026-10-22-template-capacity.md) measures both
+> templates with `oha` on separate cores, so the load generator is not the limit, and explains what
+> changed since. The numbers below are kept for history.
 
 NBomber open-model `Inject(rate=5000/s)`, 30 s steady-state + 10 s ramp, scenario `read_order_by_id` (`GET /orders/{id}` against a seeded set of 1000 orders):
 

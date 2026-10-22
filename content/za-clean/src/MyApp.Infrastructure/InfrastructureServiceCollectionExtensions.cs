@@ -1,4 +1,5 @@
 using System.Data.Async;
+using System.Data.Common;
 using System.Data.Async.Adapters;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.DependencyInjection;
@@ -38,6 +39,10 @@ public static class InfrastructureServiceCollectionExtensions
         string shippingBaseUrl)
     {
         var isPostgres = string.Equals(provider, "Postgres", StringComparison.OrdinalIgnoreCase);
+        if (isPostgres)
+        {
+            connectionString = WithThroughputDefaults(connectionString);
+        }
 
         // IAsyncDbConnection registered scoped — ZA.ORM-generated repositories
         // pull a fresh connection per HTTP request and the generator-emitted
@@ -88,5 +93,39 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddShippingQuoteHttpClientResiliencePolicies();
 
         return services;
+    }
+
+    /// <summary>
+    /// Turns on two Npgsql settings that the connection string does not set itself. Both are
+    /// off by default in Npgsql. What each one is worth here is measured in
+    /// https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/blob/main/docs/benchmarks/2026-10-22-template-capacity.md.
+    /// <list type="bullet">
+    /// <item><c>Max Auto Prepare</c>: Npgsql prepares a statement once it has run a few times on a
+    /// physical connection, so the server skips parse and plan on every later call. Every
+    /// statement in this app repeats.</item>
+    /// <item><c>Multiplexing</c>: commands from concurrent requests share physical connections and
+    /// are written to the socket in batches, instead of each request holding a connection for
+    /// its whole round trip. It needs the async Npgsql API throughout, which ZA.ORM uses, and it
+    /// keeps no session state between commands: no <c>SET</c>, temporary tables or
+    /// <c>LISTEN</c> outside a transaction. Add <c>Multiplexing=false</c> to the connection
+    /// string if your code needs those.</item>
+    /// </list>
+    /// </summary>
+    private static string WithThroughputDefaults(string connectionString)
+    {
+        var builder = new NpgsqlConnectionStringBuilder(connectionString);
+
+        // The normalised string lists only the keys that were set, under their canonical names,
+        // so a synonym such as MaxAutoPrepare still counts as set.
+        var explicitlySet = new DbConnectionStringBuilder { ConnectionString = builder.ConnectionString };
+        if (!explicitlySet.ContainsKey("Max Auto Prepare"))
+        {
+            builder.MaxAutoPrepare = 20;
+        }
+        if (!explicitlySet.ContainsKey("Multiplexing"))
+        {
+            builder.Multiplexing = true;
+        }
+        return builder.ConnectionString;
     }
 }
