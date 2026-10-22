@@ -40,10 +40,11 @@ public static class OrdersEndpoints
             if (!result.IsSuccess)
                 return Results.NotFound();
 
-            // Tag the cached response with its id, so a write to this order can evict it
-            // alone. This handler runs only on a cache miss; a hit never pays for the tag.
-            http.Features.Get<IOutputCacheFeature>()?.Context.Tags.Add(
-                "order:" + id.ToString(CultureInfo.InvariantCulture));
+            // Tag a response that the output cache will store with its id, so a write to this
+            // row can evict it alone. This handler runs only on a cache miss, so a hit never
+            // pays for the tag, and a response that is not stored allocates nothing for it.
+            if (http.Features.Get<IOutputCacheFeature>()?.Context is { EnableOutputCaching: true, AllowCacheStorage: true } cache)
+                cache.Tags.Add("order:" + id.ToString(CultureInfo.InvariantCulture));
             return Results.Ok(ReadModelToResponse.Map(result.Value));
         }).RequireAuthorization("OrdersRead").CacheOutput("OrderById");
 

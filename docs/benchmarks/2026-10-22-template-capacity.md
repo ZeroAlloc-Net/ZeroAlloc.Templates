@@ -98,6 +98,19 @@ behind it. At saturation the write p99 rose 2.7× while throughput and p50 held:
 its write p99 fell. A write-heavy service whose tail latency matters more than read throughput sets
 `Multiplexing=false` in its connection string and keeps auto-prepare.
 
+## Allocations
+
+Per-request allocations did not change. BenchmarkDotNet, three launches each, bytes per request:
+
+| Path | `za-clean` before → after | `za-vertical-slice` before → after |
+|---|---:|---:|
+| `GET /orders/{id}`, cache hit | 24,723 → 24,723 | 24,636 → 24,635 |
+| `GET /orders/{id}`, uncached | 28,738 → 28,750 | 26,343 → 26,325 |
+| `POST /orders`, Postgres | 38,551 → 38,467 | 34,537 → 34,442 |
+
+The GET endpoints add the per-id cache tag only to a response the output cache will store, so a
+response that is not stored allocates nothing for it.
+
 ## Changes
 
 - **Per-id cache eviction.** Creating an order or customer evicts nothing, because only 200 responses
