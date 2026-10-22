@@ -193,14 +193,20 @@ What the bytes are:
 
 `Validator_Generated` measures the ZA.Validation-generated `CreateOrderCommandValidator` end-to-end, including the regex check on `ShippingZip`. As of [ZA.Validation 1.5.3](https://github.com/ZeroAlloc-Net/ZeroAlloc.Validation/pull/52), `[Matches]` emits a `private static readonly Regex` field initialised with `RegexOptions.Compiled` — JIT-compiled matcher, no per-call cache lookup, direct dispatch.
 
-Compare with the full-pipeline `WritePipeline` row below: that 36,920 B is ASP.NET model binding + JSON + the ZA.ORM command round-trip, not ZA framework cost. Use the primitives table for "does the framework allocate", the pipeline table for "does the endpoint allocate".
+Compare with the full-pipeline `WritePipeline` row below: that 36,911 B is ASP.NET model binding + JSON + the ZA.ORM command round-trip, not ZA framework cost. Use the primitives table for "does the framework allocate", the pipeline table for "does the endpoint allocate".
 
 #### Full pipeline (ASP.NET + ZA.ORM) — `POST /orders`
 
 | Method | Backend | Ratio | Launch range | Allocated |
 |---|---|---:|---:|---:|
-| `WritePipeline` | Sqlite | 1.00 | | 36,920 B |
-| `WritePipeline` | Postgres | 37.1 | 34.1–38.1 | 38,551 B |
+| `WritePipeline` | Sqlite | 1.00 | | 36,911 B |
+| `WritePipeline` | Postgres | 38.4 | | 38,467 B |
+
+Re-measured 2026-10-22, after both templates turned on Npgsql auto-prepare and multiplexing by default,
+in three launches pinned to two performance cores. Allocations moved by under 0.3%. The ratio was
+37.1 the day before; it divides by an in-memory SQLite run measured in the same session, so it also moves
+when SQLite does. Over real HTTP with one client the Postgres write latency did not change; see
+[the capacity report](benchmarks/2026-10-22-template-capacity.md).
 
 The ~37 KB per request is dominated by ASP.NET Core's request pipeline (model binding, JSON deserialization, response shaping) plus the ZA.ORM `[Command]`-generated SQL round-trip — not the framework hot path. **Allocations match within 1.7 KB across backends** — the framework cost is provider-independent; the gap is the Npgsql command/parameter cost vs Microsoft.Data.Sqlite's lighter wire. Time on Postgres is dominated by the round trip to the database container, so treat the ratio as a property of this setup, not of the template.
 
@@ -237,6 +243,10 @@ AMD EPYC 7763, .NET SDK 10.0.300, .NET 10.0.8 X64 RyuJIT x86-64-v3
 The ~148 KB per request was dominated by ASP.NET Core's request pipeline (model binding, JSON deserialization, response shaping) and EF Core's tracking buffer — not the ZA framework cost. The handler-level allocation (mapping + Mediator dispatch + Result construction) sat in the low hundreds of bytes; the rest was HTTP plumbing every endpoint paid. **Allocations matched within 1 KB across backends** — the framework cost was already provider-independent. Postgres was ~85% slower per request than in-memory SQLite (real I/O + WAL + per-statement network), but the absolute allocation budget didn't shift. This row is kept for diff-over-time context; the post-swap table above is the current baseline.
 
 #### NBomber — read-RPS scenario (real Kestrel, Postgres) — post-swap, [run 26778623747](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/actions/runs/26778623747)
+
+> **Superseded for capacity:** [2026-10-22-template-capacity.md](benchmarks/2026-10-22-template-capacity.md) measures both
+> templates with `oha` on separate cores, so the load generator is not the limit, and explains what
+> changed since. The numbers below are kept for history.
 
 `GET /orders/{id}` driven by NBomber's open-model `Inject(rate=5000/s)` for 30 s + 10 s ramp, against a real Kestrel SUT backed by Postgres (`max_connections=500`, `Maximum Pool Size=500`), after seeding 1000 orders.
 

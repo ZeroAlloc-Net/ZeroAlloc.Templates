@@ -1,5 +1,13 @@
 # Capacity bench recipe (decoupled NBomber)
 
+> For capacity numbers, prefer [`scripts/capacity.ps1`](../../scripts/capacity.ps1) as used in
+> [2026-10-22-template-capacity.md](2026-10-22-template-capacity.md). NBomber reaches its own injector
+> cap before the SUT saturates on this hardware.
+>
+> On Windows the NativeAOT publish in step 3 calls `vswhere.exe` from `PATH`. If it fails with
+> `'vswhere.exe' is not recognized`, add `C:\Program Files (x86)\Microsoft Visual Studio\Installer`
+> to `PATH`.
+
 Runs the NBomber load test against the SUT with the load generator, SUT, and Postgres on **isolated CPU cores** — eliminates the co-location contention that pins CI numbers at the injector cap. The result is actual SUT capacity rather than a regression-net number.
 
 > When to use this: capacity planning, README RPS claims, investigation of perf issues that surface only under concurrent load. For day-to-day "did this PR regress?" CI is fine. See [README.md](README.md) for the distinction.
@@ -196,6 +204,10 @@ docker stop "$PG_NAME"
 ```
 
 ## What to expect (reference numbers)
+
+> **Superseded for capacity:** [2026-10-22-template-capacity.md](2026-10-22-template-capacity.md) measures both
+> templates with `oha` on separate cores, so the load generator is not the limit, and explains what
+> changed since. The numbers below are kept for history.
 
 From the 2026-06-05 sweep on an i9-12900HK (i.e. 16 cores, the recipe's sweet spot):
 

@@ -12,7 +12,7 @@ Clean Architecture Web API. **Publishes as a ~27 MB Native AOT binary; cold-star
 | **Validator (source-generated, regex zip)** | 0 B, 0.09× the time of a mediator send |
 | **ValueObject `TryCreate`** | 0 B, 0.01× the time of a mediator send |
 | **Read hot path** (`GetByIdAsync` / Sqlite, head + 2 lines) | ZA.ORM 2,992 B vs hand-written ADO.NET 2,128 B — 1.41× the allocations, 1.08× the time. ZA.ORM's own [comparison matrix](https://github.com/ZeroAlloc-Net/ZeroAlloc.ORM/blob/main/docs/benchmarks/v0.7.0-sqlite-results.md) against hand-written ADO.NET and Dapper.AOT was last captured at ZA.ORM v0.7.0 |
-| **End-to-end pipeline** (`POST /orders`, ASP.NET + ZA.ORM) | 36,920 B on SQLite, 38,551 B on Postgres — mostly platform overhead, not ZA |
+| **End-to-end pipeline** (`POST /orders`, ASP.NET + ZA.ORM) | 36,911 B on SQLite, 38,467 B on Postgres — mostly platform overhead, not ZA |
 
 AOT figures re-measured 2026-06-02 post-ZA.ORM-swap (#152) on i9-12900HK / Windows 11 / .NET 10.0.8. The BenchmarkDotNet rows were re-measured 2026-10-21 on an otherwise idle i9-12900HK / .NET 10.0.13, out of process in three launches pinned to two performance cores; allocations are exact and speed is a same-run ratio. The 88 B mapping cost is the `List<OrderItem>` the command carries, 32 B for the list and 56 B for its one-item array, a caller cost every framework pays. Earlier read-path numbers came from a bench that read the `OrderId(0)` sentinel and so measured the not-found path.
 
@@ -66,23 +66,16 @@ benchmarks/
 
 ## Load testing under sustained concurrency
 
-The NBomber load test scenario (read RPS, open-model 5,000-RPS inject for 30s + 10s ramp against real Kestrel, Postgres backend):
+Capacity was measured on 2026-10-22 with the NativeAOT build against Postgres, with the load generator on separate cores ([report](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/blob/main/docs/benchmarks/2026-10-22-template-capacity.md)). An uncached `GET /orders/{id}` costs about two cache hits of app CPU, and with 100 writes per second in the background reads still run at about 90% of the cache-hit rate. Against the build before that change:
 
-| Mean | p50 | p95 | p99 | RPS | Notes |
-|---:|---:|---:|---:|---:|---|
-| 11 ms | 1.4 ms | 14 ms | 61 ms | **4,312** | 172,500 OK / 0 fail. 2026-06-10 capacity-recipe run on i9-12900HK. |
+| Scenario | Throughput | p99 |
+|---|---:|---:|
+| Cache hit | 0.99 | 0.99 |
+| Uncached read | 2.29 | 0.99 |
+| Reads with 100 writes/s | 2.03 | 0.48 |
+| `POST /orders` | 1.43 | 0.70 |
 
-> ⚠️ **Capacity-recipe local numbers, not capacity claims.** Captured on
-> 2026-06-10 via [`docs/benchmarks/capacity-recipe.md`](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/blob/main/docs/benchmarks/capacity-recipe.md)
-> on a single laptop (i9-12900HK, 16 cores) — Postgres pinned to cores 0–1,
-> SUT (published `MyApp.Api.exe`) pinned to cores 2–5, NBomber on the host.
-> See [`docs/benchmarks/2026-06-10-template-capacity-za-clean.md`](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/blob/main/docs/benchmarks/2026-06-10-template-capacity-za-clean.md)
-> for the raw NBomber report. The 4,312 RPS plateau is the NBomber injector
-> cap on this machine at a 5 k target rate (see [`docs/benchmarks/2026-06-05-nbomber-ceiling-sweep.md`](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/blob/main/docs/benchmarks/2026-06-05-nbomber-ceiling-sweep.md)
-> for the rate-sweep showing actual SUT ceiling ≈ 6,900 RPS), not the SUT's
-> sustainable ceiling. Single-machine measurement has known variance — for
-> production capacity numbers, run the recipe on your target hardware (the
-> two-machine LAN variant in the recipe is the gold-standard).
+Same-run ratios on one machine, not capacity claims: absolute throughput depends on the hardware. Run the harness in the report on your own.
 
 ZA.ORM has no change tracker — reads materialise straight from `IAsyncDbConnection`, at the 1.41× allocation ratio to hand-written ADO.NET shown above, and the post-#197 output-cache layer absorbs concurrent same-id reads so p99 sits two orders of magnitude below the pre-cache numbers. The harness is shipped so adopters measure on *their* data layer choice and load shape.
 

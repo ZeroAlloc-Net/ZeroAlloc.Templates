@@ -27,6 +27,14 @@ Open-model load injection. NBomber pushes requests at a target arrival rate whil
 **Use to answer:** "What's the SUT's sustainable throughput and tail latency under concurrent load?"
 **Examples in this folder:** `2026-06-05-nbomber-ceiling-sweep.md`.
 
+### 4. Capacity runs with oha (throughput ceiling)
+
+[`scripts/capacity.ps1`](../../scripts/capacity.ps1) drives the NativeAOT build with `oha` pinned to separate
+cores, alternating the builds being compared. It reports same-run throughput and latency ratios.
+
+**Use to answer:** "Did this change move the throughput ceiling?"
+**Example in this folder:** `2026-10-22-template-capacity.md`.
+
 ## Regression-net vs capacity — the important distinction
 
 NBomber results in this repo come from **two different setups** that measure different things. Conflating them produces wrong claims.
