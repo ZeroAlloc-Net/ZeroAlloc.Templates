@@ -61,8 +61,8 @@ var connectionString = builder.Configuration.GetConnectionString("Default")
     ?? "Data Source=app.db";
 
 // Two Npgsql settings are turned on unless the connection string sets them.
-// Both are off by default in Npgsql; docs/benchmarks/2026-10-22-template-capacity.md
-// measures what each is worth here.
+// Both are off by default in Npgsql. What each is worth here is measured in
+// https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/blob/main/docs/benchmarks/2026-10-22-template-capacity.md.
 //
 //   Max Auto Prepare  Npgsql prepares a statement once it has run a few times on
 //                     a physical connection, so the server skips parse and plan

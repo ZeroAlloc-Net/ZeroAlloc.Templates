@@ -97,8 +97,8 @@ public static class InfrastructureServiceCollectionExtensions
 
     /// <summary>
     /// Turns on two Npgsql settings that the connection string does not set itself. Both are
-    /// off by default in Npgsql; see docs/benchmarks/2026-10-22-template-capacity.md for what
-    /// each one is worth here.
+    /// off by default in Npgsql. What each one is worth here is measured in
+    /// https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/blob/main/docs/benchmarks/2026-10-22-template-capacity.md.
     /// <list type="bullet">
     /// <item><c>Max Auto Prepare</c>: Npgsql prepares a statement once it has run a few times on a
     /// physical connection, so the server skips parse and plan on every later call. Every
