@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.16.3](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/compare/ZeroAlloc.Templates-v0.16.2...ZeroAlloc.Templates-v0.16.3) (2026-10-22)
+
+
+### Bug Fixes
+
+* measure the uncached read pipeline in the template benchmarks ([#566](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/issues/566)) ([7ef7400](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/commit/7ef7400082cdacc79f04c07a94dac71f1f6a48a5))
+
 ## [0.16.2](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/compare/ZeroAlloc.Templates-v0.16.1...ZeroAlloc.Templates-v0.16.2) (2026-10-16)
 
 
