@@ -73,7 +73,8 @@ Any RPS claim in `content/za-clean/README.md` or `content/za-vertical-slice/READ
 | 2026-06-08 | [189-dotnet-counters-vs.md](2026-06-08-189-dotnet-counters-vs.md) | NBomber capacity (counters) | #189 — dotnet-counters capture under sustained load on vs; identifies Npgsql pool exhaustion as the dominant bottleneck |
 | 2026-06-10 | [template-capacity-za-clean.md](2026-06-10-template-capacity-za-clean.md) | NBomber capacity | Capacity-recipe run behind the za-clean README's RPS table — `GET /orders/{id}` at a 5k target, post-#197 output cache |
 | 2026-06-10 | [template-capacity-za-vs.md](2026-06-10-template-capacity-za-vs.md) | NBomber capacity | Same run for za-vertical-slice, behind its README's NBomber figures |
-| 2026-08-07 | [171-jwt-validation-cost.md](2026-08-07-171-jwt-validation-cost.md) | BDN micro | #171 — `JwtValidationBench`: JWT validation is ~4% of per-request CPU, so no validated-token cache |
+| 2026-08-07 | [171-jwt-validation-cost.md](2026-08-07-171-jwt-validation-cost.md) | BDN micro | #171 — `JwtValidationBench`: no validated-token cache; the 2026-10-21 addendum puts JWT at 6.2% of an uncached request and 10.9% of a cached one |
+| 2026-10-21 | [template-benchmarks-rerun.md](2026-10-21-template-benchmarks-rerun.md) | BDN micro + HTTP-level BDN | Every BenchmarkDotNet class in both templates, as allocations and same-run ratios; `ReadPipelineBench` now measures the uncached path too |
 
 ### Runbooks (not reports)
 

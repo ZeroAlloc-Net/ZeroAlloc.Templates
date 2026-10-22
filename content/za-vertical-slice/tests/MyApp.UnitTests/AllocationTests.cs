@@ -7,8 +7,9 @@ using ZeroAlloc.TestHelpers;
 namespace MyApp.UnitTests;
 
 /// <summary>
-/// Backs the README's "0 B" rows: the typed id, the value object's <c>TryCreate</c>, the
-/// success <c>Result</c> and the source-generated validator allocate nothing per call. Inputs
+/// Backs the README's "0 B" rows: the typed id, the value object's <c>TryCreate</c> on both
+/// paths, a success and a failure <c>Result</c> and the source-generated validator allocate
+/// nothing per call. Inputs
 /// are built once, outside the measured action, the same way <c>PrimitivesBench</c> sets them up.
 /// </summary>
 public class AllocationTests
@@ -33,6 +34,20 @@ public class AllocationTests
         {
             _sink = Money.TryCreate(10m, "EUR").IsSuccess;
         }, "Money.TryCreate");
+
+    [Fact]
+    public void Money_TryCreate_failure_allocates_nothing() =>
+        AllocationGate.AssertBudget(0, Iterations, () =>
+        {
+            _sink = Money.TryCreate(-1m, "EUR").IsFailure;
+        }, "Money.TryCreate failure");
+
+    [Fact]
+    public void Result_failure_allocates_nothing() =>
+        AllocationGate.AssertBudget(0, Iterations, () =>
+        {
+            _sink = Result<OrderId, Error>.Failure(Error.NotFound("order.not_found", "missing")).IsFailure;
+        }, "Result.Failure");
 
     [Fact]
     public void Result_success_allocates_nothing() =>

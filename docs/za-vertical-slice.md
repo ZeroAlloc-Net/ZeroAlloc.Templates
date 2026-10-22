@@ -32,8 +32,8 @@ Healthy
 
 Two BDN projects + one NBomber load test live under `benchmarks/`:
 
-- **`MyApp.Benchmarks.Primitives`** — `PrimitivesBench` exercises each ZA layer standalone: mediator dispatch, validator, value-object construction, mapping. No ASP.NET, no EF, no HTTP. Numbers in ns/op, allocations in bytes. These deliver on the "zero-allocation through the framework hot path" claim.
-- **`MyApp.Benchmarks`** — `WritePipelineBench` hosts the API via `WebApplicationFactory<Program>` and runs `POST /orders` through three attribution layers (full HTTP path / mediator-direct / handler-direct) × two database backends (SQLite in-memory / Postgres localhost). Reports μs and per-request allocation. The 3 × 2 cross-product reveals where time is spent.
+- **`MyApp.Benchmarks.Primitives`** — `PrimitivesBench` exercises each ZA layer standalone: mediator dispatch, validator, value-object construction, mapping. No ASP.NET, no EF, no HTTP. Allocations in bytes, speed as same-run ratios. These deliver on the "zero-allocation through the framework hot path" claim.
+- **`MyApp.Benchmarks`** — `WritePipelineBench` hosts the API via `WebApplicationFactory<Program>` and runs `POST /orders` through three attribution layers (full HTTP path / mediator-direct / handler-direct) × two database backends (SQLite in-memory / Postgres localhost). Reports per-request allocation and the time on Postgres relative to SQLite. The 3 × 2 cross-product reveals where time is spent. `ReadPipelineBench` sends `GET /orders/{id}` the same way, with the output cache switched off for the route and served from it.
 - **`MyApp.LoadTest`** — NBomber scenario at 500 VUs against real Kestrel; see "Load testing against Postgres" below. Run by the manual `nbomber-postgres-vs` CI job.
 
 ## WritePipelineBench — the framework-cost story
@@ -45,35 +45,55 @@ Post-swap (PR #152: EF Core → ZA.ORM 1.1), the bench has collapsed to a single
 - **SQLite** profile uses an in-memory connection (`DataSource=:memory:`); schema applied via the production `Program.cs` `ApplyEmbeddedSchemaAsync` path reading `schema.sql`.
 - **Postgres** profile creates a fresh per-process database (`bench_<guid8>`) and applies `schema.postgres.sql` via the same production path. AOT-friendly — no reflection. The bench sets `Database:Provider=Postgres`; Program.cs picks the right embedded resource.
 
-### Numbers — `Benchmarks (manual)` workflow run [26778623747](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/actions/runs/26778623747) (post-swap)
+### Numbers — re-measured 2026-10-21
 
 ```
-BenchmarkDotNet v0.15.8, Linux Ubuntu 24.04.4 LTS (Noble Numbat)
-AMD EPYC 7763 2.45GHz, 1 CPU, 4 logical and 2 physical cores
-.NET SDK 10.0.300, .NET 10.0.8, X64 RyuJIT x86-64-v3
+BenchmarkDotNet v0.15.8, Windows 11 (10.0.26300.9711)
+12th Gen Intel Core i9-12900HK 2.50GHz, 1 CPU, 20 logical and 14 physical cores
+.NET SDK 10.0.402
+  [Host] : .NET 10.0.13 (10.0.13, 10.0.1326.50504), X64 RyuJIT x86-64-v3
 ```
 
-| Method        | Backend  |     Mean | Error    | StdDev   | Gen0   | Allocated |
-|-------------- |--------- |---------:|---------:|---------:|-------:|----------:|
-| WritePipeline | Sqlite   | 186.2 μs |  2.89 μs |  4.50 μs | 1.9531 |  29.15 KB |
-| WritePipeline | Postgres | 658.7 μs | 12.81 μs | 19.94 μs | 1.9531 |  31.97 KB |
+> Allocations are exact. Speed is shown as same-run ratios; absolute timings are not published.
 
-Primitives (slice-level, single-method; AMD EPYC 9V74 same run):
+Measured 2026-10-21 on an otherwise idle machine, out of process, in three launches pinned to two
+performance cores. Ratios come from one run, with the lowest and highest of the three launches in
+brackets. Postgres ran in a local Docker container.
 
-| Method                  | Mean       | Allocated |
-|------------------------ |-----------:|----------:|
-| `TypedId_Construct`     |  0.0026 ns |       0 B |
-| `Money_TryCreate_Success` |  3.439 ns |       0 B |
-| `Money_TryCreate_Failure` | 10.329 ns |       0 B |
-| `Result_Success`        |   7.323 ns |       0 B |
-| `Result_Failure`        |   0.398 ns |       0 B |
-| `Validator_Generated`   |   4.175 ns |       0 B |
+| Method | Backend | Ratio | Launch range | Allocated |
+|---|---|---:|---:|---:|
+| `WritePipeline` | Sqlite | 1.00 | | 30,785 B |
+| `WritePipeline` | Postgres | 56.0 | 53.9–60.2 | 34,537 B |
+
+`GET /orders/{id}`, measured in a second run the same evening, each row's time relative to the
+uncached request:
+
+| Method | Output cache | Ratio | Launch range | Allocated |
+|---|---|---:|---:|---:|
+| `ReadPipeline` | off | 1.00 | | 26,343 B |
+| `ReadPipeline` | hit | 0.71 | 0.70–0.73 | 24,636 B |
+
+The benchmark repeats one request for one id and the route caches authenticated GETs, so before
+the uncached variant was added on 2026-10-21 it measured only cache hits.
+
+Primitives, each row's time relative to `Money_TryCreate_Success`:
+
+| Method | Ratio | Launch range | Allocated |
+|---|---:|---:|---:|
+| `TypedId_Construct` | below resolution ¹ | | 0 B |
+| `Money_TryCreate_Success` | 1.00 | | 0 B |
+| `Money_TryCreate_Failure` | 0.94 | 0.92–0.97 | 0 B |
+| `Result_Success` | 0.58 | 0.53–0.66 | 0 B |
+| `Result_Failure` | below resolution ¹ | | 0 B |
+| `Validator_Generated` | 0.39 | 0.37–0.43 | 0 B |
+
+¹ Under a nanosecond, below what BenchmarkDotNet resolves: the JIT reduces constructing the struct to almost nothing. `tests/MyApp.UnitTests/AllocationTests.cs` asserts the 0 B of every row.
 
 ### Reading the numbers
 
-**EF Core → ZA.ORM 1.1 delta.** Comparing the post-swap `WritePipeline` row against the pre-swap `PlaceOrder_FullPipeline` row in the historical section below: Sqlite 738.7 μs → 186.2 μs (−75%) / 117.9 KB → 29.2 KB (−75%). Postgres 1,224.1 μs → 658.7 μs (−46%) / 117.1 KB → 32.0 KB (−73%). The Sqlite time-win is much larger because Postgres latency is dominated by the network round-trip — the framework-overhead share left over after the wire is still ~73% leaner. The allocation profile reflects ZA.ORM having no change tracker, no model snapshot, no proxy materialisation: `PlaceOrderHandler` calls a `[Command]`-generated `InsertOrderAsync` that executes a direct `INSERT` against `IAsyncDbConnection`.
+**EF Core → ZA.ORM 1.1 delta, from the CI runs.** Comparing the post-swap `WritePipeline` row of [run 26778623747](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/actions/runs/26778623747) against the pre-swap `PlaceOrder_FullPipeline` row in the historical section below: Sqlite 738.7 μs → 186.2 μs (−75%) / 117.9 KB → 29.2 KB (−75%). Postgres 1,224.1 μs → 658.7 μs (−46%) / 117.1 KB → 32.0 KB (−73%). The Sqlite time-win is much larger because Postgres latency is dominated by the network round-trip — the framework-overhead share left over after the wire is still ~73% leaner. The allocation profile reflects ZA.ORM having no change tracker, no model snapshot, no proxy materialisation: `PlaceOrderHandler` calls a `[Command]`-generated `InsertOrderAsync` that executes a direct `INSERT` against `IAsyncDbConnection`.
 
-**The ZA framework cost is provider-independent.** Allocations differ by ~3 KB across backends (29.15 KB ↔ 31.97 KB) — the gap is Npgsql command/parameter cost vs Microsoft.Data.Sqlite's lighter wire, not the framework hot path. The TypedId / Money / Result / Validator primitives all return in single-digit ns with 0 B; `TypedId_Construct` inlines to nothing (0.0026 ns is the measurement floor).
+**The ZA framework cost is provider-independent.** Allocations differ by 3.7 KB across backends (30,785 B ↔ 34,537 B) — the gap is Npgsql command/parameter cost vs Microsoft.Data.Sqlite's lighter wire, not the framework hot path. The TypedId / Money / Result / Validator primitives all allocate 0 B; `TypedId_Construct` and `Result_Failure` inline to almost nothing.
 
 **The SQLite numbers under-state real-world latency** — in-memory SQLite has zero I/O and a single-process lock. The Postgres numbers, by contrast, exercise a real connection pool and WAL flush. For capacity planning, anchor on the Postgres row; for regression-detection of framework changes, the Sqlite row is the tighter signal.
 

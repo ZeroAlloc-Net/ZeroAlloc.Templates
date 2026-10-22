@@ -7,6 +7,10 @@ that a measurement should drive the call rather than an intuition.
 **Answer: no. JWT validation is ~4% of per-request CPU. The cache is not
 worth its security surface in a template.**
 
+> **Re-measured 2026-10-21, see [the addendum](#addendum-2026-10-21-re-measured-against-an-uncached-request).**
+> The request this report divided by was served from the output cache. Against a request that
+> runs the full read path, JWT validation is 6.2% of the time; against a cache hit it is 10.9%.
+
 ## What was measured
 
 `JwtValidationBench` in `content/za-clean/benchmarks/MyApp.Benchmarks`,
@@ -103,3 +107,29 @@ dotnet run --project benchmarks/MyApp.Benchmarks -c Release -- --filter "*ReadPi
 ```
 
 12th Gen Intel Core i9-12900HK, .NET 10.0.10, X64 RyuJIT.
+
+## Addendum 2026-10-21: re-measured against an uncached request
+
+`ReadPipelineBench` repeats one `GET /orders/{id}` for one id, and the route caches authenticated
+GETs, so after the first iteration every request was a cache hit. The denominator above therefore
+measured the cached path, not the mediator, ZA.ORM and JSON work this report describes. The
+benchmark now measures both, and both were re-measured in one BenchmarkDotNet run with
+`JwtValidationBench`, on an otherwise idle machine, in three launches pinned to two performance
+cores.
+
+> Allocations are exact. Speed is shown as same-run ratios; absolute timings are not published.
+
+| Request | JWT share, time | Launch extremes | JWT share, allocations |
+|---|---:|---:|---:|
+| Uncached, full read path | **6.2%** | 5.3–7.5% | 15.3% of 28,738 B |
+| Output-cache hit | **10.9%** | 9.5–13.3% | 17.8% of 24,723 B |
+
+The validation costs in isolation moved with the machine but kept their shape: validation without
+building the principal is 0.71 of a full validation, a hash-keyed cache hit 0.13 and a token-keyed
+hit 0.01. Allocations are unchanged at 4,400, 2,696, 336 and 0 B.
+
+**The verdict holds on the numbers.** A validated-token cache would return at most about 6% of an
+uncached request and about 11% of a cached one, and the hash-keyed design would give back an
+eighth of that saving on every hit. That does not buy skipping signature verification in a
+template. The cached share is the larger number to weigh if the decision is reopened, as the
+section above anticipated.
