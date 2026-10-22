@@ -45,7 +45,7 @@ curl http://localhost:5000/healthz
 `za-clean` ships with:
 - Four layered projects (`Domain`, `Application`, `Infrastructure`, `Api`) with NetArchTest-enforced boundaries
 - 49 passing tests (12 unit + 5 architecture + 32 integration)
-- A BenchmarkDotNet write-pipeline scenario (~1.3 ms / ~36 KB per request through the full middleware stack on Linux/AMD EPYC Postgres CI; see [run 26778623747](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/actions/runs/26778623747))
+- A BenchmarkDotNet write-pipeline scenario (36,920 B per request through the full middleware stack on SQLite, 38,551 B on Postgres; see [docs/za-clean.md](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/blob/main/docs/za-clean.md#benchmarks))
 - An NBomber read-RPS scenario for load testing under sustained concurrency
 - An `AGENTS.md` that orients Claude Code, Cursor, GitHub Copilot, Codex, and Aider to the codebase
 

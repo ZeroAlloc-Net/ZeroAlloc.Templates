@@ -5,6 +5,7 @@ using System.Net.Http.Json;
 using BenchmarkDotNet.Attributes;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.OutputCaching;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -45,6 +46,16 @@ public class ReadPipelineBench
 {
     [Params(DbBackend.Sqlite)]
     public DbBackend Backend { get; set; }
+
+    /// <summary>
+    /// <c>GET /orders/{id}</c> carries the <c>OrderById</c> output-cache policy, so a repeated GET
+    /// on one id within the TTL is answered from the cache after authentication, without the
+    /// mediator, the repository read or serialisation. <c>false</c> swaps the policy for
+    /// <c>NoCache()</c>, so every iteration runs the whole read path; <c>true</c> measures the
+    /// cache hit that the template serves for repeated reads.
+    /// </summary>
+    [Params(false, true)]
+    public bool OutputCached { get; set; }
 
     private WebApplicationFactory<Program>? _factory;
     private HttpClient? _client;
@@ -90,6 +101,12 @@ public class ReadPipelineBench
                     s.Remove(shippingDescriptor);
                 }
                 s.AddScoped<IShippingQuoteClient, BenchReadShippingClient>();
+
+                if (!OutputCached)
+                {
+                    s.PostConfigure<OutputCacheOptions>(o =>
+                        o.AddPolicy("OrderById", p => p.NoCache(), excludeDefaultPolicy: true));
+                }
             });
         });
 

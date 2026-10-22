@@ -7,14 +7,14 @@ Clean Architecture Web API. **Publishes as a ~27 MB Native AOT binary; cold-star
 | **AOT binary size** | ~27 MB (`MyApp.Api.exe`) + ~2 MB native deps (win-x64, self-contained) |
 | **AOT cold start** | ~540 ms (process → `/healthz` 200, best of 3 on warm disk) |
 | **JIT cold start** (comparison) | ~1.2 s, 110 MB total deploy (same scenario) |
-| **Framework primitives end-to-end** (map + validate + mediator send) | 616 B = 160 B mapping + 456 B mediator send |
-| **Mediator send** (generated `IMediator`, auth + validation behaviours, real handler over stubs) | 456 B = 208 B handler work + 248 B dispatch |
-| **Validator (source-generated, regex zip)** | ~50 ns / 0 B |
-| **ValueObject `TryCreate`** | ~7 ns / 0 B |
-| **Read hot path** (`GetByIdAsync` / Sqlite, head + 2 lines) | ZA.ORM 2.92 KB vs hand-written ADO.NET 2.08 KB — framework 1.41× allocations. ZA.ORM's own [comparison matrix](https://github.com/ZeroAlloc-Net/ZeroAlloc.ORM/blob/main/docs/benchmarks/v0.7.0-sqlite-results.md) against hand-written ADO.NET and Dapper.AOT was last captured at ZA.ORM v0.7.0 |
-| **End-to-end pipeline** (ASP.NET + ZA.ORM, Postgres) | ~1.3 ms / 36 KB — mostly platform overhead, not ZA |
+| **Framework primitives end-to-end** (map + validate + mediator send) | 472 B = 88 B mapping + 384 B mediator send |
+| **Mediator send** (generated `IMediator`, auth + validation behaviours, real handler over stubs) | 384 B = 208 B handler work + 176 B dispatch |
+| **Validator (source-generated, regex zip)** | 0 B, 0.09× the time of a mediator send |
+| **ValueObject `TryCreate`** | 0 B, 0.01× the time of a mediator send |
+| **Read hot path** (`GetByIdAsync` / Sqlite, head + 2 lines) | ZA.ORM 2,992 B vs hand-written ADO.NET 2,128 B — 1.41× the allocations, 1.08× the time. ZA.ORM's own [comparison matrix](https://github.com/ZeroAlloc-Net/ZeroAlloc.ORM/blob/main/docs/benchmarks/v0.7.0-sqlite-results.md) against hand-written ADO.NET and Dapper.AOT was last captured at ZA.ORM v0.7.0 |
+| **End-to-end pipeline** (`POST /orders`, ASP.NET + ZA.ORM) | 36,920 B on SQLite, 38,551 B on Postgres — mostly platform overhead, not ZA |
 
-AOT figures re-measured 2026-06-02 post-ZA.ORM-swap (#152) on i9-12900HK / Windows 11 / .NET 10.0.8. The end-to-end pipeline number was measured in CI on Ubuntu 24.04 / AMD EPYC / .NET 10.0.8 via [`Benchmarks (manual)` run 26778623747](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/actions/runs/26778623747). Primitive and read-path allocations were re-measured 2026-10-11 (#474) on i9-12900HK / .NET 10.0.12; timings from that loaded machine are approximate, the allocations are exact. The 160 B mapping cost is the `OrderItem[]` the command carries, a caller cost every framework pays. Earlier read-path numbers came from a bench that read the `OrderId(0)` sentinel and so measured the not-found path.
+AOT figures re-measured 2026-06-02 post-ZA.ORM-swap (#152) on i9-12900HK / Windows 11 / .NET 10.0.8. The BenchmarkDotNet rows were re-measured 2026-10-21 on an otherwise idle i9-12900HK / .NET 10.0.13, out of process in three launches pinned to two performance cores; allocations are exact and speed is a same-run ratio. The 88 B mapping cost is the `List<OrderItem>` the command carries, 32 B for the list and 56 B for its one-item array, a caller cost every framework pays. Earlier read-path numbers came from a bench that read the `OrderId(0)` sentinel and so measured the not-found path.
 
 **Reproduce:**
 

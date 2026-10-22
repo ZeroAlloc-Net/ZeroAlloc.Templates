@@ -1,6 +1,6 @@
 # MyApp
 
-Vertical Slice Architecture Web API. Source-generated and published as Native AOT. The ZeroAlloc primitives — typed ids, value objects, `Result<T, Error>` and the generated validators — allocate nothing per call, which `tests/MyApp.UnitTests/AllocationTests.cs` asserts; a full request through ASP.NET and ZA.ORM costs ~29–32 KB (see the table). Built on the [ZeroAlloc.\*](https://github.com/ZeroAlloc-Net) ecosystem.
+Vertical Slice Architecture Web API. Source-generated and published as Native AOT. The ZeroAlloc primitives — typed ids, value objects, `Result<T, Error>` and the generated validators — allocate nothing per call, which `tests/MyApp.UnitTests/AllocationTests.cs` asserts; a full request through ASP.NET and ZA.ORM allocates 30–34 KB (see the table). Built on the [ZeroAlloc.\*](https://github.com/ZeroAlloc-Net) ecosystem.
 
 Where Clean Architecture splits the codebase by *technical layer* (Domain / Application / Infrastructure / Api, four csprojs, dependency direction strictly inward), vertical slice splits by *use case*: one folder per feature, one file per slice, every slice owns its request + validator + handler + endpoint + entity. It references nine ZeroAlloc libraries in 19 packages: Mediator, Validation, Authorization, Mapping, ValueObjects, Inject, Results, Serialisation and ORM. It makes no outbound HTTP call, so it leaves out `za-clean`'s Rest and Resilience.
 
@@ -8,19 +8,19 @@ Where Clean Architecture splits the codebase by *technical layer* (Domain / Appl
 |---|---:|
 | **AOT binary size** | ~27 MB (`MyApp.exe`) + ~2 MB native deps (win-x64, self-contained) |
 | **AOT cold start** | ~540 ms (process → `/healthz` 200, best of 3 on warm disk) |
-| **ValueObject `TryCreate` (Money)** | ~3 ns / 0 B |
-| **TypedId construct** | ~0 ns / 0 B (inlined away) |
-| **Validator (source-generated)** | ~4 ns / 0 B |
-| **`Result<T, Error>` (success path)** | ~7 ns / 0 B |
-| **WritePipeline (ASP.NET + ZA.ORM, Postgres)** | ~659 μs / 32 KB per request |
-| **WritePipeline (ASP.NET + ZA.ORM, Sqlite)** | ~186 μs / 29 KB per request |
+| **ValueObject `TryCreate` (Money)** | 0 B on success and on failure |
+| **TypedId construct** | 0 B, inlined away |
+| **Validator (source-generated)** | 0 B |
+| **`Result<T, Error>`** | 0 B on success and on failure |
+| **WritePipeline (ASP.NET + ZA.ORM, Postgres)** | 34,537 B per request |
+| **WritePipeline (ASP.NET + ZA.ORM, Sqlite)** | 30,785 B per request |
 
-AOT figures measured on i9-12900HK / Windows 11 / .NET 10.0.8 post-B5 (PR #161 — the swap from JIT to NativeAOT). Pipeline + primitive numbers measured in CI on Ubuntu 24.04 / AMD EPYC / .NET 10.0.8 via [`Benchmarks (manual)` run 26778623747](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/actions/runs/26778623747).
+AOT figures measured on i9-12900HK / Windows 11 / .NET 10.0.8 post-B5 (PR #161 — the swap from JIT to NativeAOT). The BenchmarkDotNet rows were re-measured 2026-10-21 on an otherwise idle i9-12900HK / .NET 10.0.13, out of process in three launches pinned to two performance cores. Allocations are exact; the [template guide](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/blob/main/docs/za-vertical-slice.md) gives the primitives' same-run ratios.
 
 **Reproduce:**
 
 ```bash
-# Framework primitives (zero-alloc, ns/op — what ZA is)
+# Framework primitives (zero-alloc — what ZA is)
 dotnet run -c Release --project benchmarks/MyApp.Benchmarks.Primitives -- --filter "*"
 
 # Full pipeline (ASP.NET + ZA.ORM — what the platform costs)
