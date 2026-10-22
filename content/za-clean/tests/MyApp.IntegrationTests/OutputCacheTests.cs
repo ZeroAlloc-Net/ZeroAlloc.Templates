@@ -6,6 +6,7 @@ using System.Net.Http.Json;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Xunit;
 
 namespace MyApp.IntegrationTests;
@@ -47,7 +48,7 @@ public sealed class OutputCacheTests
     }
 
     [Fact]
-    public async Task POST_orders_evicts_cached_GET_responses_so_next_read_is_fresh()
+    public async Task POST_orders_does_not_evict_cached_GET_responses()
     {
         using var factory = CreateFactory();
         var client = factory.CreateClient();
@@ -61,13 +62,38 @@ public sealed class OutputCacheTests
 
         await UpdateOrderCustomerIdAsync(factory, seededId, newCustomerId: 999);
 
-        // A POST to /orders evicts ALL "orders"-tagged cache entries.
+        // Creating another order cannot change a cached one, so it evicts nothing.
         await SeedOneOrderAsync(client);
 
         var second = await client.GetAsync($"/orders/{seededId}");
         var secondBody = await second.Content.ReadAsStringAsync();
-        Assert.NotEqual(firstBody, secondBody);
-        Assert.Contains("\"customerId\":999", secondBody);
+        Assert.Equal(firstBody, secondBody);
+        Assert.DoesNotContain("\"customerId\":999", secondBody);
+    }
+
+    [Fact]
+    public async Task GET_orders_id_is_not_cached_when_TTL_is_zero()
+    {
+        // A TTL of 0 turns the cache off. Before the fix it reached Expire(0), and the
+        // memory store threw on every response it tried to store; the middleware logged
+        // the exception and served the response uncached.
+        using var factory = CreateFactory(ttlSeconds: 0);
+        var errors = new ErrorLogCollector();
+        using var hosted = factory.WithWebHostBuilder(b => b.ConfigureLogging(l => l.AddProvider(errors)));
+        var client = hosted.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue(
+            "Bearer", TestJwt.Issue(["orders.read", "orders.write"]));
+
+        var seededId = await SeedOneOrderAsync(client);
+        var first = await client.GetAsync($"/orders/{seededId}");
+        Assert.Equal(HttpStatusCode.OK, first.StatusCode);
+
+        await UpdateOrderCustomerIdAsync(factory, seededId, newCustomerId: 999);
+
+        var second = await client.GetAsync($"/orders/{seededId}");
+        Assert.Equal(HttpStatusCode.OK, second.StatusCode);
+        Assert.Contains("\"customerId\":999", await second.Content.ReadAsStringAsync());
+        Assert.Empty(errors.Messages);
     }
 
     [Fact]
@@ -177,5 +203,30 @@ internal sealed class MyAppFactoryWithCacheTtl : MyAppFactory
         // visible to builder.Configuration.GetValue inside Program.cs.
         builder.UseSetting("OutputCache:OrderByIdTtlSeconds", _ttl.ToString());
         base.ConfigureWebHost(builder);
+    }
+}
+
+/// <summary>Collects every log entry at Error or above, from any category.</summary>
+internal sealed class ErrorLogCollector : ILoggerProvider
+{
+    public System.Collections.Concurrent.ConcurrentQueue<string> Messages { get; } = new();
+
+    public ILogger CreateLogger(string categoryName) => new Logger(this, categoryName);
+
+    public void Dispose()
+    {
+    }
+
+    private sealed class Logger(ErrorLogCollector owner, string category) : ILogger
+    {
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => logLevel >= LogLevel.Error;
+
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
+        {
+            if (IsEnabled(logLevel))
+                owner.Messages.Enqueue(category + ": " + formatter(state, exception));
+        }
     }
 }

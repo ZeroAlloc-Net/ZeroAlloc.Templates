@@ -113,9 +113,9 @@ Full methodology + per-package comparisons (ZA.Mapping vs Mapperly/AutoMapper, e
 }
 ```
 
-Lower TTL = fresher data + less pool relief; higher = more pool relief + staler responses.
+Lower TTL = fresher data + less pool relief; higher = more pool relief + staler responses. A TTL of `0` turns the cache off.
 
-**Eviction:** any successful POST `/orders` evicts ALL cached `/orders/{id}` responses via tag-based bulk eviction. Conservative — always correct, simpler than per-id invalidation; a production-grade app might prefer `EvictByTagAsync($"order:{id}")` for precision.
+**Eviction:** every cached response is tagged `orders` and `order:{id}`; the GET endpoint adds the per-id tag. `POST /orders` evicts nothing: only 200 responses are cached, so no cached read can describe an order that did not exist yet. An endpoint you add that changes an existing order should evict that order alone, with `EvictByTagAsync($"order:{id}")`. Evicting the whole `orders` tag on every write empties the cache under a steady write rate, and every read then goes back to the database.
 
 **Authenticated GETs:** the framework's `DefaultPolicy` refuses to cache responses with an `Authorization` header. A custom `CacheAuthenticatedGetsPolicy` (in `MyApp.Api/CacheAuthenticatedGetsPolicy.cs`) bypasses that check — safe here because order payloads are not user-specific. If you add an endpoint whose body varies per user, use `.CacheOutput(o => o.SetVaryByHeader("Authorization"))` to key per-token instead.
 

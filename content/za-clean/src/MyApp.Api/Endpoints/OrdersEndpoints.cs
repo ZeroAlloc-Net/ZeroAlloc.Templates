@@ -1,3 +1,4 @@
+using System.Globalization;
 using Microsoft.AspNetCore.OutputCaching;
 using MyApp.Api.Dtos;
 using MyApp.Api.Mappings;
@@ -13,17 +14,17 @@ public static class OrdersEndpoints
     {
         var group = app.MapGroup("/orders").WithTags("Orders");
 
-        group.MapPost("/", async (OrderRequest req, IMediator mediator, IOutputCacheStore cache, CancellationToken ct) =>
+        // Creating an order evicts nothing. Only 200 responses are cached, so no
+        // cached /orders/{id} can describe an id that did not exist yet. An
+        // endpoint that changes an existing order evicts that order alone, with
+        // EvictByTagAsync("order:" + id); evicting the whole "orders" tag on every
+        // write empties the cache under a steady write rate.
+        group.MapPost("/", async (OrderRequest req, IMediator mediator, CancellationToken ct) =>
         {
             var command = OrderRequestToCommand.Map(req);
             var result = await mediator.Send(command, ct).ConfigureAwait(false);
             if (result.IsSuccess)
             {
-                // Evict all cached /orders/{id} responses so the next read picks up
-                // the new state. Tag-based bulk eviction is conservative — even an
-                // unrelated id's cache entry gets dropped — but it's always correct
-                // and dramatically simpler than per-id invalidation.
-                await cache.EvictByTagAsync("orders", ct).ConfigureAwait(false);
                 return Results.Created($"/orders/{result.Value.Value}", new CreatedOrderResponse(result.Value));
             }
             return Results.Problem(result.Error.Message, statusCode: StatusCodes.Status400BadRequest);
@@ -33,12 +34,17 @@ public static class OrdersEndpoints
         // and avoids requiring the typed ID to implement IParsable<T>). The
         // endpoint wraps it into the OrderId typed ID at the API boundary, before
         // it crosses into the application layer.
-        group.MapGet("/{id:int}", async (int id, IMediator mediator, CancellationToken ct) =>
+        group.MapGet("/{id:int}", async (int id, IMediator mediator, HttpContext http, CancellationToken ct) =>
         {
             var result = await mediator.Send(new GetOrderByIdQuery(new OrderId(id)), ct).ConfigureAwait(false);
-            return result.IsSuccess
-                ? Results.Ok(ReadModelToResponse.Map(result.Value))
-                : Results.NotFound();
+            if (!result.IsSuccess)
+                return Results.NotFound();
+
+            // Tag the cached response with its id, so a write to this order can evict it
+            // alone. This handler runs only on a cache miss; a hit never pays for the tag.
+            http.Features.Get<IOutputCacheFeature>()?.Context.Tags.Add(
+                "order:" + id.ToString(CultureInfo.InvariantCulture));
+            return Results.Ok(ReadModelToResponse.Map(result.Value));
         }).RequireAuthorization("OrdersRead").CacheOutput("OrderById");
 
         return app;

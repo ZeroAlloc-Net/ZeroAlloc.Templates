@@ -1,4 +1,5 @@
 using System.Data.Async;
+using System.Globalization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.OutputCaching;
 using Microsoft.AspNetCore.Routing;
@@ -65,12 +66,17 @@ public sealed partial class GetOrderHandler(IAsyncDbConnection conn)
 public static class GetOrderEndpoint
 {
     public static void Map(IEndpointRouteBuilder app) =>
-        app.MapGet("/orders/{id:int}", static async (int id, IMediator mediator, CancellationToken ct) =>
+        app.MapGet("/orders/{id:int}", static async (int id, IMediator mediator, HttpContext http, CancellationToken ct) =>
             {
                 var result = await mediator.Send(new GetOrderQuery(new OrderId(id)), ct).ConfigureAwait(false);
-                return result.IsSuccess
-                    ? Results.Ok(result.Value)
-                    : result.Error.ToProblem();
+                if (!result.IsSuccess)
+                    return result.Error.ToProblem();
+
+                // Tag the cached response with its id, so a write to this row can evict it
+                // alone. This handler runs only on a cache miss; a hit never pays for the tag.
+                http.Features.Get<IOutputCacheFeature>()?.Context.Tags.Add(
+                    "order:" + id.ToString(CultureInfo.InvariantCulture));
+                return Results.Ok(result.Value);
             })
             .RequireAuthorization("OrdersRead")
             .CacheOutput("OrderById");

@@ -2,6 +2,7 @@ using System.Data.Async;
 using System.Data.Async.Adapters;
 using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.OutputCaching;
 using Microsoft.Data.Sqlite;
 using Microsoft.IdentityModel.Tokens;
 using MyApp;
@@ -183,10 +184,14 @@ builder.Services.ConfigureHttpJsonOptions(o =>
 // ---------------------------------------------------------------------------
 // Output caching — absorbs concurrent same-id reads to relieve Npgsql pool
 // pressure under load (see docs/benchmarks/2026-06-08-189-dotnet-counters-vs.md).
-// Two policies: OrderById (tag "orders", evicted by PlaceOrder + CancelOrder)
-// and CustomerById (tag "customers", evicted by CreateCustomer). TTLs
-// config-tunable via OutputCache:OrderByIdTtlSeconds /
-// OutputCache:CustomerByIdTtlSeconds (default 30s each).
+// Two policies: OrderById and CustomerById. Each cached response carries a
+// collection tag ("orders", "customers") and a per-id tag that the GET endpoint
+// adds ("order:{id}", "customer:{id}"). CancelOrder evicts "order:{id}" alone;
+// evicting the collection tag on every write empties the cache under a steady
+// write rate. PlaceOrder and CreateCustomer evict nothing, because only 200
+// responses are cached and a new id was never served. TTLs config-tunable via
+// OutputCache:OrderByIdTtlSeconds / OutputCache:CustomerByIdTtlSeconds
+// (default 30s each).
 //
 // excludeDefaultPolicy: true + a custom CacheAuthenticatedGetsPolicy lets the
 // cache serve JWT-protected GETs. The framework's DefaultPolicy refuses any
@@ -200,12 +205,18 @@ var orderByIdTtl = builder.Configuration.GetValue<int?>("OutputCache:OrderByIdTt
 var customerByIdTtl = builder.Configuration.GetValue<int?>("OutputCache:CustomerByIdTtlSeconds") ?? 30;
 builder.Services.AddOutputCache(opt =>
 {
-    opt.AddPolicy("OrderById",
-        b => b.AddPolicy<CacheAuthenticatedGetsPolicy>().Tag("orders").Expire(TimeSpan.FromSeconds(orderByIdTtl)),
-        excludeDefaultPolicy: true);
-    opt.AddPolicy("CustomerById",
-        b => b.AddPolicy<CacheAuthenticatedGetsPolicy>().Tag("customers").Expire(TimeSpan.FromSeconds(customerByIdTtl)),
-        excludeDefaultPolicy: true);
+    opt.AddPolicy("OrderById", b => CachePolicy(b, "orders", orderByIdTtl), excludeDefaultPolicy: true);
+    opt.AddPolicy("CustomerById", b => CachePolicy(b, "customers", customerByIdTtl), excludeDefaultPolicy: true);
+
+    // A TTL of 0 or less turns the cache off for the route. The memory store
+    // rejects a zero expiry, so it must never reach Expire().
+    static void CachePolicy(OutputCachePolicyBuilder b, string tag, int ttlSeconds)
+    {
+        if (ttlSeconds > 0)
+            b.AddPolicy<CacheAuthenticatedGetsPolicy>().Tag(tag).Expire(TimeSpan.FromSeconds(ttlSeconds));
+        else
+            b.NoCache();
+    }
 });
 
 #if (EnableSwagger)

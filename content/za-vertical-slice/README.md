@@ -90,7 +90,6 @@ One file holds every concept that participates in `POST /orders`: the request wi
 ```csharp
 using System.Data.Async;
 using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.OutputCaching;
 using Microsoft.AspNetCore.Routing;
 using MyApp.Common;
 using MyApp.Persistence;
@@ -137,12 +136,13 @@ public sealed partial class PlaceOrderHandler(IAsyncDbConnection conn)
 public static class PlaceOrderEndpoint
 {
     public static void Map(IEndpointRouteBuilder app) =>
-        app.MapPost("/orders", static async (PlaceOrderCommand cmd, IMediator mediator, IOutputCacheStore cache, CancellationToken ct) =>
+        // Evicts nothing: only 200 responses are cached, so no cached GET can
+        // describe an id that did not exist yet.
+        app.MapPost("/orders", static async (PlaceOrderCommand cmd, IMediator mediator, CancellationToken ct) =>
             {
                 var result = await mediator.Send(cmd, ct).ConfigureAwait(false);
                 if (result.IsSuccess)
                 {
-                    await cache.EvictByTagAsync("orders", ct).ConfigureAwait(false);
                     return Results.Created($"/orders/{result.Value.Value}", result.Value);
                 }
 
@@ -218,11 +218,13 @@ Violations fail CI.
 }
 ```
 
-**Eviction:** writes evict the corresponding tag on success:
-- `PlaceOrder` and `CancelOrder` → `EvictByTagAsync("orders")`
-- `CreateCustomer` → `EvictByTagAsync("customers")`
+A TTL of `0` turns the cache off for that route.
 
-Tag-based bulk eviction is conservative (always correct, simpler than per-id) — a production-grade app might prefer per-id eviction for precision.
+**Eviction:** every cached response carries a collection tag (`orders`, `customers`) and a per-id tag (`order:{id}`, `customer:{id}`) added by the GET endpoint. Writes evict only what they change:
+- `CancelOrder` → `EvictByTagAsync("order:" + id)`
+- `PlaceOrder` and `CreateCustomer` evict nothing: only 200 responses are cached, so no cached read can describe an id that did not exist yet.
+
+Evicting a whole collection tag on every write empties the cache under a steady write rate, and every read then goes back to the database. A slice that changes an existing row evicts that row's per-id tag.
 
 **Authenticated GETs:** the framework's `DefaultPolicy` refuses to cache responses with an `Authorization` header. A custom `CacheAuthenticatedGetsPolicy` (in `MyApp/CacheAuthenticatedGetsPolicy.cs`) bypasses that check — safe here because the demo payloads are not user-specific. If you add an endpoint whose body varies per user, use `.CacheOutput(o => o.SetVaryByHeader("Authorization"))` to key per-token instead.
 
