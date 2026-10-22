@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.16.4](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/compare/ZeroAlloc.Templates-v0.16.3...ZeroAlloc.Templates-v0.16.4) (2026-10-22)
+
+
+### Bug Fixes
+
+* evict one cached order per write and allow a TTL of zero ([bc0992d](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/commit/bc0992da1fcb0c364072c135397de494a08c5da0))
+
+
+### Performance Improvements
+
+* turn on Npgsql auto-prepare and multiplexing by default ([bc0992d](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/commit/bc0992da1fcb0c364072c135397de494a08c5da0))
+
+
+### Documentation
+
+* re-measure template capacity and add the oha capacity harness ([bc0992d](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/commit/bc0992da1fcb0c364072c135397de494a08c5da0))
+
 ## [0.16.3](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/compare/ZeroAlloc.Templates-v0.16.2...ZeroAlloc.Templates-v0.16.3) (2026-10-22)
 
 
