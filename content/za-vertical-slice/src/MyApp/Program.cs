@@ -60,40 +60,12 @@ var dbProvider = builder.Configuration.GetValue<string>("Database:Provider") ?? 
 var connectionString = builder.Configuration.GetConnectionString("Default")
     ?? "Data Source=app.db";
 
-// Two Npgsql settings are turned on unless the connection string sets them.
-// Both are off by default in Npgsql. What each is worth here is measured in
-// https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/blob/main/docs/benchmarks/2026-10-22-template-capacity.md.
-//
-//   Max Auto Prepare  Npgsql prepares a statement once it has run a few times on
-//                     a physical connection, so the server skips parse and plan
-//                     on every later call. Every statement here repeats.
-//   Multiplexing      commands from concurrent requests share physical
-//                     connections and are written to the socket in batches,
-//                     instead of each request holding a connection for its whole
-//                     round trip. It needs the async Npgsql API throughout, which
-//                     ZA.ORM uses, and keeps no session state between commands:
-//                     no SET, temporary tables or LISTEN outside a transaction.
-//                     Add Multiplexing=false to the connection string if a slice
-//                     needs those.
-//
-// The normalised string lists only the keys that were set, under their canonical
-// names, so a synonym such as MaxAutoPrepare still counts as set.
+// Postgres gets Npgsql auto-prepare and multiplexing unless the connection string
+// sets them; NpgsqlConnectionStrings explains both and how to opt out.
 var isPostgres = string.Equals(dbProvider, "Postgres", StringComparison.OrdinalIgnoreCase);
-var appConnectionString = connectionString;
-if (isPostgres)
-{
-    var npgsql = new NpgsqlConnectionStringBuilder(connectionString);
-    var explicitlySet = new System.Data.Common.DbConnectionStringBuilder { ConnectionString = npgsql.ConnectionString };
-    if (!explicitlySet.ContainsKey("Max Auto Prepare"))
-    {
-        npgsql.MaxAutoPrepare = 20;
-    }
-    if (!explicitlySet.ContainsKey("Multiplexing"))
-    {
-        npgsql.Multiplexing = true;
-    }
-    appConnectionString = npgsql.ConnectionString;
-}
+var appConnectionString = isPostgres
+    ? MyApp.Persistence.NpgsqlConnectionStrings.WithThroughputDefaults(connectionString)
+    : connectionString;
 
 builder.Services.AddScoped<IAsyncDbConnection>(_ =>
 {

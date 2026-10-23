@@ -19,7 +19,7 @@ HTTP POST /orders
 │   [Validate] → generated PlaceOrderCommandValidator      │
 │   PlaceOrderHandler : IRequestHandler<…>                 │
 │   PlaceOrderEndpoint.Map(IEndpointRouteBuilder)          │
-│   public sealed class Order  ← persistence entity        │
+│   [Command] InsertOrderAsync ← the slice's own SQL       │
 └────────────────────┬─────────────────────────────────────┘
                      │ depends only on
                      ▼
@@ -31,7 +31,7 @@ HTTP POST /orders
 └──────────────────────────────────────────────────────────┘
 ```
 
-- **`Features/<Area>/<UseCase>/<UseCase>.cs`** — one slice per use case. Holds the request + validator + handler + endpoint + (optionally) the persistence entity owned by that slice.
+- **`Features/<Area>/<UseCase>/<UseCase>.cs`** — one slice per use case. Holds the request + validator + handler + endpoint, and the `[Query]`/`[Command]` SQL the handler runs.
 - **`Common/`** — primitives shared across slices: the `[ValueObject]` ids, `Money`, the `Error` catalog, and `Telemetry` (the OTel source and meter names). Cross-cutting telemetry comes from the mediator pipeline, so slices stay self-contained: every `Send` gets a `mediator.send` span from the generated mediator, and ZeroAlloc.Mediator.Telemetry's pipeline behavior, wired with `WithTelemetry()` in `AddMyApp`, records `mediator.requests_total` and `mediator.request_duration_ms`. A new slice needs no telemetry code. `za-clean` uses ZA.Telemetry `[Instrument]` on its ports instead: each template uses the tool that fits its architecture.
 - **Per-slice persistence** — each feature handler is a `public sealed partial class XxxHandler(IAsyncDbConnection conn)` with inline `[Query]`/`[Command]` partials and any row records co-located in the slice file. There is no central persistence type — the slice owns its data access shape, matching the vertical-slice principle that "everything a slice needs lives in the slice". `Persistence/Migrations/{Sqlite,Postgres}/NNN_<name>.sql` holds the embedded SQL applied at startup by `ZeroAlloc.ORM.Migrations.MigrationRunner`.
 - **`Authorization/Policies.cs`** — `[Policy]` declarations used by `[RequirePolicy(...)]` on requests.

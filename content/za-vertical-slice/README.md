@@ -2,7 +2,7 @@
 
 Vertical Slice Architecture Web API. Source-generated and published as Native AOT. The ZeroAlloc primitives — typed ids, value objects, `Result<T, Error>` and the generated validators — allocate nothing per call, which `tests/MyApp.UnitTests/AllocationTests.cs` asserts; a full request through ASP.NET and ZA.ORM allocates 30–34 KB (see the table). Built on the [ZeroAlloc.\*](https://github.com/ZeroAlloc-Net) ecosystem.
 
-Where Clean Architecture splits the codebase by *technical layer* (Domain / Application / Infrastructure / Api, four csprojs, dependency direction strictly inward), vertical slice splits by *use case*: one folder per feature, one file per slice, every slice owns its request + validator + handler + endpoint + entity. It references nine ZeroAlloc libraries in 19 packages: Mediator, Validation, Authorization, Mapping, ValueObjects, Inject, Results, Serialisation and ORM. It makes no outbound HTTP call, so it leaves out `za-clean`'s Rest and Resilience.
+Where Clean Architecture splits the codebase by *technical layer* (Domain / Application / Infrastructure / Api, four csprojs, dependency direction strictly inward), vertical slice splits by *use case*: one folder per feature, one file per slice, every slice owns its request, validator, handler, endpoint and SQL. It references nine ZeroAlloc libraries in 19 packages: Mediator, Validation, Authorization, Mapping, ValueObjects, Inject, Results, Serialisation and ORM. It makes no outbound HTTP call, so it leaves out `za-clean`'s Rest and Resilience.
 
 | | Value |
 |---|---:|
@@ -55,12 +55,12 @@ src/
     ├── Persistence/                      IAsyncDbConnection wiring + Migrations/{Sqlite,Postgres}/*.sql
     └── Features/
         ├── Orders/
-        │   ├── PlaceOrder/PlaceOrder.cs    request + validator + handler + endpoint + Order entity + [Command] partial
+        │   ├── PlaceOrder/PlaceOrder.cs    request + validator + handler + endpoint + [Command] partial
         │   ├── GetOrder/GetOrder.cs        request + validator + handler + endpoint + [Query] partial
         │   ├── ListOrders/ListOrders.cs    paged read ([Query] partial co-located)
         │   └── CancelOrder/CancelOrder.cs  state transition ([Command] partial co-located)
         └── Customers/
-            ├── CreateCustomer/CreateCustomer.cs  owns Customer entity + [Command] partial co-located
+            ├── CreateCustomer/CreateCustomer.cs  request + handler + endpoint + [Command] partial
             └── GetCustomer/GetCustomer.cs        [Query] partial co-located
 
 tests/
@@ -76,7 +76,7 @@ benchmarks/
 
 ## The canonical slice — `Features/Orders/PlaceOrder/PlaceOrder.cs`
 
-One file holds every concept that participates in `POST /orders`: the request with its validation attributes, the handler with its ZA.ORM `[Command]` partial, the endpoint, and the `Order` entity. This is the file as shipped, without its XML doc comments:
+One file holds every concept that participates in `POST /orders`: the request with its validation attributes, the handler with its ZA.ORM `[Command]` partial, and the endpoint. This is the file as shipped, without its XML doc comments:
 
 ```csharp
 using System.Data.Async;
@@ -140,36 +140,6 @@ public static class PlaceOrderEndpoint
                 return result.Error.ToProblem();
             })
             .RequireAuthorization("OrdersWrite");
-}
-
-public sealed class Order
-{
-    public Order(CustomerId customerId, decimal total)
-    {
-        Id = new OrderId(0);
-        CustomerId = customerId;
-        Total = total;
-        Status = OrderStatus.Pending;
-    }
-
-    public OrderId Id { get; private set; }
-
-    public CustomerId CustomerId { get; private set; }
-
-    public decimal Total { get; private set; }
-
-    public OrderStatus Status { get; private set; }
-
-    public bool Cancel()
-    {
-        if (Status == OrderStatus.Cancelled)
-        {
-            return false;
-        }
-
-        Status = OrderStatus.Cancelled;
-        return true;
-    }
 }
 
 public enum OrderStatus
