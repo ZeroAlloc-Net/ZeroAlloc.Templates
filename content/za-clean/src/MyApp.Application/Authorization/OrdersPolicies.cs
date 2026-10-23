@@ -9,18 +9,20 @@ using ZeroAlloc.Results;
 namespace MyApp.Application.Authorization;
 
 /// <summary>
-/// Grants access to read-side order operations (queries). Requires the
-/// "orders.read" scope claim, mirroring the endpoint-level "OrdersRead"
-/// ASP.NET policy in Program.cs.
+/// Grants access to read-side order operations (queries). Accepts the
+/// "orders.read" or "orders.write" scope, so a writer can also read, matching
+/// the endpoint-level "OrdersRead" ASP.NET policy in Program.cs. If the two
+/// disagreed, a writer-only token would be refused on an uncached read and
+/// allowed on a cached one.
 /// </summary>
 [Policy("OrdersRead")]
 public sealed class OrdersReadPolicy : IAuthorizationPolicy
 {
     public ValueTask<UnitResult<AuthorizationFailure>> EvaluateAsync(
         ISecurityContext ctx, CancellationToken ct = default)
-        => new(HasScope(ctx, "orders.read")
+        => new(HasScope(ctx, "orders.read") || HasScope(ctx, "orders.write")
             ? UnitResult<AuthorizationFailure>.Success()
-            : new AuthorizationFailure(AuthorizationFailure.DefaultDenyCode, "Missing orders.read scope"));
+            : new AuthorizationFailure(AuthorizationFailure.DefaultDenyCode, "Missing orders.read or orders.write scope"));
 
     /// <summary>
     /// Returns true if the space-separated "scope" claim contains <paramref name="scope"/>
