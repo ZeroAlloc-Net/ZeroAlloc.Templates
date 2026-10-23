@@ -60,25 +60,3 @@ public static class CreateCustomerEndpoint
             })
             .RequireAuthorization("CustomersWrite");
 }
-
-/// <summary>
-/// Persistence entity owned by this slice. Public so read-side slices
-/// (GetCustomer) can project from it; handlers and validators stay internal.
-/// Post the ZA.ORM swap, persistence is hand-rolled SQL in the handler — this
-/// type is now a plain DTO/domain object; no EF materialisation ctor is needed.
-/// </summary>
-public sealed class Customer
-{
-    public Customer(string name, string email)
-    {
-        Id = new CustomerId(0);
-        Name = name;
-        Email = email;
-    }
-
-    public CustomerId Id { get; private set; }
-
-    public string Name { get; private set; } = string.Empty;
-
-    public string Email { get; private set; } = string.Empty;
-}

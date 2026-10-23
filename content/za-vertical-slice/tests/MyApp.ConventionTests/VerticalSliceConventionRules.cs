@@ -17,9 +17,8 @@ namespace MyApp.ConventionTests;
 /// </list>
 /// <para>
 /// Notably <i>not</i> enforced: "no slice references another slice's internals."
-/// Entity types intentionally cross slice boundaries (Order is owned by
-/// PlaceOrder but read by GetOrder / ListOrders / CancelOrder; same for
-/// Customer). Handlers, validators, and DTOs naturally stay slice-local via
+/// The types slices share live in <c>Common</c>: the typed ids, <c>Money</c>
+/// and the <c>Error</c> catalog. Handlers, validators, and DTOs naturally stay slice-local via
 /// the namespace structure — adding a cross-slice reference shows up as a
 /// new <c>using</c> at code-review time, which is the cheaper enforcement
 /// surface than a runtime rule.

@@ -7,7 +7,7 @@ sidebar_position: 2
 
 # ZeroAlloc Vertical Slice Template
 
-`za-vertical-slice` is a `dotnet new` template that scaffolds a single-project Vertical Slice Architecture Web API on the ZeroAlloc.\* ecosystem. Where `za-clean` splits the codebase by *technical layer* (Domain / Application / Infrastructure / Api, four csprojs, dependency direction strictly inward), this template splits by *use case*: one folder per feature, one file per slice, every slice owns its request + validator + handler + endpoint + entity. It references nine ZeroAlloc libraries in 19 packages: Mediator, Validation, Authorization, Mapping, ValueObjects, Inject, Results, Serialisation and ORM. `za-clean`'s Rest and Resilience are left out because this template makes no outbound HTTP call.
+`za-vertical-slice` is a `dotnet new` template that scaffolds a single-project Vertical Slice Architecture Web API on the ZeroAlloc.\* ecosystem. Where `za-clean` splits the codebase by *technical layer* (Domain / Application / Infrastructure / Api, four csprojs, dependency direction strictly inward), this template splits by *use case*: one folder per feature, one file per slice, every slice owns its request, validator, handler, endpoint and SQL. It references nine ZeroAlloc libraries in 19 packages: Mediator, Validation, Authorization, Mapping, ValueObjects, Inject, Results, Serialisation and ORM. `za-clean`'s Rest and Resilience are left out because this template makes no outbound HTTP call.
 
 Cross-cutting telemetry comes from the mediator pipeline, so slices stay self-contained: no slice carries telemetry code. Every `Send` opens a `mediator.send` span on the `ZeroAlloc.Mediator` activity source, and ZeroAlloc.Mediator.Telemetry, wired with `WithTelemetry()` in `AddMyApp`, puts a pipeline behavior in front of every handler that records the `mediator.requests_total` counter and the `mediator.request_duration_ms` histogram on the `ZeroAlloc.Mediator` meter. `Program.cs` subscribes OpenTelemetry to both. `za-clean` uses ZA.Telemetry's `[Instrument]` on its `IShippingQuoteClient` port instead: each template uses the tool that fits its architecture, ports in a layered app, the request pipeline in a sliced one.
 
@@ -199,7 +199,7 @@ dotnet run -c Release --project benchmarks/MyApp.LoadTest
 kill %1; docker stop myapp-load-pg
 ```
 
-Startup applies the embedded `schema.postgres.sql` via `ApplyEmbeddedSchemaAsync` — no EF reflection at runtime. The script is idempotent (checks `__EFMigrationsHistory` before applying), so re-runs against an existing load-test database are safe. After entity changes, regenerate both providers' migrations + schema scripts via `tools/regen-schema.sh` (or `tools/regen-schema.ps1`).
+Startup applies the embedded `Persistence/Migrations/Postgres/*.sql` files with ZA.ORM's `MigrationRunner`, which skips migrations it has already applied, so re-runs against an existing load-test database are safe. After a schema change, add a numbered migration file under both providers.
 
 ### CI
 
