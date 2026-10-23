@@ -51,8 +51,11 @@ public sealed class HttpSecurityContextAccessor(IHttpContextAccessor httpContext
 
 /// <summary>
 /// Implements <see cref="ISecurityContext"/> directly on top of <see cref="ClaimsPrincipal"/>
-/// without materializing the role or claim collections. <see cref="Roles"/> and <see cref="Claims"/>
-/// return <c>this</c>, and every member walks the principal's claims on demand.
+/// without materializing the role or claim collections. <see cref="Claims"/> returns <c>this</c>,
+/// and every member walks the principal's claims on demand. <see cref="Roles"/> is a separate view,
+/// created the first time it is read: one object cannot be both collections, because the
+/// non-generic <see cref="IEnumerable.GetEnumerator"/> it inherits from each would have to
+/// enumerate both claims and roles.
 /// <para>
 /// The hot path is one <see cref="IReadOnlyDictionary{TKey,TValue}.TryGetValue"/> for the
 /// "scope" claim on every authorized request. It allocates nothing for a missing or single-value
@@ -65,12 +68,14 @@ public sealed class HttpSecurityContextAccessor(IHttpContextAccessor httpContext
 /// </para>
 /// </summary>
 internal sealed class ClaimsPrincipalSecurityContext(ClaimsPrincipal principal)
-    : ISecurityContext, IReadOnlySet<string>, IReadOnlyDictionary<string, string>
+    : ISecurityContext, IReadOnlyDictionary<string, string>
 {
+    private RoleSet? _roles;
+
     internal ClaimsPrincipal Principal => principal;
 
     public string Id => principal.Identity?.Name ?? string.Empty;
-    public IReadOnlySet<string> Roles => this;
+    public IReadOnlySet<string> Roles => _roles ??= new RoleSet(principal);
     public IReadOnlyDictionary<string, string> Claims => this;
 
     // ---- IReadOnlyDictionary<string, string> ----
@@ -78,7 +83,7 @@ internal sealed class ClaimsPrincipalSecurityContext(ClaimsPrincipal principal)
     public bool TryGetValue(string key, out string value)
     {
         var scan = new ClaimScan(key, joinValues: true);
-        WalkClaims(ref scan);
+        WalkClaims(principal, ref scan);
         value = scan.Joined ?? scan.First ?? string.Empty;
         return scan.First is not null;
     }
@@ -88,7 +93,7 @@ internal sealed class ClaimsPrincipalSecurityContext(ClaimsPrincipal principal)
     public bool ContainsKey(string key)
     {
         var scan = new ClaimScan(key, joinValues: false);
-        WalkClaims(ref scan);
+        WalkClaims(principal, ref scan);
         return scan.First is not null;
     }
 
@@ -124,62 +129,66 @@ internal sealed class ClaimsPrincipalSecurityContext(ClaimsPrincipal principal)
         }
     }
 
-    IEnumerator<KeyValuePair<string, string>> IEnumerable<KeyValuePair<string, string>>.GetEnumerator()
+    public IEnumerator<KeyValuePair<string, string>> GetEnumerator()
     {
         foreach (var key in Keys)
             if (TryGetValue(key, out var v))
                 yield return new KeyValuePair<string, string>(key, v);
     }
 
-    // ---- IReadOnlySet<string> (roles) ----
+    IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
 
-    public bool Contains(string item)
+    /// <summary>The role claims, as a set. Walks the principal on demand like the claims view.</summary>
+    private sealed class RoleSet(ClaimsPrincipal principal) : IReadOnlySet<string>
     {
-        var scan = new ClaimScan(ClaimTypes.Role, joinValues: false, wantedValue: item);
-        WalkClaims(ref scan);
-        return scan.First is not null;
-    }
-
-    int IReadOnlyCollection<string>.Count
-    {
-        get
+        public bool Contains(string item)
         {
-            var n = 0;
-            foreach (var _ in principal.FindAll(ClaimTypes.Role)) n++;
-            return n;
+            var scan = new ClaimScan(ClaimTypes.Role, joinValues: false, wantedValue: item);
+            WalkClaims(principal, ref scan);
+            return scan.First is not null;
         }
-    }
 
-    IEnumerator<string> IEnumerable<string>.GetEnumerator()
-    {
-        foreach (var c in principal.FindAll(ClaimTypes.Role))
-            yield return c.Value;
-    }
+        public int Count
+        {
+            get
+            {
+                var n = 0;
+                foreach (var _ in principal.FindAll(ClaimTypes.Role)) n++;
+                return n;
+            }
+        }
 
-    IEnumerator IEnumerable.GetEnumerator() => ((IEnumerable<string>)this).GetEnumerator();
+        public IEnumerator<string> GetEnumerator()
+        {
+            foreach (var c in principal.FindAll(ClaimTypes.Role))
+                yield return c.Value;
+        }
 
-    bool IReadOnlySet<string>.IsProperSubsetOf(IEnumerable<string> other) => RoleSet().IsProperSubsetOf(other);
-    bool IReadOnlySet<string>.IsProperSupersetOf(IEnumerable<string> other) => RoleSet().IsProperSupersetOf(other);
-    bool IReadOnlySet<string>.IsSubsetOf(IEnumerable<string> other) => RoleSet().IsSubsetOf(other);
-    bool IReadOnlySet<string>.IsSupersetOf(IEnumerable<string> other) => RoleSet().IsSupersetOf(other);
-    bool IReadOnlySet<string>.Overlaps(IEnumerable<string> other) => RoleSet().Overlaps(other);
-    bool IReadOnlySet<string>.SetEquals(IEnumerable<string> other) => RoleSet().SetEquals(other);
+        IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
 
-    private HashSet<string> RoleSet()
-    {
-        // Cold path — only invoked by the set-comparison members above, which are
-        // never called by the template's policies today. Build a one-shot HashSet
-        // for correctness; trade allocs for code simplicity since this is unreachable
-        // on the hot path.
-        var set = new HashSet<string>(StringComparer.Ordinal);
-        foreach (var c in principal.FindAll(ClaimTypes.Role))
-            set.Add(c.Value);
-        return set;
+        public bool IsProperSubsetOf(IEnumerable<string> other) => Materialize().IsProperSubsetOf(other);
+        public bool IsProperSupersetOf(IEnumerable<string> other) => Materialize().IsProperSupersetOf(other);
+        public bool IsSubsetOf(IEnumerable<string> other) => Materialize().IsSubsetOf(other);
+        public bool IsSupersetOf(IEnumerable<string> other) => Materialize().IsSupersetOf(other);
+        public bool Overlaps(IEnumerable<string> other) => Materialize().Overlaps(other);
+        public bool SetEquals(IEnumerable<string> other) => Materialize().SetEquals(other);
+
+        private HashSet<string> Materialize()
+        {
+            // Cold path — only invoked by the set-comparison members above, which are
+            // never called by the template's policies today. Build a one-shot HashSet
+            // for correctness; trade allocs for code simplicity since this is unreachable
+            // on the hot path.
+            var set = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var c in principal.FindAll(ClaimTypes.Role))
+                set.Add(c.Value);
+            return set;
+        }
     }
 
     // ---- allocation-free claim walk ----
 
-    private void WalkClaims(ref ClaimScan scan)
+    private static void WalkClaims(ClaimsPrincipal principal, ref ClaimScan scan)
     {
         var identities = principal.Identities;
         if (identities is IList<ClaimsIdentity> list)
