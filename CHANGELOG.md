@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.16.5](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/compare/ZeroAlloc.Templates-v0.16.4...ZeroAlloc.Templates-v0.16.5) (2026-10-23)
+
+
+### Bug Fixes
+
+* align read-scope policies and cover the untested template paths ([#574](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/issues/574)) ([bfcc0f2](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/commit/bfcc0f2b7b549351d8ebe39a759e86cf7bcb585c))
+
 ## [0.16.4](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/compare/ZeroAlloc.Templates-v0.16.3...ZeroAlloc.Templates-v0.16.4) (2026-10-22)
 
 
