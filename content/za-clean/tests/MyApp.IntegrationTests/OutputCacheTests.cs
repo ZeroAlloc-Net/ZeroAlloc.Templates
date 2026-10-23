@@ -72,6 +72,26 @@ public sealed class OutputCacheTests
     }
 
     [Fact]
+    public async Task GET_orders_id_does_not_cache_a_404()
+    {
+        // Creating an order evicts nothing because only 200 responses are cached. If a 404 were
+        // cached, a read of an id before it exists would hide the order once it was created.
+        using var factory = CreateFactory();
+        var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue(
+            "Bearer", TestJwt.Issue(["orders.read", "orders.write"]));
+
+        var nextId = await SeedOneOrderAsync(client) + 1;
+        var before = await client.GetAsync($"/orders/{nextId}");
+        Assert.Equal(HttpStatusCode.NotFound, before.StatusCode);
+
+        Assert.Equal(nextId, await SeedOneOrderAsync(client));
+
+        var after = await client.GetAsync($"/orders/{nextId}");
+        Assert.Equal(HttpStatusCode.OK, after.StatusCode);
+    }
+
+    [Fact]
     public async Task GET_orders_id_is_not_cached_when_TTL_is_zero()
     {
         // A TTL of 0 turns the cache off. Before the fix it reached Expire(0), and the
