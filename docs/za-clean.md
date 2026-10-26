@@ -282,7 +282,7 @@ Per-primitive comparisons against the ecosystem alternatives. These blocks are r
 
 #### Mapping
 <!-- MAPPING:START -->
-_Imported from ZA.Mapping — last refreshed 2026-10-22._
+_Imported from ZA.Mapping — last refreshed 2026-10-26._
 
 _Last refreshed: 2026-10-17_
 
@@ -365,7 +365,7 @@ Affinity=00000000000000010100  LaunchCount=3
 
 #### Mediator
 <!-- MEDIATOR:START -->
-_Imported from ZA.Mediator — last refreshed 2026-10-22._
+_Imported from ZA.Mediator — last refreshed 2026-10-26._
 
 | Operation | MediatR time | ZA Alloc | MediatR Alloc |
 |---|---:|---:|---:|
@@ -393,7 +393,7 @@ A handler that holds state is still created on every call, so state never leaks 
 
 #### Validation
 <!-- VALIDATION:START -->
-_Imported from ZA.Validation — last refreshed 2026-10-22._
+_Imported from ZA.Validation — last refreshed 2026-10-26._
 
 _Last refreshed: 2026-10-21, against FluentValidation 12.2.0. Allocations are exact. Speed is shown as same-run ratios; absolute timings are not published. Speedups are FluentValidation's mean divided by ZeroAlloc's, from the same BenchmarkDotNet run._
 
@@ -409,7 +409,7 @@ ZeroAlloc.Validation is **22.7–145.0× faster** than FluentValidation 12 on th
 
 #### Inject
 <!-- INJECT:START -->
-_Imported from ZA.Inject — last refreshed 2026-10-22._
+_Imported from ZA.Inject — last refreshed 2026-10-26._
 
 _Last refreshed: 2026-10-17_
 
@@ -451,7 +451,7 @@ The **ZA.Inject Container** creates the MS DI fallback scope only on first fallb
 
 #### Results
 <!-- RESULTS:START -->
-_Imported from ZA.Results — last refreshed 2026-10-22._
+_Imported from ZA.Results — last refreshed 2026-10-26._
 
 _Last refreshed: 2026-10-21_
 
@@ -482,7 +482,7 @@ ErrorOr and FluentResults allocate per-failure because their error types (`Error
 
 #### ValueObjects
 <!-- VALUEOBJECTS:START -->
-_Imported from ZA.ValueObjects — last refreshed 2026-10-22._
+_Imported from ZA.ValueObjects — last refreshed 2026-10-26._
 
 _Last refreshed: 2026-10-21_
 
@@ -505,7 +505,7 @@ History: the previous single-property `ToString` allocated ~72 B per call and `G
 
 #### Specification
 <!-- SPECIFICATION:START -->
-_Imported from ZA.Specification — last refreshed 2026-10-22._
+_Imported from ZA.Specification — last refreshed 2026-10-26._
 
 _Last refreshed: 2026-10-21 — Ardalis.Specification 9.3.1, .NET 10.0.13, BenchmarkDotNet v0.15.8, Windows 11 on an otherwise idle i9-12900HK; out of process, three launches, pinned to two performance cores. Allocations are exact. Speed is shown as same-run ratios; absolute timings are not published._
 
@@ -526,7 +526,7 @@ ZA.Specification's `IsSatisfiedBy` is a direct, non-virtual call on a struct val
 
 #### StateMachine
 <!-- STATEMACHINE:START -->
-_Imported from ZA.StateMachine — last refreshed 2026-10-22._
+_Imported from ZA.StateMachine — last refreshed 2026-10-26._
 
 _Last refreshed: 2026-10-21. Stateless 5.20.1, BenchmarkDotNet v0.15.8, .NET 10.0.13, Windows 11 on an otherwise idle i9-12900HK; out of process, three launches, pinned to two performance cores. Allocations are exact. Speed is shown as same-run ratios; absolute timings are not published._
 
@@ -546,7 +546,7 @@ This is the apples-to-apples comparison for cyclic state machines — a per-requ
 
 #### Resilience
 <!-- RESILIENCE:START -->
-_Imported from ZA.Resilience — last refreshed 2026-10-22._
+_Imported from ZA.Resilience — last refreshed 2026-10-26._
 
 _Last refreshed: 2026-10-21. Polly.Core 8.8.0, BenchmarkDotNet 0.15.8, .NET 10.0.13 on Windows 11, i9-12900HK, on an otherwise idle machine. Every benchmark ran out of process in three launches, pinned to two performance cores. Allocations are exact. Speed is shown as same-run ratios; absolute timings are not published._
 
@@ -579,7 +579,7 @@ Rate-limit and timeout limits in the all-policies harness are set to `int.MaxVal
 
 #### Rest
 <!-- REST:START -->
-_Imported from ZA.Rest — last refreshed 2026-10-22._
+_Imported from ZA.Rest — last refreshed 2026-10-26._
 
 _Last refreshed: 2026-10-21_
 
@@ -598,7 +598,7 @@ ZeroAlloc.Rest is **1.1–2.0× faster than Refit** across every shape of call (
 
 #### Serialisation
 <!-- SERIALISATION:START -->
-_Imported from ZA.Serialisation — last refreshed 2026-10-22._
+_Imported from ZA.Serialisation — last refreshed 2026-10-26._
 
 _Last refreshed: 2026-10-21_
 
@@ -646,7 +646,7 @@ The dispatcher's `Serialize(object, Type)` returns memory the caller owns, so th
 
 #### Cache
 <!-- CACHE:START -->
-_Imported from ZA.Cache — last refreshed 2026-10-22._
+_Imported from ZA.Cache — last refreshed 2026-10-26._
 
 _Last refreshed: 2026-10-17_
 
@@ -678,7 +678,7 @@ Every benchmark ran out of process in three launches on an otherwise idle machin
 
 #### Telemetry
 <!-- TELEMETRY:START -->
-_Imported from ZA.Telemetry — last refreshed 2026-10-22._
+_Imported from ZA.Telemetry — last refreshed 2026-10-26._
 
 _Last refreshed: 2026-10-21_
 
@@ -700,7 +700,7 @@ Neither wrapper allocates in the no-listeners path. Against the uninstrumented d
 
 #### Notify
 <!-- NOTIFY:START -->
-_Imported from ZA.Notify — last refreshed 2026-10-22._
+_Imported from ZA.Notify — last refreshed 2026-10-26._
 
 _Last refreshed: 2026-10-21_
 
@@ -742,7 +742,7 @@ The `int` property with subscribers pays the 40 B args plus a 24 B box each for 
 
 #### Scheduling
 <!-- SCHEDULING:START -->
-_Imported from ZA.Scheduling — last refreshed 2026-10-22._
+_Imported from ZA.Scheduling — last refreshed 2026-10-26._
 
 _Last refreshed: 2026-10-21. Allocations are exact. Speed is shown as same-run ratios; absolute timings are not published._
 
@@ -779,7 +779,7 @@ dotnet run -c Release -- --filter '*CoravelComparisonBenchmark*' '*NaiveTimerOve
 
 #### Outbox
 <!-- OUTBOX:START -->
-_Imported from ZA.Outbox — last refreshed 2026-10-22._
+_Imported from ZA.Outbox — last refreshed 2026-10-26._
 
 _Last refreshed: 2026-10-21_
 
@@ -808,7 +808,7 @@ The value of the abstraction is the `[OutboxMessage]` attribute + the typed writ
 
 #### EventSourcing
 <!-- EVENTSOURCING:START -->
-_Imported from ZA.EventSourcing — last refreshed 2026-10-22._
+_Imported from ZA.EventSourcing — last refreshed 2026-10-26._
 
 _Last refreshed: 2026-10-17_
 
