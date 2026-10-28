@@ -72,6 +72,9 @@
     <IncludeBuildOutput>false</IncludeBuildOutput>
     <ContentTargetFolders>content</ContentTargetFolders>
     <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <!-- NuGet drops files starting with a dot by default, which would silently lose the
+         .gitignore of each template. The content glob below already excludes bin, obj and user files. -->
+    <NoDefaultExcludes>true</NoDefaultExcludes>
     <NoWarn>$(NoWarn);NU5128</NoWarn>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageIcon>icon.png</PackageIcon>

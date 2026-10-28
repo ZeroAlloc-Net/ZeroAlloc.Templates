@@ -24,12 +24,28 @@ public class TemplateScaffoldsAndBuildsTests
             Directory.CreateDirectory(scaffoldDir);
             await Run("dotnet", $"new {templateShortName} -o \"{scaffoldDir}\" --name {scaffoldName}", repoRoot);
 
+            // 2b. The template must ship a .gitignore: the template engine and NuGet can skip
+            //     dot-files, so assert it survived install and scaffold.
+            Assert.True(File.Exists(Path.Combine(scaffoldDir, ".gitignore")),
+                $"Scaffolded {templateShortName} output has no .gitignore");
+
             // 3. Build the scaffolded app. -warnaserror fails the test on any warning in the generated
             //    code: the template itself ships without TreatWarningsAsErrors.
             await Run("dotnet", $"build \"{Path.Combine(scaffoldDir, $"{scaffoldName}.slnx")}\" -warnaserror", scaffoldDir);
 
             // 4. Test the scaffolded app
             await Run("dotnet", $"test \"{Path.Combine(scaffoldDir, $"{scaffoldName}.slnx")}\" --no-build", scaffoldDir);
+
+            // 5. After build and test, a fresh repo must not see any build output as untracked.
+            await Run("git", "init -q", scaffoldDir);
+            var status = await Capture("git", "status --porcelain --untracked-files=all", scaffoldDir);
+            var leaked = status
+                .Split('\n', StringSplitOptions.RemoveEmptyEntries)
+                .Where(l => l.Contains("/bin/") || l.Contains("/obj/")
+                    || l.Contains("TestResults/") || l.Contains("BenchmarkDotNet.Artifacts/"))
+                .ToList();
+            Assert.True(leaked.Count == 0,
+                $"git status lists build output for {templateShortName}:\n{string.Join('\n', leaked)}");
         }
         finally
         {
@@ -49,6 +65,9 @@ public class TemplateScaffoldsAndBuildsTests
     }
 
     private static async Task Run(string exe, string args, string workingDir, bool allowFail = false)
+        => _ = await Capture(exe, args, workingDir, allowFail);
+
+    private static async Task<string> Capture(string exe, string args, string workingDir, bool allowFail = false)
     {
         using var p = Process.Start(new ProcessStartInfo(exe, args)
         {
@@ -67,5 +86,7 @@ public class TemplateScaffoldsAndBuildsTests
             throw new Xunit.Sdk.XunitException(
                 $"Command failed: {exe} {args}\nExit: {p.ExitCode}\nSTDOUT:\n{stdout}\nSTDERR:\n{stderr}");
         }
+
+        return stdout;
     }
 }
