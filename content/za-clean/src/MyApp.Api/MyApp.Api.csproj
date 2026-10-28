@@ -18,6 +18,10 @@
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" />
+    <!--#if (EnableOpenApi) -->
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
+    <PackageReference Include="Scalar.AspNetCore" />
+    <!--#endif -->
 
     <!-- ZA.Authorization, ZA.Authorization.Generator, and ZA.Mediator.Authorization
          are NOT referenced directly here. They flow transitively through

@@ -42,6 +42,18 @@ curl http://localhost:5000/healthz
 # → Healthy
 ```
 
+## Options
+
+Both templates take one option:
+
+| Option | Default | Effect |
+|---|---|---|
+| `--EnableOpenApi` | `true` | Adds the built-in .NET 10 OpenAPI document and the [Scalar](https://scalar.com) API reference. In the Development environment only, `/openapi/v1.json` serves the document and `/scalar` serves the reference page. `false` leaves out the code and the `Microsoft.AspNetCore.OpenApi` and `Scalar.AspNetCore` packages. |
+
+```bash
+dotnet new za-clean -o MyApp --EnableOpenApi false
+```
+
 `za-clean` ships with:
 - Four layered projects (`Domain`, `Application`, `Infrastructure`, `Api`) with NetArchTest-enforced boundaries
 - 49 passing tests (12 unit + 5 architecture + 32 integration)

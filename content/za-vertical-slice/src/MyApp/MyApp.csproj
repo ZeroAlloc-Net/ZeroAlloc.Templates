@@ -21,6 +21,10 @@
   <ItemGroup>
     <!-- ASP.NET Core auth -->
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" />
+    <!--#if (EnableOpenApi) -->
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
+    <PackageReference Include="Scalar.AspNetCore" />
+    <!--#endif -->
 
     <!-- ZeroAlloc.ORM + AdoNet.Async substrate (provider selected by
          `Database:Provider` config; default Sqlite). -->

@@ -3,7 +3,8 @@
   "packages": {
     ".": {
       "release-type": "simple",
-      "package-name": "ZeroAlloc.Templates"
+      "package-name": "ZeroAlloc.Templates",
+      "bump-minor-pre-major": true
     }
   },
   "changelog-sections": [
