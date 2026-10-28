@@ -9,8 +9,6 @@
   "sourceName": "MyApp",
   "preferNameDirectory": true,
   "symbols": {
-    "EnableSwagger": { "type": "parameter", "datatype": "bool", "defaultValue": "true" },
-    "SeedDatabase": { "type": "parameter", "datatype": "bool", "defaultValue": "true" },
-    "IncludeDocker": { "type": "parameter", "datatype": "bool", "defaultValue": "false" }
+    "EnableOpenApi": { "type": "parameter", "datatype": "bool", "defaultValue": "true" }
   }
 }

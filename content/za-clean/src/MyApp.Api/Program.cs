@@ -1,3 +1,6 @@
+#if (EnableOpenApi)
+using Scalar.AspNetCore;
+#endif
 using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
@@ -207,6 +210,12 @@ builder.Services.AddOutputCache(opt =>
         excludeDefaultPolicy: true);
 });
 
+#if (EnableOpenApi)
+// Built-in .NET OpenAPI document generator. AOT-compatible; the document is
+// only exposed in Development (see the MapOpenApi block below).
+builder.Services.AddOpenApi();
+#endif
+
 var app = builder.Build();
 
 // Apply schema on startup. `Database:SchemaStrategy` controls how:
@@ -272,6 +281,15 @@ app.MapOrders();
 // Use a concrete record type rather than an anonymous object so the
 // source-generated JsonContext can serialise the response under AOT.
 app.MapGet("/healthz", () => Results.Ok(new HealthResponse("ok"))).AllowAnonymous();
+
+#if (EnableOpenApi)
+if (app.Environment.IsDevelopment())
+{
+    // OpenAPI document at /openapi/v1.json, Scalar API reference at /scalar.
+    app.MapOpenApi();
+    app.MapScalarApiReference();
+}
+#endif
 
 app.Run();
 

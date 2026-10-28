@@ -1,3 +1,6 @@
+#if (EnableOpenApi)
+using Scalar.AspNetCore;
+#endif
 using System.Data.Async;
 using System.Data.Async.Adapters;
 using System.Text;
@@ -226,8 +229,10 @@ builder.Services.AddOutputCache(opt =>
     }
 });
 
-#if (EnableSwagger)
-builder.Services.AddEndpointsApiExplorer();
+#if (EnableOpenApi)
+// Built-in .NET OpenAPI document generator. AOT-compatible; the document is
+// only exposed in Development (see the MapOpenApi block below).
+builder.Services.AddOpenApi();
 #endif
 
 var app = builder.Build();
@@ -301,6 +306,15 @@ GetCustomerEndpoint.Map(app);
 
 // Health check — exposed for liveness/readiness probes.
 app.MapHealthChecks("/healthz");
+
+#if (EnableOpenApi)
+if (app.Environment.IsDevelopment())
+{
+    // OpenAPI document at /openapi/v1.json, Scalar API reference at /scalar.
+    app.MapOpenApi();
+    app.MapScalarApiReference();
+}
+#endif
 
 app.Run();
 
