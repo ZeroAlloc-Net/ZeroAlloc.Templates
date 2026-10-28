@@ -1,0 +1,45 @@
+## Build output
+[Bb]in/
+[Oo]bj/
+[Ll]og/
+[Ll]ogs/
+
+## User-specific files
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+*.sln.DotSettings.user
+
+## IDEs and editors
+.vs/
+.idea/
+.vscode/
+*.swp
+
+## Test results and coverage
+TestResults/
+[Tt]est[Rr]esult*/
+coverage/
+*.coverage
+*.coveragexml
+coverage*.json
+coverage*.xml
+coverage*.info
+
+## BenchmarkDotNet
+BenchmarkDotNet.Artifacts/
+benchmarks/**/generated/
+
+## Packaging
+*.nupkg
+*.snupkg
+
+## Runtime artifacts, for example the local SQLite database
+*.db
+*.db-shm
+*.db-wal
+
+## OS files
+.DS_Store
+Thumbs.db
