@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.17.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/compare/ZeroAlloc.Templates-v0.16.5...ZeroAlloc.Templates-v0.17.0) (2026-10-29)
+
+
+### ⚠ BREAKING CHANGES
+
+* the --EnableSwagger option is renamed to --EnableOpenApi, with no alias. The SeedDatabase and IncludeDocker options are removed.
+
+### Features
+
+* ship OpenAPI and Scalar behind EnableOpenApi ([#590](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/issues/590)) ([83e2e3e](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/commit/83e2e3e7c4bf4b81f882d6652441d2e2cd33ebea))
+
+
+### Bug Fixes
+
+* ship a .gitignore in both templates ([#589](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/issues/589)) ([5e1d514](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/commit/5e1d5144e46d92c73ba4c198c7ce1c62793e5463))
+
 ## [0.16.5](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/compare/ZeroAlloc.Templates-v0.16.4...ZeroAlloc.Templates-v0.16.5) (2026-10-23)
 
 
