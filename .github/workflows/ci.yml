@@ -51,6 +51,13 @@ jobs:
       - name: Test (content)
         run: dotnet test content/za-clean/MyApp.slnx --no-build --configuration Release --settings coverage.runsettings --results-directory TestResults
 
+      # ci-baseline coverage gate: merges the Cobertura reports of the tests above and fails below
+      # the line-coverage floor, or when codecov.yml would let a drop in coverage pass quietly.
+      - name: Coverage gate
+        uses: MarcelRoozekrans/ci-baseline/actions/coverage-gate@v1
+        with:
+          reports: "TestResults/**/coverage.cobertura.xml"
+
       - name: Upload coverage to Codecov
         if: '!cancelled()'
         uses: codecov/codecov-action@v7
@@ -126,6 +133,13 @@ jobs:
 
       - name: Test (content)
         run: dotnet test content/za-vertical-slice/MyApp.slnx --no-build --configuration Release --settings coverage.runsettings --results-directory TestResults
+
+      # ci-baseline coverage gate: merges the Cobertura reports of the tests above and fails below
+      # the line-coverage floor, or when codecov.yml would let a drop in coverage pass quietly.
+      - name: Coverage gate
+        uses: MarcelRoozekrans/ci-baseline/actions/coverage-gate@v1
+        with:
+          reports: "TestResults/**/coverage.cobertura.xml"
 
       - name: Upload coverage to Codecov
         if: '!cancelled()'
