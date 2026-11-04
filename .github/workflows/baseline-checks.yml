@@ -1,0 +1,39 @@
+name: baseline-checks
+
+# Shared security and quality baseline from ci-baseline: gitleaks, CodeQL, NuGetAudit. Pinned to the moving v1 tag.
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  baseline:
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+    uses: MarcelRoozekrans/ci-baseline/.github/workflows/baseline.yml@v1
+    with:
+      solution: ZeroAlloc.Templates.slnx
+
+  # ZeroAlloc.Templates.slnx holds only the content-only template package and the smoke tests. The
+  # packages a scaffolded app depends on live in the two template solutions under content/, so
+  # NuGetAudit runs on each of them too. CodeQL already covers every file through the job above.
+  content-audit:
+    strategy:
+      fail-fast: false
+      matrix:
+        solution:
+          - content/za-clean/MyApp.slnx
+          - content/za-vertical-slice/MyApp.slnx
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+    uses: MarcelRoozekrans/ci-baseline/.github/workflows/baseline.yml@v1
+    with:
+      solution: ${{ matrix.solution }}
+      codeql: false

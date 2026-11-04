@@ -74,3 +74,49 @@ jobs:
       release-assets: true
     secrets:
       NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
+
+  # A CycloneDX SBOM per release, attached to the GitHub release that release-please created in the
+  # job above. It runs in its own job because publish is a shared reusable workflow, which takes no
+  # extra steps. It builds the release tag, not main, so the SBOMs describe exactly the released
+  # code, and it waits for publish so the release build has passed first. The template package
+  # itself carries no package dependencies; the two template solutions under content/ hold the
+  # packages a scaffolded app gets, so each of them gets its own SBOM as well.
+  sbom:
+    needs: [release-please, publish]
+    if: ${{ needs.release-please.outputs.release_created == 'true' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.release-please.outputs.tag_name }}
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+          dotnet-version: 10.0.x
+
+      - name: Build the release
+        run: dotnet build ZeroAlloc.Templates.slnx -c Release -p:Version=${{ needs.release-please.outputs.version }}
+
+      - name: Attach the template package SBOM to the GitHub release
+        uses: MarcelRoozekrans/ci-baseline/actions/sbom@v1
+        with:
+          solution: ZeroAlloc.Templates.slnx
+          tag: ${{ needs.release-please.outputs.tag_name }}
+
+      - name: Attach the za-clean template SBOM to the GitHub release
+        uses: MarcelRoozekrans/ci-baseline/actions/sbom@v1
+        with:
+          solution: content/za-clean/MyApp.slnx
+          tag: ${{ needs.release-please.outputs.tag_name }}
+          output-name: ${{ needs.release-please.outputs.tag_name }}-za-clean.cdx.json
+
+      - name: Attach the za-vertical-slice template SBOM to the GitHub release
+        uses: MarcelRoozekrans/ci-baseline/actions/sbom@v1
+        with:
+          solution: content/za-vertical-slice/MyApp.slnx
+          tag: ${{ needs.release-please.outputs.tag_name }}
+          output-name: ${{ needs.release-please.outputs.tag_name }}-za-vertical-slice.cdx.json

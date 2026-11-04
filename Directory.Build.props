@@ -16,6 +16,11 @@
          <ZeroAllocAuthorizationOwnsPolicies>true</...> on MyApp.Application
          only — the project that declares [Policy] / [RequirePolicy]. -->
     <ZeroAllocAuthorizationDisableBundledAnalyzer>true</ZeroAllocAuthorizationDisableBundledAnalyzer>
+    <!-- NuGetAudit: restore reports known advisories in direct and transitive packages,
+         from moderate severity up. -->
+    <NuGetAudit>true</NuGetAudit>
+    <NuGetAuditMode>all</NuGetAuditMode>
+    <NuGetAuditLevel>moderate</NuGetAuditLevel>
   </PropertyGroup>
   <ItemGroup Condition="'$(IsPackable)' != 'false' and '$(MSBuildProjectName)' != 'ZeroAlloc.Templates'">
     <!-- Per-project analyzers; the template package itself is content-only. -->
