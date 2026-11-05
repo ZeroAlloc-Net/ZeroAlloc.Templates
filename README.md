@@ -18,6 +18,22 @@
 
 Both templates share nine ZeroAlloc libraries: Mediator, Validation, Authorization, Mapping, ValueObjects, Inject, Results, Serialisation and ORM. `za-clean` adds three more, for 12 libraries in 22 packages: Rest and Resilience for its outbound shipping-quote client, and Telemetry for the `[Instrument]` proxy on that client's port. `za-vertical-slice` has no outbound HTTP call, so it has no Rest or Resilience; it takes its telemetry from the Mediator.Telemetry pipeline behavior instead, for nine libraries in 19 packages. Each template uses the telemetry tool that fits its architecture: a layered app instruments its ports, while slices stay self-contained and the mediator pipeline instruments every request. Both share the same ZA.ORM 2 + SQLite persistence (raw `Microsoft.Data.Sqlite` provider, no DbContext), same xUnit + BenchmarkDotNet + NBomber test/bench fan-out. Apart from `za-clean`'s outbound shipping-quote call, they differ in **arrangement**, not in functional scope — pick on team comfort, not capability.
 
+## Throughput
+
+NativeAOT builds, Postgres 17, JWT authentication on, 256 connections, the app pinned to two performance
+cores. Requests per second, median of three alternated rounds:
+
+| Scenario | `za-clean` | `za-vertical-slice` |
+|---|---:|---:|
+| Cache hit | ~39,000 | ~38,000 |
+| Uncached read: mediator, ZA.ORM, JSON | ~16,000 | ~17,000 |
+| Mixed: reads while 100 orders per second are created | ~32,000 | ~34,000 |
+| Write | ~3,300 | ~6,800 |
+
+Measured on one i9-12900HK laptop with `oha`; your numbers will differ with your hardware. The two
+templates read at the same speed: architecture style costs nothing at run time. Setup, ranges, latency
+and caveats: [docs/benchmarks/2026-11-05-template-rps.md](docs/benchmarks/2026-11-05-template-rps.md).
+
 ## Install
 
 ```bash
