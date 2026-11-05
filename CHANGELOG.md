@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.17.1](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/compare/ZeroAlloc.Templates-v0.17.0...ZeroAlloc.Templates-v0.17.1) (2026-11-05)
+
+
+### Documentation
+
+* add allocations per request to the readme throughput table ([#624](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/issues/624)) ([0416d46](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/commit/0416d46a6a4ef7b6bbc69cbcba4a9591611ac341))
+* **aggregator:** weekly refresh from upstream sources ([#584](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/issues/584)) ([b3b67b8](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/commit/b3b67b8a28a1fcec91e9905922781c8bfab77b32))
+* publish requests per second for both templates in the readme ([#622](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/issues/622)) ([d575a7c](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/commit/d575a7c9f954d8c4eae9230c1ce208cb99cea2d2))
+
 ## [0.17.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/compare/ZeroAlloc.Templates-v0.16.5...ZeroAlloc.Templates-v0.17.0) (2026-10-29)
 
 
