@@ -21,18 +21,21 @@ Both templates share nine ZeroAlloc libraries: Mediator, Validation, Authorizati
 ## Throughput
 
 NativeAOT builds, Postgres 17, JWT authentication on, 256 connections, the app pinned to two performance
-cores. Requests per second, median of three alternated rounds:
+cores. Requests per second is the median of three alternated rounds; memory is the bytes allocated per
+request through the whole middleware stack:
 
-| Scenario | `za-clean` | `za-vertical-slice` |
-|---|---:|---:|
-| Cache hit | ~39,000 | ~38,000 |
-| Uncached read: mediator, ZA.ORM, JSON | ~16,000 | ~17,000 |
-| Mixed: reads while 100 orders per second are created | ~32,000 | ~34,000 |
-| Write | ~3,300 | ~6,800 |
+| Scenario | `za-clean` req/s | `za-clean` alloc | `za-vertical-slice` req/s | `za-vertical-slice` alloc |
+|---|---:|---:|---:|---:|
+| Cache hit | ~39,000 | 24.2 KB | ~38,000 | 24.1 KB |
+| Uncached read: mediator, ZA.ORM, JSON | ~16,000 | 27.7 KB | ~17,000 | 25.6 KB |
+| Mixed: reads while 100 orders per second are created | ~32,000 | n/a | ~34,000 | n/a |
+| Write | ~3,300 | 37.9 KB | ~6,800 | 33.9 KB |
 
-Measured on one i9-12900HK laptop with `oha`; your numbers will differ with your hardware. The two
-templates read at the same speed: architecture style costs nothing at run time. Setup, ranges, latency
-and caveats: [docs/benchmarks/2026-11-05-template-rps.md](docs/benchmarks/2026-11-05-template-rps.md).
+Requests per second was measured on one i9-12900HK laptop with `oha`, so your numbers will differ with
+your hardware; allocations are exact and do not depend on the machine. The two templates read at the
+same speed: architecture style costs nothing at run time. The read allocations were measured on SQLite
+and the write allocations on Postgres; the mixed scenario has no allocation benchmark. Setup, ranges,
+latency and caveats: [docs/benchmarks/2026-11-05-template-rps.md](docs/benchmarks/2026-11-05-template-rps.md).
 
 ## Install
 

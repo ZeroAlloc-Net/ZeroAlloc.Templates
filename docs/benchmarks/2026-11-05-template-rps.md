@@ -39,6 +39,25 @@ Median latency and 99th percentile, same runs:
 | Uncached read | 9.3 / 125.2 ms | 8.3 / 124.8 ms |
 | Write | 17.1 / 48.9 ms | 7.0 / 50.9 ms |
 
+## Allocations
+
+Bytes allocated per request through the full middleware stack, from `ReadPipelineBench` and
+`WritePipelineBench` in each template, BenchmarkDotNet with `--launchCount 3`, run out of process.
+Unlike requests per second these do not depend on the machine. KB is 1,024 bytes.
+
+| Path | `za-clean` | `za-vertical-slice` |
+|---|---:|---:|
+| `GET /orders/{id}`, cache hit (SQLite) | 24.2 KB | 24.1 KB |
+| `GET /orders/{id}`, uncached (SQLite) | 27.7 KB | 25.6 KB |
+| `POST /orders` (Postgres) | 37.9 KB | 33.9 KB |
+
+- These agree with the [2026-10-22 report](2026-10-22-template-capacity.md) to within about 1%, so the
+  policy change in #574 and the OpenAPI option in #590 did not move the hot path.
+- The read benchmark runs on SQLite only; the write benchmark was run against Postgres 17. The mixed
+  scenario has no allocation benchmark, so the README shows n/a for it.
+- `--inProcess` fails on these benchmarks: `WebApplicationFactory` cannot find its content root in the
+  in-process toolchain, so every row reports `NA` while BenchmarkDotNet still exits 0.
+
 ## Reading the numbers
 
 - **The two templates read at the same speed.** The ranges overlap on every read scenario, so these
