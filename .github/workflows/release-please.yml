@@ -50,6 +50,9 @@ jobs:
     needs: release-please
     if: needs.release-please.outputs.release_created == 'true'
     uses: ZeroAlloc-Net/.github/.github/workflows/publish.yml@main
+    permissions:
+      contents: write
+      id-token: write
     with:
       tag: ${{ needs.release-please.outputs.tag_name }}
       version: ${{ needs.release-please.outputs.version }}
@@ -72,6 +75,9 @@ jobs:
       # The destinations this repository already had: nuget.org and the release assets.
       github-packages: false
       release-assets: true
+      # Trusted publishing: set the NUGET_USER variable and add a trusted publisher policy on
+      # nuget.org for this repository and workflow to stop using the NUGET_API_KEY secret below.
+      nuget-user: ${{ vars.NUGET_USER }}
     secrets:
       NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
 
