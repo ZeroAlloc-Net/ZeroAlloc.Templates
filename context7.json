@@ -43,6 +43,6 @@
     "regression-report-2026-04-22-0846.md"
   ],
   "rules": [
-    "Generated projects use central package management: take exact ZeroAlloc. package names from the generated csproj files and their versions from the Directory.Packages.props next to them, not from the README."
+    "Generated projects use central package management: take exact ZeroAlloc. package names from the generated csproj files and their versions from the nearest Directory.Packages.props in the project's ancestor directories, not from the README."
   ]
 }
