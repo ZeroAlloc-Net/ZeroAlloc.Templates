@@ -7,7 +7,7 @@
   </PropertyGroup>
   <ItemGroup>
     <!-- ZeroAlloc.* ecosystem (confirmed shipped versions). -->
-    <PackageVersion Include="ZeroAlloc.Mapping" Version="1.6.13" />
+    <PackageVersion Include="ZeroAlloc.Mapping" Version="1.7.0" />
     <PackageVersion Include="ZeroAlloc.Mediator" Version="6.6.5" />
     <PackageVersion Include="ZeroAlloc.Results" Version="1.4.5" />
     <PackageVersion Include="ZeroAlloc.ValueObjects" Version="2.3.1" />
