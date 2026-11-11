@@ -84,7 +84,7 @@ public class EnableOpenApiOptionTests
                 Assert.DoesNotContain("MapScalarApiReference", all);
             }
 
-            await Run($"build \"{Path.Combine(scaffoldDir, $"{name}.slnx")}\" -warnaserror", scaffoldDir);
+            await Run($"build \"{Path.Combine(scaffoldDir, $"{name}.slnx")}\" -warnaserror --disable-build-servers", scaffoldDir);
         }
         finally
         {
@@ -102,13 +102,15 @@ public class EnableOpenApiOptionTests
 
     private static async Task Run(string args, string workingDir)
     {
-        using var p = Process.Start(new ProcessStartInfo("dotnet", args)
+        var startInfo = new ProcessStartInfo("dotnet", args)
         {
             WorkingDirectory = workingDir,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
             UseShellExecute = false
-        }) ?? throw new InvalidOperationException($"Failed to start: dotnet {args}");
+        };
+        ChildProcessEnvironment.Apply(startInfo);
+        using var p = Process.Start(startInfo) ?? throw new InvalidOperationException($"Failed to start: dotnet {args}");
 
         var stdoutTask = p.StandardOutput.ReadToEndAsync();
         var stderrTask = p.StandardError.ReadToEndAsync();
