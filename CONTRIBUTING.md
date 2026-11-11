@@ -11,13 +11,14 @@ The release pipeline requires two secrets at `Settings → Secrets and variables
 
 ## Drift-guard for duplicated config
 
-Three files are duplicated at the repo root and under each `content/<template>/`:
+Two files are duplicated at the repo root and under each `content/<template>/`:
 
 - `Directory.Build.props`
 - `Directory.Packages.props`
-- `global.json`
 
-The root copies serve the template-tooling projects; the `content/` copies serve the scaffolded app standalone. **CI enforces they stay identical** across the root and every `content/<template>/` directory via a drift-guard step. When bumping a package version or SDK pin, edit all copies.
+The root copies serve the template-tooling projects; the `content/` copies serve the scaffolded app standalone. **CI enforces they stay identical** across the root and every `content/<template>/` directory via a drift-guard step. When bumping a package version, edit all copies.
+
+`global.json` is not duplicated: the root pins SDK 11 for the smoke tests (net10.0 and net11.0), each `content/<template>/` pins SDK 10 for the scaffolded app (net10.0). Bump each pin on its own. To run the smoke tests locally you need both SDKs installed: SDK 11 for the repo, and SDK 10 (10.0.403 or a later 10.0 patch) for the scaffolded apps and the net10.0 test run.
 
 ## Build + test
 

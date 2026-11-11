@@ -18,6 +18,7 @@ jobs:
     uses: MarcelRoozekrans/ci-baseline/.github/workflows/baseline.yml@v1
     with:
       solution: ZeroAlloc.Templates.slnx
+      dotnet-version: global-json
 
   # ZeroAlloc.Templates.slnx holds only the content-only template package and the smoke tests. The
   # packages a scaffolded app depends on live in the two template solutions under content/, so
@@ -37,3 +38,4 @@ jobs:
     with:
       solution: ${{ matrix.solution }}
       codeql: false
+      dotnet-version: global-json
