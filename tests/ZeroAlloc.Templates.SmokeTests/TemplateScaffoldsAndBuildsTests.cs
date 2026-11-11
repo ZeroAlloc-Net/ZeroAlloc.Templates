@@ -12,17 +12,20 @@ public class TemplateScaffoldsAndBuildsTests
         var repoRoot = FindRepoRoot();
         var templatePath = Path.Combine(repoRoot, "content", templateShortName);
         var scaffoldName = "AcmeCo" + Guid.NewGuid().ToString("N")[..6];
-        var scaffoldDir = Path.Combine(Path.GetTempPath(), $"{templateShortName}-smoke-{Guid.NewGuid():N}");
+        var work = Path.Combine(Path.GetTempPath(), $"{templateShortName}-smoke-{Guid.NewGuid():N}");
+        // An isolated template-engine hive per run: the test runs once per target framework, at the
+        // same time, and a shared hive would let one run uninstall the template under the other.
+        var hive = Path.Combine(work, "hive");
+        var scaffoldDir = Path.Combine(work, "app");
 
         try
         {
-            // 1. Install template from the content directory (--force is idempotent: reinstalls
-            //    if already installed, installs fresh otherwise).
-            await Run("dotnet", $"new install \"{templatePath}\" --force", repoRoot);
+            // 1. Install template from the content directory into the isolated hive.
+            await Run("dotnet", $"new install \"{templatePath}\" --debug:custom-hive \"{hive}\"", repoRoot);
 
             // 2. Scaffold a fresh app
             Directory.CreateDirectory(scaffoldDir);
-            await Run("dotnet", $"new {templateShortName} -o \"{scaffoldDir}\" --name {scaffoldName}", repoRoot);
+            await Run("dotnet", $"new {templateShortName} -o \"{scaffoldDir}\" --name {scaffoldName} --debug:custom-hive \"{hive}\"", repoRoot);
 
             // 2b. The template must ship a .gitignore: the template engine and NuGet can skip
             //     dot-files, so assert it survived install and scaffold.
@@ -31,10 +34,10 @@ public class TemplateScaffoldsAndBuildsTests
 
             // 3. Build the scaffolded app. -warnaserror fails the test on any warning in the generated
             //    code: the template itself ships without TreatWarningsAsErrors.
-            await Run("dotnet", $"build \"{Path.Combine(scaffoldDir, $"{scaffoldName}.slnx")}\" -warnaserror", scaffoldDir);
+            await Run("dotnet", $"build \"{Path.Combine(scaffoldDir, $"{scaffoldName}.slnx")}\" -warnaserror --disable-build-servers", scaffoldDir);
 
             // 4. Test the scaffolded app
-            await Run("dotnet", $"test \"{Path.Combine(scaffoldDir, $"{scaffoldName}.slnx")}\" --no-build", scaffoldDir);
+            await Run("dotnet", $"test \"{Path.Combine(scaffoldDir, $"{scaffoldName}.slnx")}\" --no-build --disable-build-servers", scaffoldDir);
 
             // 5. After build and test, a fresh repo must not see any build output as untracked.
             await Run("git", "init -q", scaffoldDir);
@@ -49,9 +52,8 @@ public class TemplateScaffoldsAndBuildsTests
         }
         finally
         {
-            // Cleanup (uninstall by path, since the template was installed from a folder)
-            try { await Run("dotnet", $"new uninstall \"{templatePath}\"", repoRoot, allowFail: true); } catch { }
-            try { if (Directory.Exists(scaffoldDir)) Directory.Delete(scaffoldDir, recursive: true); } catch { }
+            // The hive lives under the work directory, so removing it also uninstalls the template.
+            try { if (Directory.Exists(work)) Directory.Delete(work, recursive: true); } catch { }
         }
     }
 
@@ -69,13 +71,15 @@ public class TemplateScaffoldsAndBuildsTests
 
     private static async Task<string> Capture(string exe, string args, string workingDir, bool allowFail = false)
     {
-        using var p = Process.Start(new ProcessStartInfo(exe, args)
+        var startInfo = new ProcessStartInfo(exe, args)
         {
             WorkingDirectory = workingDir,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
             UseShellExecute = false
-        }) ?? throw new InvalidOperationException($"Failed to start: {exe} {args}");
+        };
+        ChildProcessEnvironment.Apply(startInfo);
+        using var p = Process.Start(startInfo) ?? throw new InvalidOperationException($"Failed to start: {exe} {args}");
 
         var stdout = await p.StandardOutput.ReadToEndAsync();
         var stderr = await p.StandardError.ReadToEndAsync();

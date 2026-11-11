@@ -17,15 +17,16 @@ The template engine's `sourceName: MyApp` substitution applies to file contents 
 
 ## 2. Drift-guard for duplicated config
 
-Three files are duplicated between the repo root and `content/za-clean/`:
+Two files are duplicated between the repo root and `content/za-clean/`:
 
 - `Directory.Build.props`
 - `Directory.Packages.props`
-- `global.json`
 
 The repo-root copies serve the template-tooling projects (smoke test + template package). The `content/za-clean/` copies serve the scaffolded app (so it works standalone after `dotnet new za-clean`).
 
-**CI enforces they stay identical** via the drift-guard step in `.github/workflows/ci.yml`. When bumping a package version or SDK pin, **edit both copies**. CI will refuse to merge if they differ.
+**CI enforces they stay identical** via the drift-guard step in `.github/workflows/ci.yml`. When bumping a package version, **edit both copies**. CI will refuse to merge if they differ.
+
+`global.json` is deliberately **not** duplicated. The root pins SDK 11, so the smoke tests can target net10.0 and net11.0. `content/<template>/global.json` pins SDK 10, the one the scaffolded app targets; it stays on net10.0 until the template offers a framework choice. Bump each pin on its own.
 
 ## 3. Verify before commit
 

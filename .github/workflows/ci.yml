@@ -20,10 +20,12 @@ jobs:
         with:
           fetch-depth: 0
 
+      # global.json is not compared: the root pins SDK 11 so the smoke tests can run on net11.0,
+      # while each content/<template>/ pins SDK 10, the one the scaffolded app targets.
       - name: Verify root vs content config files match
         shell: bash
         run: |
-          for file in Directory.Build.props Directory.Packages.props global.json; do
+          for file in Directory.Build.props Directory.Packages.props; do
             for template in za-clean za-vertical-slice; do
               if ! diff -q "$file" "content/$template/$file" > /dev/null; then
                 echo "::error::$file has drifted between repo root and content/$template/"
