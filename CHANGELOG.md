@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.17.2](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/compare/ZeroAlloc.Templates-v0.17.1...ZeroAlloc.Templates-v0.17.2) (2026-11-12)
+
+
+### Documentation
+
+* add context7.json to claim the library on Context7 ([#639](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/issues/639)) ([87238b3](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/commit/87238b395ca83a4da68542d9444de40371e8b885))
+
 ## [0.17.1](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/compare/ZeroAlloc.Templates-v0.17.0...ZeroAlloc.Templates-v0.17.1) (2026-11-05)
 
 
