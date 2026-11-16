@@ -8,7 +8,7 @@
   <ItemGroup>
     <!-- ZeroAlloc.* ecosystem (confirmed shipped versions). -->
     <PackageVersion Include="ZeroAlloc.Mapping" Version="1.7.0" />
-    <PackageVersion Include="ZeroAlloc.Mediator" Version="6.7.0" />
+    <PackageVersion Include="ZeroAlloc.Mediator" Version="6.7.1" />
     <PackageVersion Include="ZeroAlloc.Results" Version="1.5.0" />
     <PackageVersion Include="ZeroAlloc.ValueObjects" Version="2.4.0" />
     <PackageVersion Include="ZeroAlloc.Serialisation" Version="2.11.0" />
@@ -23,10 +23,10 @@
     <PackageVersion Include="ZeroAlloc.Rest" Version="3.8.1" />
     <PackageVersion Include="ZeroAlloc.Rest.SystemTextJson" Version="3.8.1" />
     <PackageVersion Include="ZeroAlloc.Rest.Resilience" Version="3.8.1" />
-    <PackageVersion Include="ZeroAlloc.Mediator.Validation" Version="6.7.0" />
-    <PackageVersion Include="ZeroAlloc.Mediator.Authorization" Version="6.7.0" />
-    <PackageVersion Include="ZeroAlloc.Mediator.Telemetry" Version="6.7.0" />
-    <PackageVersion Include="ZeroAlloc.Mediator.Generator" Version="6.7.0" />
+    <PackageVersion Include="ZeroAlloc.Mediator.Validation" Version="6.7.1" />
+    <PackageVersion Include="ZeroAlloc.Mediator.Authorization" Version="6.7.1" />
+    <PackageVersion Include="ZeroAlloc.Mediator.Telemetry" Version="6.7.1" />
+    <PackageVersion Include="ZeroAlloc.Mediator.Generator" Version="6.7.1" />
     <PackageVersion Include="ZeroAlloc.Inject.Generator" Version="1.12.0" />
     <!-- ZeroAlloc.ORM + AdoNet.Async substrate (replaces EF Core 10).
          [Command] partial methods take an optional IAsyncDbTransaction
@@ -50,7 +50,7 @@
     <PackageVersion Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.15" />
     <PackageVersion Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.0.15" />
     <PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="10.0.15" />
-    <PackageVersion Include="Scalar.AspNetCore" Version="2.20.0" />
+    <PackageVersion Include="Scalar.AspNetCore" Version="2.21.0" />
     <PackageVersion Include="System.IdentityModel.Tokens.Jwt" Version="8.23.0" />
     <!-- OpenTelemetry. -->
     <PackageVersion Include="OpenTelemetry.Exporter.Console" Version="1.21.0" />
@@ -70,7 +70,7 @@
     <PackageVersion Include="NBomber" Version="6.7.1" />
     <PackageVersion Include="NBomber.Http" Version="6.2.1" />
     <!-- Analyzers (injected by Directory.Build.props for non-template projects). -->
-    <PackageVersion Include="Meziantou.Analyzer" Version="3.0.326" />
+    <PackageVersion Include="Meziantou.Analyzer" Version="3.0.327" />
     <PackageVersion Include="Roslynator.Analyzers" Version="5.0.1" />
   </ItemGroup>
 </Project>
