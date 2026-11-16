@@ -30,7 +30,7 @@ The repo-root copies serve the template-tooling projects (smoke test + template 
 
 ## 3. Verify before commit
 
-Runtimes: the smoke tests multi-target `net10.0` and `net11.0`, so the .NET 10 and .NET 11 runtimes must both be installed. The content test projects target `net10.0` only.
+SDKs: the root `global.json` pins SDK 11.0.100, and both `content/*/global.json` pin 10.0.404 with `rollForward: latestMinor`, which cannot select SDK 11, so commands run inside a template folder need SDK 10.0.404 or a later SDK 10 too. Runtimes: the smoke tests multi-target `net10.0` and `net11.0`, so the .NET 10 and .NET 11 runtimes must both be installed. The content test projects target `net10.0` only.
 
 CI commands, by job in `.github/workflows/ci.yml`. The `build-vs` job repeats the `build` content steps for `content/za-vertical-slice/MyApp.slnx`.
 
