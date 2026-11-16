@@ -2,7 +2,7 @@
 
 > For AI coding agents working on the `ZeroAlloc.Templates` repo itself (not on a scaffolded app).
 
-For agents working on a scaffolded `dotnet new za-clean` output, see [content/za-clean/AGENTS.md](content/za-clean/AGENTS.md).
+For agents working on a scaffolded `dotnet new za-clean` output, see [content/za-clean/AGENTS.md](content/za-clean/AGENTS.md). The `za-vertical-slice` template has its own [content/za-vertical-slice/AGENTS.md](content/za-vertical-slice/AGENTS.md).
 
 ## 1. Repo split
 
@@ -10,48 +10,65 @@ This repo has two distinct surfaces:
 
 | Surface | Path | What lives there |
 |---|---|---|
-| **Template payload** | `content/za-clean/` | The actual scaffolded app — `src/`, `tests/`, `benchmarks/`, `MyApp.slnx`, plus its own `Directory.Build.props` / `Directory.Packages.props` / `global.json`. **Everything under here ships in the NuGet template package.** |
+| **Template payload** | `content/za-clean/`, `content/za-vertical-slice/` | The actual scaffolded apps — `src/`, `tests/`, `benchmarks/`, `MyApp.slnx`, plus each template's own `Directory.Build.props` / `Directory.Packages.props` / `global.json`. **Everything under here ships in the NuGet template package.** |
 | **Template tooling** | Repo root | `ZeroAlloc.Templates.csproj` (the NuGet template package), `tests/ZeroAlloc.Templates.SmokeTests/` (smoke gate), `.github/workflows/` (CI + release-please), `docs/`, `README.md`. **Does not ship in the template package.** |
 
-The template engine's `sourceName: MyApp` substitution applies to file contents and filenames under `content/za-clean/`. The repo root is unaffected.
+The template engine's `sourceName: MyApp` substitution applies to file contents and filenames under `content/<template>/`. The repo root is unaffected.
 
 ## 2. Drift-guard for duplicated config
 
-Two files are duplicated between the repo root and `content/za-clean/`:
+Two files are duplicated between the repo root and each template under `content/` (`za-clean` and `za-vertical-slice`):
 
 - `Directory.Build.props`
 - `Directory.Packages.props`
 
-The repo-root copies serve the template-tooling projects (smoke test + template package). The `content/za-clean/` copies serve the scaffolded app (so it works standalone after `dotnet new za-clean`).
+The repo-root copies serve the template-tooling projects (smoke test + template package). The `content/<template>/` copies serve the scaffolded app (so it works standalone after `dotnet new`).
 
-**CI enforces they stay identical** via the drift-guard step in `.github/workflows/ci.yml`. When bumping a package version, **edit both copies**. CI will refuse to merge if they differ.
+**CI enforces they stay identical** via the drift-guard step in the `build` job of `.github/workflows/ci.yml`, which compares the root copy with both templates. When bumping a package version, **edit all three copies**. CI will refuse to merge if they differ.
 
-`global.json` is deliberately **not** duplicated. The root pins SDK 11, so the smoke tests can target net10.0 and net11.0. `content/<template>/global.json` pins SDK 10, the one the scaffolded app targets; it stays on net10.0 until the template offers a framework choice. Bump each pin on its own.
+`global.json` is deliberately **not** duplicated. The root pins SDK 11 (`11.0.100`), so the smoke tests can target net10.0 and net11.0. Each `content/<template>/global.json` pins SDK 10 (`10.0.404`), the one the scaffolded app targets; it stays on net10.0 until the template offers a framework choice. Bump each pin on its own.
 
 ## 3. Verify before commit
 
-Full pipeline:
+Runtimes: the smoke tests multi-target `net10.0` and `net11.0`, so the .NET 10 and .NET 11 runtimes must both be installed. The content test projects target `net10.0` only.
+
+CI commands, by job in `.github/workflows/ci.yml`. The `build-vs` job repeats the `build` content steps for `content/za-vertical-slice/MyApp.slnx`.
 
 ```bash
-# 1. Content builds + tests pass
-dotnet build content/za-clean/MyApp.slnx
-dotnet test content/za-clean/MyApp.slnx
+# Job build (and build-vs with the za-vertical-slice solution): content builds + tests pass
+dotnet restore content/za-clean/MyApp.slnx
+dotnet build content/za-clean/MyApp.slnx --no-restore --configuration Release -warnaserror
+dotnet test content/za-clean/MyApp.slnx --no-build --configuration Release
 
-# 2. Template package builds
-dotnet pack ZeroAlloc.Templates.csproj -o ./nupkg
+# Job build: primitives benchmark dry-run, from the benchmarks project folder
+cd content/za-clean/benchmarks/MyApp.Benchmarks.Primitives
+dotnet run -c Release --no-build -- --filter "*" --job dry
+cd -
 
-# 3. Smoke test (install + scaffold + build + test, ~25 s)
-dotnet test tests/ZeroAlloc.Templates.SmokeTests
+# Job build: template package builds (CI uses -p:Version=0.0.0-ci.N, a version is required)
+SHA=$(git rev-parse --short HEAD); dotnet pack ZeroAlloc.Templates.csproj -c Release -p:Version=9.9.9-local.$SHA -o ./nupkg -warnaserror
 
-# Skip the slow smoke test during inner-loop:
-dotnet test --filter "Category!=Slow"
+# Job build: smoke test (install + scaffold + build + test)
+dotnet restore tests/ZeroAlloc.Templates.SmokeTests/ZeroAlloc.Templates.SmokeTests.csproj
+dotnet test tests/ZeroAlloc.Templates.SmokeTests --configuration Release -warnaserror
 ```
 
+Skip the slow smoke test during the inner loop; only the smoke tests carry the `Slow` trait, so run just the content solution:
+
+```bash
+dotnet test content/za-clean/MyApp.slnx --configuration Release
+```
+
+This sequence does not reproduce every CI gate. CI also runs the Coverage gate (`MarcelRoozekrans/ci-baseline/actions/coverage-gate@v1` on the Cobertura reports of the content tests), the `aot-publish-smoke` jobs (scaffold the template and `dotnet publish -r linux-x64 -warnaserror`, boot the binary, run `scripts/request-smoke.sh`) and the `real-run-smoke` jobs (same boot and request smoke on the JIT build), each for both templates. Delete `./nupkg` after a local pack.
+
 Pre-PR checklist:
-- All four steps above are green
+- The build, test, pack and smoke steps above are green, for both templates
 - If you touched the content, the smoke test confirms it still scaffolds + builds
-- Conventional commits (`feat(application): …`, `fix(infrastructure): …`, `docs(template): …`)
-- Drift-guard passes (root vs content/ config files identical)
+- Drift-guard passes (root vs both `content/<template>/` config files identical)
+
+## 4. Benchmarks
+
+Exception to the org rule that benchmarks run in CI through the shared `benchmark-smoke.yml`: this repo does not call that workflow. `.github/workflows/benchmarks.yml` is manual (`workflow_dispatch`) and runs BenchmarkDotNet and NBomber for both templates; the only per-PR benchmark check is the primitives dry-run in `ci.yml`.
 
 <!-- org-core:start sha256=8faf417fa86f11bd8ad9bc98dfa4683fba44e440291e84c6cb9b0ec3ca0c0e7e (generated from docker-nuc scripts/agents-md/org-core-zeroalloc.md; do not edit here) -->
 ## Org rules
