@@ -42,7 +42,7 @@ jobs:
           # that SDK at all and only works when the runner image happens to ship one
           # satisfying the pin, which is how a publish failed on a lagging image.
           global-json-file: global.json
-          dotnet-version: 10.0.x
+          dotnet-version: 11.0.x
 
       - name: Restore (content)
         run: dotnet restore content/za-clean/MyApp.slnx
@@ -129,7 +129,7 @@ jobs:
           # that SDK at all and only works when the runner image happens to ship one
           # satisfying the pin, which is how a publish failed on a lagging image.
           global-json-file: global.json
-          dotnet-version: 10.0.x
+          dotnet-version: 11.0.x
 
       - name: Restore (content)
         run: dotnet restore content/za-vertical-slice/MyApp.slnx
@@ -186,7 +186,7 @@ jobs:
           # that SDK at all and only works when the runner image happens to ship one
           # satisfying the pin, which is how a publish failed on a lagging image.
           global-json-file: global.json
-          dotnet-version: 10.0.x
+          dotnet-version: 11.0.x
 
       - name: Install template from source
         run: dotnet new install ./content/za-clean
@@ -264,7 +264,7 @@ jobs:
           # that SDK at all and only works when the runner image happens to ship one
           # satisfying the pin, which is how a publish failed on a lagging image.
           global-json-file: global.json
-          dotnet-version: 10.0.x
+          dotnet-version: 11.0.x
 
       - name: Install template from source
         run: dotnet new install ./content/za-clean
@@ -330,7 +330,7 @@ jobs:
           # that SDK at all and only works when the runner image happens to ship one
           # satisfying the pin, which is how a publish failed on a lagging image.
           global-json-file: global.json
-          dotnet-version: 10.0.x
+          dotnet-version: 11.0.x
 
       - name: Install template from source
         run: dotnet new install ./content/za-vertical-slice
@@ -403,7 +403,7 @@ jobs:
           # that SDK at all and only works when the runner image happens to ship one
           # satisfying the pin, which is how a publish failed on a lagging image.
           global-json-file: global.json
-          dotnet-version: 10.0.x
+          dotnet-version: 11.0.x
 
       - name: Install template from source
         run: dotnet new install ./content/za-vertical-slice
