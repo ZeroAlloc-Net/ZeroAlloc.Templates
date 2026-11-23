@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.17.3](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/compare/ZeroAlloc.Templates-v0.17.2...ZeroAlloc.Templates-v0.17.3) (2026-11-23)
+
+
+### Bug Fixes
+
+* scaffold apps on the 2026-11 majors' SDK 10-compatible patches ([#691](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/issues/691)) ([a95726f](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/commit/a95726fb70a98841c849bef01a94b564d6ae247d))
+
 ## [0.17.2](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates/compare/ZeroAlloc.Templates-v0.17.1...ZeroAlloc.Templates-v0.17.2) (2026-11-12)
 
 
