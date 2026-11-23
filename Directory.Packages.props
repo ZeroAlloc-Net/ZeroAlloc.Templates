@@ -8,7 +8,7 @@
   <ItemGroup>
     <!-- ZeroAlloc.* ecosystem (confirmed shipped versions). -->
     <PackageVersion Include="ZeroAlloc.Mapping" Version="1.7.1" />
-    <PackageVersion Include="ZeroAlloc.Mediator" Version="6.7.2" />
+    <PackageVersion Include="ZeroAlloc.Mediator" Version="7.0.1" />
     <PackageVersion Include="ZeroAlloc.Results" Version="1.5.1" />
     <PackageVersion Include="ZeroAlloc.ValueObjects" Version="2.4.1" />
     <PackageVersion Include="ZeroAlloc.Serialisation" Version="2.11.1" />
@@ -23,10 +23,10 @@
     <PackageVersion Include="ZeroAlloc.Rest" Version="3.8.2" />
     <PackageVersion Include="ZeroAlloc.Rest.SystemTextJson" Version="3.8.2" />
     <PackageVersion Include="ZeroAlloc.Rest.Resilience" Version="3.8.2" />
-    <PackageVersion Include="ZeroAlloc.Mediator.Validation" Version="6.7.2" />
-    <PackageVersion Include="ZeroAlloc.Mediator.Authorization" Version="6.7.2" />
-    <PackageVersion Include="ZeroAlloc.Mediator.Telemetry" Version="6.7.2" />
-    <PackageVersion Include="ZeroAlloc.Mediator.Generator" Version="6.7.2" />
+    <PackageVersion Include="ZeroAlloc.Mediator.Validation" Version="7.0.1" />
+    <PackageVersion Include="ZeroAlloc.Mediator.Authorization" Version="7.0.1" />
+    <PackageVersion Include="ZeroAlloc.Mediator.Telemetry" Version="7.0.1" />
+    <PackageVersion Include="ZeroAlloc.Mediator.Generator" Version="7.0.1" />
     <PackageVersion Include="ZeroAlloc.Inject.Generator" Version="1.12.1" />
     <!-- ZeroAlloc.ORM + AdoNet.Async substrate (replaces EF Core 10).
          [Command] partial methods take an optional IAsyncDbTransaction
