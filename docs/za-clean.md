@@ -282,7 +282,7 @@ Per-primitive comparisons against the ecosystem alternatives. These blocks are r
 
 #### Mapping
 <!-- MAPPING:START -->
-_Imported from ZA.Mapping — last refreshed 2026-11-02._
+_Imported from ZA.Mapping — last refreshed 2026-11-23._
 
 _Last refreshed: 2026-10-17_
 
@@ -365,7 +365,7 @@ Affinity=00000000000000010100  LaunchCount=3
 
 #### Mediator
 <!-- MEDIATOR:START -->
-_Imported from ZA.Mediator — last refreshed 2026-11-02._
+_Imported from ZA.Mediator — last refreshed 2026-11-23._
 
 | Operation | MediatR time | ZA Alloc | MediatR Alloc |
 |---|---:|---:|---:|
@@ -380,20 +380,20 @@ _Imported from ZA.Mediator — last refreshed 2026-11-02._
 | Stream (5 items) | **2.77×** (2.73–2.83) | 104 B | 528 B |
 | Stream (via IMediator DI, scope per call) | **2.25×** (2.21–2.29) | 280 B | 728 B |
 
-The static `Mediator` class is **3.9–20× faster** than MediatR, with zero heap allocations on every non-streaming path. An earlier run reported 160× for `Send`, from a 0.5 ns figure for the static call, too short to measure reliably; the ratio above comes from three pinned launches. `HotPathAllocationTests` and `SpanExceptionDescriptionTests` gate `Send`, `Send` + pipeline and `Publish` at 0 B, and `HotPathAllocationTests` also gates `Send` and `Publish` with no factory registered.
+The static `Mediator` class is **3.9–20× faster** than MediatR, with zero heap allocations on every non-streaming path. An earlier run reported 160× for `Send`, from a 0.5 ns figure for the static call, too short to measure reliably; the ratio above comes from three pinned launches. `HotPathAllocationTests` and `SpanExceptionDescriptionTests` gate `Send`, `Send` + pipeline, `IMediator.Send` + pipeline and `Publish` at 0 B, and `HotPathAllocationTests` also gates `Send` and `Publish` with no factory registered.
 
-**Handler fallback.** These rows use handlers with a parameterless constructor and no registered factory. The static `Mediator` then reuses one cached instance per handler type, provided the handler is stateless: no instance fields, auto-properties, field-like events or primary-constructor parameters, on the class or on any base class, and no base class from another assembly, whose private fields the generator cannot see. Static fields and constants do not count. The cache is filled on first use and published with `Interlocked.CompareExchange`, so every caller shares one instance; it does not rely on the JIT, so the 0 B holds on .NET 8 and before tier-up too. Before [#328](https://github.com/ZeroAlloc-Net/ZeroAlloc.Mediator/issues/328) the fallback created the handler on every call, 24 B for an empty class, and these rows read 0 B only because the .NET 10 JIT stack-allocated it.
+**Handler fallback.** These rows use handlers with a parameterless constructor and no registered factory. The static `Mediator` then reuses one cached instance per handler type, provided the handler is stateless: no instance fields, auto-properties, field-like events or primary-constructor parameters, on the class or on any base class, and no base class from another assembly, whose private fields the generator cannot see. Static fields and constants do not count. The cache is filled on first use and published with `Interlocked.CompareExchange`, so every caller shares one instance; it does not rely on the JIT, so the 0 B holds before tier-up too. Before [#328](https://github.com/ZeroAlloc-Net/ZeroAlloc.Mediator/issues/328) the fallback created the handler on every call, 24 B for an empty class, and these rows read 0 B only because the .NET 10 JIT stack-allocated it.
 
 A handler that holds state is still created on every call, so state never leaks from one call into the next; that is one handler object per call. `Mediator.Configure(c => c.SetFactory(() => handler))` is only needed for such stateful handlers, when you want them shared, or 0 B. A registered factory always takes precedence over the cached instance.
 
-**IMediator allocation sources.** The two DI rows create a scope and resolve `IMediator` from it on every call, the way an ASP.NET Core request does, so they include the scope and the transient `MediatorService`. On top of that, `IMediator.Send` with pipeline behaviors can allocate one `next` delegate per behavior per call: its lambdas read the provider it was resolved from, so the compiler cannot cache them (ZeroAlloc.Pipeline#121 tracks removing this). The benchmark's behavior only forwards to `next`, so the .NET 10 JIT inlines it and keeps the delegate on the stack; a behavior that awaits, such as the authorization bridge, pays 64 B per behavior. A pipeline with a behavior that may read `PipelineBehaviorServices.Current` adds 72 B per call for that `AsyncLocal` write; the benchmark's behavior declares `UsesPipelineBehaviorServices = false` and the bridge behaviors take the provider as an argument, so they skip it. See [How a bridge reaches your container](dependency-injection.md#how-a-bridge-reaches-your-container).
+**IMediator allocation sources.** The two DI rows create a scope and resolve `IMediator` from it on every call, the way an ASP.NET Core request does, so they include the scope and the transient `MediatorService`. `IMediator.Send` through pipeline behaviors adds nothing on top of that. Before 7.0 its lambdas read the provider it was resolved from, so the compiler could not cache them and each `Send` allocated one `next` delegate per behavior: 64 B for each behavior that awaits, such as the authorization bridge, plus 72 B for the `AsyncLocal` write behind `PipelineBehaviorServices.Current`. 7.0 passes the provider through `next` as the pipeline state, so every lambda is `static` and the compiler creates each one once. `HotPathAllocationTests` gates `IMediator.Send` through two behaviors that await and are not inlined, with the Cache, Validation and Resilience bridges in the same chain, at 0 B; that case allocated 392 B per call in 6.x. The authorization pipeline, whose `Send` still allocates the transient handler and the 32 B security-context adapter, went from 184 B to 56 B. The benchmark's behavior only forwards to `next`, so the .NET 10 JIT inlined it and kept the delegate on the stack even in 6.x; its row did not change. See [How a bridge reaches your container](dependency-injection.md#how-a-bridge-reaches-your-container).
 
 **Stream allocation source.** The 104 B on the ZA Stream row is the C# compiler's `async IAsyncEnumerable<T>` state-machine allocation for the user's handler method (e.g. `async IAsyncEnumerable<int> Handle(...) { yield return ...; }`). Any mediator dispatching to such handlers pays this cost — MediatR pays it *on top of* its own ~424 B wrapper. ZA.Mediator's own stream-dispatch contribution is 0 B. .NET 10 has no pooled state-machine builder for `async IAsyncEnumerable<T>` (unlike `ValueTask` with `[AsyncMethodBuilder(typeof(PoolingAsyncValueTaskMethodBuilder))]`); the only way to drop below 104 B is to implement `IAsyncEnumerable<T>` by hand without `yield return`.
 <!-- MEDIATOR:END -->
 
 #### Validation
 <!-- VALIDATION:START -->
-_Imported from ZA.Validation — last refreshed 2026-11-02._
+_Imported from ZA.Validation — last refreshed 2026-11-23._
 
 _Last refreshed: 2026-10-21, against FluentValidation 12.2.0. Allocations are exact. Speed is shown as same-run ratios; absolute timings are not published. Speedups are FluentValidation's mean divided by ZeroAlloc's, from the same BenchmarkDotNet run._
 
@@ -409,7 +409,7 @@ ZeroAlloc.Validation is **22.7–145.0× faster** than FluentValidation 12 on th
 
 #### Inject
 <!-- INJECT:START -->
-_Imported from ZA.Inject — last refreshed 2026-11-02._
+_Imported from ZA.Inject — last refreshed 2026-11-23._
 
 _Last refreshed: 2026-10-17_
 
@@ -451,7 +451,7 @@ The **ZA.Inject Container** creates the MS DI fallback scope only on first fallb
 
 #### Results
 <!-- RESULTS:START -->
-_Imported from ZA.Results — last refreshed 2026-11-02._
+_Imported from ZA.Results — last refreshed 2026-11-23._
 
 _Last refreshed: 2026-10-21_
 
@@ -482,7 +482,7 @@ ErrorOr and FluentResults allocate per-failure because their error types (`Error
 
 #### ValueObjects
 <!-- VALUEOBJECTS:START -->
-_Imported from ZA.ValueObjects — last refreshed 2026-11-02._
+_Imported from ZA.ValueObjects — last refreshed 2026-11-23._
 
 _Last refreshed: 2026-10-21_
 
@@ -505,7 +505,7 @@ History: the previous single-property `ToString` allocated ~72 B per call and `G
 
 #### Specification
 <!-- SPECIFICATION:START -->
-_Imported from ZA.Specification — last refreshed 2026-11-02._
+_Imported from ZA.Specification — last refreshed 2026-11-23._
 
 _Last refreshed: 2026-10-21 — Ardalis.Specification 9.3.1, .NET 10.0.13, BenchmarkDotNet v0.15.8, Windows 11 on an otherwise idle i9-12900HK; out of process, three launches, pinned to two performance cores. Allocations are exact. Speed is shown as same-run ratios; absolute timings are not published._
 
@@ -526,7 +526,7 @@ ZA.Specification's `IsSatisfiedBy` is a direct, non-virtual call on a struct val
 
 #### StateMachine
 <!-- STATEMACHINE:START -->
-_Imported from ZA.StateMachine — last refreshed 2026-11-02._
+_Imported from ZA.StateMachine — last refreshed 2026-11-23._
 
 _Last refreshed: 2026-10-21. Stateless 5.20.1, BenchmarkDotNet v0.15.8, .NET 10.0.13, Windows 11 on an otherwise idle i9-12900HK; out of process, three launches, pinned to two performance cores. Allocations are exact. Speed is shown as same-run ratios; absolute timings are not published._
 
@@ -546,7 +546,7 @@ This is the apples-to-apples comparison for cyclic state machines — a per-requ
 
 #### Resilience
 <!-- RESILIENCE:START -->
-_Imported from ZA.Resilience — last refreshed 2026-11-02._
+_Imported from ZA.Resilience — last refreshed 2026-11-23._
 
 _Last refreshed: 2026-10-21. Polly.Core 8.8.0, BenchmarkDotNet 0.15.8, .NET 10.0.13 on Windows 11, i9-12900HK, on an otherwise idle machine. Every benchmark ran out of process in three launches, pinned to two performance cores. Allocations are exact. Speed is shown as same-run ratios; absolute timings are not published._
 
@@ -579,7 +579,7 @@ Rate-limit and timeout limits in the all-policies harness are set to `int.MaxVal
 
 #### Rest
 <!-- REST:START -->
-_Imported from ZA.Rest — last refreshed 2026-11-02._
+_Imported from ZA.Rest — last refreshed 2026-11-23._
 
 _Last refreshed: 2026-10-21_
 
@@ -598,7 +598,7 @@ ZeroAlloc.Rest is **1.1–2.0× faster than Refit** across every shape of call (
 
 #### Serialisation
 <!-- SERIALISATION:START -->
-_Imported from ZA.Serialisation — last refreshed 2026-11-02._
+_Imported from ZA.Serialisation — last refreshed 2026-11-23._
 
 _Last refreshed: 2026-10-21_
 
@@ -646,7 +646,7 @@ The dispatcher's `Serialize(object, Type)` returns memory the caller owns, so th
 
 #### Cache
 <!-- CACHE:START -->
-_Imported from ZA.Cache — last refreshed 2026-11-02._
+_Imported from ZA.Cache — last refreshed 2026-11-23._
 
 _Last refreshed: 2026-10-17_
 
@@ -678,7 +678,7 @@ Every benchmark ran out of process in three launches on an otherwise idle machin
 
 #### Telemetry
 <!-- TELEMETRY:START -->
-_Imported from ZA.Telemetry — last refreshed 2026-11-02._
+_Imported from ZA.Telemetry — last refreshed 2026-11-23._
 
 _Last refreshed: 2026-10-21_
 
@@ -700,49 +700,48 @@ Neither wrapper allocates in the no-listeners path. Against the uninstrumented d
 
 #### Notify
 <!-- NOTIFY:START -->
-_Imported from ZA.Notify — last refreshed 2026-11-02._
+_Imported from ZA.Notify — last refreshed 2026-11-23._
 
-_Last refreshed: 2026-10-21_
+_Last refreshed: 2026-11-21_
 
 ```
-BenchmarkDotNet v0.15.8, Windows 11 (10.0.26300.9711)
-12th Gen Intel Core i9-12900HK 2.50GHz, 1 CPU, 20 logical and 14 physical cores
-.NET SDK 10.0.402
-  [Host] : .NET 10.0.13 (10.0.13, 10.0.1326.50504), X64 RyuJIT x86-64-v3
+BenchmarkDotNet v0.15.8, Linux Ubuntu 26.04.1 LTS (Resolute Raccoon)
+AMD EPYC 7763 2.59GHz, 1 CPU, 4 logical and 2 physical cores
+.NET SDK 11.0.100
+  [Host]     : .NET 10.0.15 (10.0.15, 10.0.1526.53008), X64 RyuJIT x86-64-v3
+  DefaultJob : .NET 10.0.15 (10.0.15, 10.0.1526.53008), X64 RyuJIT x86-64-v3
 ```
 
 > Allocations are exact. Speed is shown as same-run ratios; absolute timings are not published.
 
-Measured on an otherwise idle machine, on .NET 10 and .NET 8, out of process, in three launches pinned to two performance cores. Ratio is each row's mean time relative to the hand-written `INotifyPropertyChanged` in the same run, with the lowest and highest of the three launches in brackets. All four libraries have five handlers attached, to mirror a realistic MVVM scenario. CommunityToolkit.Mvvm 8.4.2, PropertyChanged.Fody 4.1.0.
+Measured with version 2.0 by the `full` job of the Benchmarks workflow, on a GitHub-hosted Linux runner, on .NET 10, out of process, in one launch. Ratio is each row's mean time relative to the hand-written `INotifyPropertyChanged` in the same run. A shared runner is noisier than a pinned, idle machine, so treat differences of a few hundredths as noise. All four libraries have five handlers attached, to mirror a realistic MVVM scenario. CommunityToolkit.Mvvm 8.4.2, PropertyChanged.Fody 4.1.0.
 
-| Library | Ratio, .NET 10 | Ratio, .NET 8 | Allocated | Async support |
-|---|---:|---:|---:|:---:|
-| Manual `INotifyPropertyChanged` (baseline) | 1.00 | 1.00 | 24 B | ❌ |
-| PropertyChanged.Fody | **0.93** (0.91–0.95) | **1.02** (1.02–1.03) | **0 B** | ❌ |
-| CommunityToolkit.Mvvm | 1.81 (1.74–1.91) | 1.84 (1.80–1.86) | 0 B | ❌ |
-| **ZeroAlloc.Notify** | **1.47** (1.42–1.54) | **1.63** (1.62–1.66) | **40 B** | ✅ |
+| Library | Ratio, .NET 10 | Allocated | Async support |
+|---|---:|---:|:---:|
+| Manual `INotifyPropertyChanged` (baseline) | 1.00 | 24 B | ❌ |
+| PropertyChanged.Fody | **0.76** | **0 B** | ❌ |
+| CommunityToolkit.Mvvm | 1.35 | 0 B | ❌ |
+| **ZeroAlloc.Notify** | **1.52** | **0 B** | ✅ |
 
-**Honest framing**: ZA.Notify is slower than a hand-written `INotifyPropertyChanged` and Fody, and it allocates. It is faster than CommunityToolkit.Mvvm here, which allocates nothing. The 40 B is the `AsyncPropertyChangedEventArgs` object handed to the handlers, much like the `PropertyChangedEventArgs` the manual INPC baseline allocates. The view model also declares `PropertyChanging`, which has no subscribers here, so its args are never created. The other three are pure sync and cannot `await` propagation.
+**Honest framing**: ZA.Notify is the slowest of the four in this run: slower than a hand-written `INotifyPropertyChanged`, Fody and CommunityToolkit.Mvvm. Its 0 B is what this run measured, and `AllocationTests` gates it exactly. The view model also declares `PropertyChanging`, which has no subscribers here, so its args are never created. The other three are pure sync and cannot `await` propagation.
 
-**ZA.Notify is the only library here that supports async handlers.** The trade-off is the cost of that capability. For pure-sync view models that never need to `await` a handler (the vast majority of XAML/Avalonia/WinUI scenarios), **Fody is the right choice**: it is as fast as hand-written code and allocates nothing. For scenarios where the setter needs to wait for async work to complete before returning (e.g., async validation before notifying observers; coordinated async state transitions), ZA.Notify is the only library that supports it.
-
-The 2026-10-11 capture put ZA.Notify at 3.2 times the hand-written baseline. This run, three pinned launches on an idle machine, replaces it.
+**ZA.Notify is the only library here that supports async handlers.** The trade-off is the cost of that capability. For pure-sync view models that never need to `await` a handler (the vast majority of XAML/Avalonia/WinUI scenarios), **Fody is the right choice**: it is faster than hand-written code and allocates nothing. For scenarios where the setter needs to wait for async work to complete before returning (e.g., async validation before notifying observers; coordinated async state transitions), ZA.Notify is the only library that supports it.
 
 ### Where the allocations come from
 
-`NotifyAllocationBenchmarks`, same runs. The view model declares both `PropertyChanging` and `PropertyChanged`; "five subscribers" means five `PropertyChanged` handlers with the default parallel dispatch. Ratio is relative to the `string` setter with no subscribers.
+`NotifyAllocationBenchmarks`, same run. The view model declares both `PropertyChanging` and `PropertyChanged`; "five subscribers" means five `PropertyChanged` handlers with the default parallel dispatch. Ratio is relative to the `string` setter with no subscribers.
 
-| Setter | No subscribers | Five subscribers | Ratio, .NET 10 | Ratio, .NET 8 |
-|---|---:|---:|---|---|
-| `string` property | 0 B | 40 B | 1.00 → 2.06 (1.96–2.14) | 1.00 → 2.06 (2.01–2.09) |
-| `int` property | 0 B | 88 B | 0.47 (0.45–0.48) → 2.12 (1.92–2.45) | 0.86 (0.81–0.90) → 2.23 (2.15–2.30) |
+| Setter | No subscribers | Five subscribers | Ratio, .NET 10: none → five |
+|---|---:|---:|---|
+| `string` property | 0 B | 0 B | 1.00 → 2.33 |
+| `int` property | 0 B | 0 B | 0.74 → 3.31 |
 
-The `int` property with subscribers pays the 40 B args plus a 24 B box each for the old and the new value.
+Version 1.3 allocated 40 B for the `string` property with subscribers and 88 B for the `int` property: the args object plus a 24 B box each for the old and the new value.
 <!-- NOTIFY:END -->
 
 #### Scheduling
 <!-- SCHEDULING:START -->
-_Imported from ZA.Scheduling — last refreshed 2026-11-02._
+_Imported from ZA.Scheduling — last refreshed 2026-11-23._
 
 _Last refreshed: 2026-10-21. Allocations are exact. Speed is shown as same-run ratios; absolute timings are not published._
 
@@ -779,7 +778,7 @@ dotnet run -c Release -- --filter '*CoravelComparisonBenchmark*' '*NaiveTimerOve
 
 #### Outbox
 <!-- OUTBOX:START -->
-_Imported from ZA.Outbox — last refreshed 2026-11-02._
+_Imported from ZA.Outbox — last refreshed 2026-11-23._
 
 _Last refreshed: 2026-10-21_
 
@@ -808,7 +807,7 @@ The value of the abstraction is the `[OutboxMessage]` attribute + the typed writ
 
 #### EventSourcing
 <!-- EVENTSOURCING:START -->
-_Imported from ZA.EventSourcing — last refreshed 2026-11-02._
+_Imported from ZA.EventSourcing — last refreshed 2026-11-23._
 
 _Last refreshed: 2026-10-17_
 
@@ -821,11 +820,9 @@ Each ZA row's ratio is against the hand-rolled row of the same operation in the 
 | Operation | Framework | Hand-rolled | ZA.EventSourcing | Launch range | Allocated, hand-rolled → ZA |
 |---|---|---:|---:|---:|---:|
 | Append 1 event (transactional, OCC check) | net10.0 | 1.00 | **1.20** | 1.06–1.35 | 3,888 B → 4,688 B |
-| | net8.0 | 1.00 | **1.30** | 1.26–1.37 | 3,888 B → 4,680 B |
 | Read 100-event stream (ordered) | net10.0 | 1.00 | **2.03** | 1.99–2.04 | 12,232 B → 25,632 B |
-| | net8.0 | 1.00 | **2.10** | 2.07–2.13 | 12,232 B → 25,632 B |
 
-**Honest reading**: ZA.EventSourcing adds **a measurable abstraction tax** over a raw SQLite event store — 20–30% time on append and about 2× on read. That tax buys you:
+**Honest reading**: ZA.EventSourcing adds **a measurable abstraction tax** over a raw SQLite event store — about 20% time on append and about 2× on read. That tax buys you:
 
 - Typed events through `IEventStore.AppendAsync<TEvent>` / `ReadAsync` (the hand-rolled version stores raw bytes the caller has to ser/deser themselves)
 - Pluggable serialization through `IEventSerializer` (so you can swap System.Text.Json for MessagePack, protobuf, or your own zero-alloc serializer without touching the store)
