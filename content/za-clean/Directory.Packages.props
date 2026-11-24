@@ -45,7 +45,7 @@
          on 2.x (the sqlite3 C ABI is stable). Drop once Microsoft.Data.Sqlite ships
          a bumped SQLitePCLRaw. -->
     <PackageVersion Include="SQLitePCLRaw.lib.e_sqlite3" Version="3.50.3" />
-    <PackageVersion Include="Npgsql" Version="10.0.3" />
+    <PackageVersion Include="Npgsql" Version="10.0.4" />
     <!-- Microsoft / ASP.NET Core (latest stable for net10). -->
     <PackageVersion Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.15" />
     <PackageVersion Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.0.15" />
